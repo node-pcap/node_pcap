@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
+#include <arpa/inet.h>
 
 using namespace v8;
 using namespace node;
@@ -41,7 +42,7 @@ void packet_ready(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_
     count++;
 
     Local<Function> * callback = (Local<Function>*)callback_p;
-    
+
     // TODO - bounds checking
     memcpy(buffer->data(), packet, pkthdr->caplen);
 
@@ -51,11 +52,11 @@ void packet_ready(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_
 
     double t = pkthdr->ts.tv_sec;
     t += (pkthdr->ts.tv_usec / 1000000);
-    
+
     packet_header->Set(String::New("time"), Date::New(1000*t));
     packet_header->Set(String::New("caplen"), Integer::NewFromUnsigned(pkthdr->caplen));
     packet_header->Set(String::New("len"), Integer::NewFromUnsigned(pkthdr->len));
-    
+
     Local<Value> argv[1] = { packet_header };
 
     (*callback)->Call(Context::GetCurrent()->Global(), 1, argv);
@@ -65,36 +66,36 @@ void packet_ready(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_
     }
 }
 
-char *open_live(char *dev, char *filter) {
-    char errbuf[PCAP_ERRBUF_SIZE];
+int open_live(char *dev, char *filter, char *errbuf) {
+    // errbuf is on the stack of OpenLive
 
     fprintf(stderr, "open_live starting %s\n", dev);
     if (pcap_lookupnet(dev, &net, &mask, errbuf) == -1) {
-         fprintf(stderr, "Can't get netmask for device %s\n", dev);
-         net = 0;
-         mask = 0;
-         return(NULL);
+        fprintf(stderr, "Can't get netmask for device %s\n", dev);
+        net = 0;
+        mask = 0;
+        return(-1);
     }
 
     pcap_handle = pcap_open_live(dev, 65535, 1, 1000, errbuf);
     if (pcap_handle == NULL) {
         fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
-        return(NULL);
+        return(-1);
     }
 
     if (pcap_setnonblock(pcap_handle, 1, errbuf) == -1) {
         fprintf(stderr, "Couldn't set nonblock: %s", errbuf);
-        return(NULL);
+        return(-1);
     }
 
     if (pcap_compile(pcap_handle, &fp, filter, 1, net) == -1) {
         fprintf(stderr, "Couldn't parse filter %s: %s\n", filter, pcap_geterr(pcap_handle));
-        return(NULL);
+        return(-1);
     }
-    
+
     if (pcap_setfilter(pcap_handle, &fp) == -1) {
         fprintf(stderr, "Couldn't install filter %s: %s\n", filter, pcap_geterr(pcap_handle));
-        return(NULL);
+        return(-1);
     }
 
     int fd = pcap_get_selectable_fd(pcap_handle);
@@ -103,20 +104,14 @@ char *open_live(char *dev, char *filter) {
     #include <net/bpf.h>
     int v = 1;
     ioctl(fd, BIOCIMMEDIATE, &v);
+    // TODO - check return value
 #endif
 
-    // ev_io *pcap_watcher = (ev_io *) calloc(1, sizeof(ev_io));
-    // 
-    // ev_init(pcap_watcher, pcap_readable);
-    // ev_io_set(pcap_watcher, fd, EV_READ);
-    // ev_io_start(EV_DEFAULT_UC_ pcap_watcher);
-    char *return_val = (char *) calloc(1, 10000);
-    sprintf(return_val, "awesome: %d", fd);
-    return (return_val);
+    return (0);
 }
 
 Handle<Value>
-Dispatch(const Arguments& args)
+    Dispatch(const Arguments& args)
 {
     if (args.Length() != 2) {
         return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly two arguments")));
@@ -134,66 +129,138 @@ Dispatch(const Arguments& args)
 
     buffer = ObjectWrap::Unwrap<Buffer>(args[0]->ToObject());
 
-    fprintf(stderr, "pcap_readable called\n");
     int packet_count = pcap_dispatch(pcap_handle, 1, packet_ready, (u_char *)&callback);
-    fprintf(stderr, "pcap_dispatch returned %d\n", packet_count);
 
     return Integer::NewFromUnsigned(packet_count);
 }
 
 Handle<Value>
-OpenLive(const Arguments& args)
+    OpenLive(const Arguments& args)
 {
-  HandleScope scope;
+    HandleScope scope;
+    char errbuf[PCAP_ERRBUF_SIZE];
 
-  if (args.Length() != 2 || !args[0]->IsString() || !args[1]->IsString()) {
-      return ThrowException(Exception::TypeError(String::New("Bad arguments")));
-  }
-  String::Utf8Value device(args[0]->ToString());
-  String::Utf8Value filter(args[1]->ToString());
-  char *str = open_live((char *) *device, (char *) *filter);
-	     
-  return String::New((const char*)str,strlen(str));
+    if (args.Length() != 2 || !args[0]->IsString() || !args[1]->IsString()) {
+        return ThrowException(Exception::TypeError(String::New("Bad arguments")));
+    }
+    String::Utf8Value device(args[0]->ToString());
+    String::Utf8Value filter(args[1]->ToString());
+    if (open_live((char *) *device, (char *) *filter, errbuf) == -1) {
+        return ThrowException(Exception::TypeError(String::New(errbuf)));
+    }
+
+    return Undefined();
 }
 
 Handle<Value>
-FindAllDevs(const Arguments& args)
+    FindAllDevs(const Arguments& args)
 {
-  HandleScope scope;
+    HandleScope scope;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_if_t *alldevsp, *cur_dev;
+    
+    if (pcap_findalldevs(&alldevsp, errbuf) == -1) {
+        return ThrowException(Exception::TypeError(String::New(errbuf)));
+    }
 
-//  int pcap_findalldevs(pcap_if_t **alldevsp, char *errbuf);
-	     
-  char str[] = "FindAllDevs not implemented yet";
-  return String::New((const char*)str,strlen(str));
+    Local<Array> DevsArray = Array::New();
+
+    int i = 0;
+    for (cur_dev = alldevsp ; cur_dev != NULL ; cur_dev = cur_dev->next, i++) {
+        Local<Object> Dev = Object::New();
+
+        Dev->Set(String::New("name"), String::New(cur_dev->name));
+        if (cur_dev->description != NULL) {
+            Dev->Set(String::New("description"), String::New(cur_dev->description));
+        }
+        Local<Array> AddrArray = Array::New();
+        int j = 0;
+        for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
+            if (cur_addr->addr->sa_family == AF_INET) {
+                Local<Object> Address = Object::New();
+                
+                struct sockaddr_in *sin = (struct sockaddr_in *) cur_addr->addr;
+                Address->Set(String::New("addr"), String::New(inet_ntoa(sin->sin_addr)));
+                
+                if (cur_addr->netmask != NULL) {
+                    sin = (struct sockaddr_in *) cur_addr->netmask;
+                    Address->Set(String::New("netmask"), String::New(inet_ntoa(sin->sin_addr)));
+                }
+                if (cur_addr->broadaddr != NULL) {
+                    sin = (struct sockaddr_in *) cur_addr->broadaddr;
+                    Address->Set(String::New("broadaddr"), String::New(inet_ntoa(sin->sin_addr)));
+                }
+                if (cur_addr->dstaddr != NULL) {
+                    sin = (struct sockaddr_in *) cur_addr->dstaddr;
+                    Address->Set(String::New("dstaddr"), String::New(inet_ntoa(sin->sin_addr)));
+                }
+                AddrArray->Set(Integer::New(j), Address);
+            }
+            // TODO - support AF_INET6
+        }
+        
+        Dev->Set(String::New("addresses"), AddrArray);
+
+        if (cur_dev->flags & PCAP_IF_LOOPBACK) {
+            Dev->Set(String::New("flags"), String::New("PCAP_IF_LOOPBACK"));
+        }
+
+        DevsArray->Set(Integer::New(i), Dev);
+    }
+
+    pcap_freealldevs(alldevsp);
+    return DevsArray;
 }
 
 Handle<Value>
-Close(const Arguments& args)
+    Close(const Arguments& args)
 {
-  HandleScope scope;
+    HandleScope scope;
 
-  char str[] = "Close not implemented yet";
-	     
-  return String::New((const char*)str,strlen(str));
+    pcap_close(pcap_handle);
+
+    return Undefined();
 }
 
 Handle<Value>
-Fileno(const Arguments& args)
+    Fileno(const Arguments& args)
 {
-  HandleScope scope;
+    HandleScope scope;
 
-  int fd = pcap_get_selectable_fd(pcap_handle);
+    int fd = pcap_get_selectable_fd(pcap_handle);
 
-  return Integer::NewFromUnsigned(fd);
+    return Integer::NewFromUnsigned(fd);
+}
+
+Handle<Value>
+    Stats(const Arguments& args)
+{
+    HandleScope scope;
+
+    struct pcap_stat ps;
+
+    if (pcap_stats(pcap_handle, &ps) == -1) {
+        return ThrowException(Exception::TypeError(String::New("Error in pcap_stats")));
+        // TODO - use pcap_geterr to figure out what the error was
+    }
+
+    Local<Object> stats_obj = Object::New();
+
+    stats_obj->Set(String::New("ps_recv"), Integer::NewFromUnsigned(ps.ps_recv));
+    stats_obj->Set(String::New("ps_drop"), Integer::NewFromUnsigned(ps.ps_drop));
+    stats_obj->Set(String::New("ps_ifdrop"), Integer::NewFromUnsigned(ps.ps_ifdrop));
+    
+    return stats_obj;
 }
 
 extern "C" void init (Handle<Object> target)
 {
-  HandleScope scope;
+    HandleScope scope;
 
-  target->Set(String::New("findalldevs"), FunctionTemplate::New(FindAllDevs)->GetFunction());
-  target->Set(String::New("open_live"), FunctionTemplate::New(OpenLive)->GetFunction());
-  target->Set(String::New("dispatch"), FunctionTemplate::New(Dispatch)->GetFunction());
-  target->Set(String::New("fileno"), FunctionTemplate::New(Fileno)->GetFunction());
-  target->Set(String::New("close"), FunctionTemplate::New(Close)->GetFunction());
+    target->Set(String::New("findalldevs"), FunctionTemplate::New(FindAllDevs)->GetFunction());
+    target->Set(String::New("open_live"), FunctionTemplate::New(OpenLive)->GetFunction());
+    target->Set(String::New("dispatch"), FunctionTemplate::New(Dispatch)->GetFunction());
+    target->Set(String::New("fileno"), FunctionTemplate::New(Fileno)->GetFunction());
+    target->Set(String::New("close"), FunctionTemplate::New(Close)->GetFunction());
+    target->Set(String::New("stats"), FunctionTemplate::New(Stats)->GetFunction());
 }

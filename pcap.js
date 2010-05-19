@@ -14,7 +14,7 @@ function Pcap () {
 sys.inherits(Pcap, events.EventEmitter);
 
 Pcap.prototype.findalldevs = function () {
-    
+    return binding.findalldevs();
 };
 
 Pcap.prototype.open_live = function (device, filter) {
@@ -38,6 +38,12 @@ Pcap.prototype.open_live = function (device, filter) {
 
 Pcap.prototype.close = function () {
     this.opened = false;
+    binding.close();
+    // TODO - remove listeners so program will exit I guess?
+};
+
+Pcap.prototype.stats = function () {
+    return binding.stats();
 };
 
 exports.Pcap = Pcap;
