@@ -17,30 +17,28 @@
 using namespace v8;
 using namespace node;
 
-char *default_device(void) {
-    char *dev, errbuf[PCAP_ERRBUF_SIZE];
-
-    dev = pcap_lookupdev(errbuf);
-    if (dev == NULL) {
-        fprintf(stderr, "Couldn't find default device: %s\n", errbuf);
-        return(NULL);
-    }
-    printf("Default device: %s\n", dev);
-    return(dev);
-}
-
-struct bpf_program fp;              /* The compiled filter expression */
-bpf_u_int32 mask;                   /* The netmask of our sniffing device */
-bpf_u_int32 net;                    /* The IP of our sniffing device */
+// These things need to be moved into a class, so each instance can have its own session.
+// Right now, there can only be one pcap session at a time.
+struct bpf_program fp;
+bpf_u_int32 mask;
+bpf_u_int32 net;
 pcap_t *pcap_handle;
 Buffer *buffer;
 
-void packet_ready(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
+// PacketReady is called from within pcap, still on the stack of Dispatch.  It should be called
+// only one time per Dispatch, but sometimes it gets called 0 times.  PacketReady invokes the
+// JS callback associated with the dispatch() call in JS.
+//
+// Stack:
+// 1. readWatcher.callback (pcap.js)
+// 2. binding.dispatch (pcap.js)
+// 3. Dispatch (binding.cc)
+// 4. pcap_dispatch (libpcap)
+// 5. PacketReady (binding.cc)
+// 6. binding.dispatch callback (pcap.js)
+//
+void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
     HandleScope scope;
-    static int count = 1;
-//    fprintf(stderr, "packet no: %d, %ld.%d, length: %d\n", count, pkthdr->ts.tv_sec, pkthdr->ts.tv_usec, pkthdr->len);
-//    fflush(stderr);
-    count++;
 
     Local<Function> * callback = (Local<Function>*)callback_p;
 
@@ -68,52 +66,8 @@ void packet_ready(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_
     }
 }
 
-int open_live(char *dev, char *filter, char *errbuf) {
-    // errbuf is on the stack of OpenLive
-
-    fprintf(stderr, "open_live starting %s\n", dev);
-    if (pcap_lookupnet(dev, &net, &mask, errbuf) == -1) {
-        fprintf(stderr, "Can't get netmask for device %s\n", dev);
-        net = 0;
-        mask = 0;
-        return(-1);
-    }
-
-    pcap_handle = pcap_open_live(dev, 65535, 1, 1000, errbuf);
-    if (pcap_handle == NULL) {
-        fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuf);
-        return(-1);
-    }
-
-    if (pcap_setnonblock(pcap_handle, 1, errbuf) == -1) {
-        fprintf(stderr, "Couldn't set nonblock: %s", errbuf);
-        return(-1);
-    }
-
-    if (pcap_compile(pcap_handle, &fp, filter, 1, net) == -1) {
-        fprintf(stderr, "Couldn't parse filter %s: %s\n", filter, pcap_geterr(pcap_handle));
-        return(-1);
-    }
-
-    if (pcap_setfilter(pcap_handle, &fp) == -1) {
-        fprintf(stderr, "Couldn't install filter %s: %s\n", filter, pcap_geterr(pcap_handle));
-        return(-1);
-    }
-
-    int fd = pcap_get_selectable_fd(pcap_handle);
-
-#if defined(__APPLE_CC__) || defined(__APPLE__)
-    #include <net/bpf.h>
-    int v = 1;
-    ioctl(fd, BIOCIMMEDIATE, &v);
-    // TODO - check return value
-#endif
-
-    return (0);
-}
-
 Handle<Value>
-    Dispatch(const Arguments& args)
+Dispatch(const Arguments& args)
 {
     HandleScope scope;
 
@@ -133,13 +87,13 @@ Handle<Value>
 
     buffer = ObjectWrap::Unwrap<Buffer>(args[0]->ToObject());
 
-    int packet_count = pcap_dispatch(pcap_handle, 1, packet_ready, (u_char *)&callback);
+    int packet_count = pcap_dispatch(pcap_handle, 1, PacketReady, (u_char *)&callback);
 
     return scope.Close(Integer::NewFromUnsigned(packet_count));
 }
 
 Handle<Value>
-    OpenLive(const Arguments& args)
+OpenLive(const Arguments& args)
 {
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -149,9 +103,44 @@ Handle<Value>
     }
     String::Utf8Value device(args[0]->ToString());
     String::Utf8Value filter(args[1]->ToString());
-    if (open_live((char *) *device, (char *) *filter, errbuf) == -1) {
-        return ThrowException(Exception::TypeError(String::New(errbuf)));
+
+    // TODO - check for empty device string and look up default device
+
+    if (pcap_lookupnet((char *) *device, &net, &mask, errbuf) == -1) {
+        net = 0;
+        mask = 0;
+        fprintf(stderr, "warning: %s - filtering may not work right\n", errbuf);
     }
+
+    // 64KB is the max IPv4 packet size, 1 is promiscuous mode, 1000ms "read timeout" which sometimes does something good
+    pcap_handle = pcap_open_live((char *) *device, 65535, 1, 1000, errbuf);
+    if (pcap_handle == NULL) {
+        return ThrowException(Exception::Error(String::New(errbuf)));
+    }
+
+    if (pcap_setnonblock(pcap_handle, 1, errbuf) == -1) {
+        return ThrowException(Exception::Error(String::New(errbuf)));
+    }
+
+    if (pcap_compile(pcap_handle, &fp, (char *) *filter, 1, net) == -1) {
+        return ThrowException(Exception::Error(String::New(errbuf)));
+    }
+
+    if (pcap_setfilter(pcap_handle, &fp) == -1) {
+        return ThrowException(Exception::Error(String::New(errbuf)));
+    }
+
+    int fd = pcap_get_selectable_fd(pcap_handle);
+
+    // Work around buffering bug in BPF on OSX 10.6 as of May 19, 2010
+    // This may result in dropped packets under load because it disables the (broken) buffer
+    // http://seclists.org/tcpdump/2010/q1/110
+#if defined(__APPLE_CC__) || defined(__APPLE__)
+    #include <net/bpf.h>
+    int v = 1;
+    ioctl(fd, BIOCIMMEDIATE, &v);
+    // TODO - check return value
+#endif
 
     int link_type = pcap_datalink(pcap_handle);
 
@@ -160,10 +149,10 @@ Handle<Value>
     case DLT_NULL:
         ret = String::New("LINKTYPE_NULL");
         break;
-    case DLT_EN10MB:
+    case DLT_EN10MB: // most wifi interfaces pretend to be "ethernet"
         ret =  String::New("LINKTYPE_ETHERNET");
         break;
-    case DLT_IEEE802_11:
+    case DLT_IEEE802_11: // I think this is for "monitor" mode
         ret = String::New("LINKTYPE_IEEE802_11");
         break;
     default:
@@ -174,7 +163,7 @@ Handle<Value>
 }
 
 Handle<Value>
-    FindAllDevs(const Arguments& args)
+FindAllDevs(const Arguments& args)
 {
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -234,7 +223,7 @@ Handle<Value>
 }
 
 Handle<Value>
-    Close(const Arguments& args)
+Close(const Arguments& args)
 {
     HandleScope scope;
 
@@ -244,7 +233,7 @@ Handle<Value>
 }
 
 Handle<Value>
-    Fileno(const Arguments& args)
+Fileno(const Arguments& args)
 {
     HandleScope scope;
 
@@ -254,14 +243,14 @@ Handle<Value>
 }
 
 Handle<Value>
-    Stats(const Arguments& args)
+Stats(const Arguments& args)
 {
     HandleScope scope;
 
     struct pcap_stat ps;
 
     if (pcap_stats(pcap_handle, &ps) == -1) {
-        return ThrowException(Exception::TypeError(String::New("Error in pcap_stats")));
+        return ThrowException(Exception::Error(String::New("Error in pcap_stats")));
         // TODO - use pcap_geterr to figure out what the error was
     }
 
@@ -270,8 +259,24 @@ Handle<Value>
     stats_obj->Set(String::New("ps_recv"), Integer::NewFromUnsigned(ps.ps_recv));
     stats_obj->Set(String::New("ps_drop"), Integer::NewFromUnsigned(ps.ps_drop));
     stats_obj->Set(String::New("ps_ifdrop"), Integer::NewFromUnsigned(ps.ps_ifdrop));
+    // ps_ifdrop may not be supported on this platform, but there's no good way to tell
     
     return scope.Close(stats_obj);
+}
+
+Handle<Value>
+DefaultDevice(const Arguments& args)
+{
+    HandleScope scope;
+    
+    char *dev, errbuf[PCAP_ERRBUF_SIZE];
+
+    dev = pcap_lookupdev(errbuf);
+    if (dev == NULL) {
+        return ThrowException(Exception::Error(String::New(errbuf)));
+    }
+
+    return scope.Close(String::New(dev));
 }
 
 extern "C" void init (Handle<Object> target)
@@ -284,4 +289,5 @@ extern "C" void init (Handle<Object> target)
     target->Set(String::New("fileno"), FunctionTemplate::New(Fileno)->GetFunction());
     target->Set(String::New("close"), FunctionTemplate::New(Close)->GetFunction());
     target->Set(String::New("stats"), FunctionTemplate::New(Stats)->GetFunction());
+    target->Set(String::New("default_device"), FunctionTemplate::New(DefaultDevice)->GetFunction());
 }
