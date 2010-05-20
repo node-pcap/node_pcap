@@ -36,6 +36,7 @@ pcap_t *pcap_handle;
 Buffer *buffer;
 
 void packet_ready(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
+    HandleScope scope;
     static int count = 1;
 //    fprintf(stderr, "packet no: %d, %ld.%d, length: %d\n", count, pkthdr->ts.tv_sec, pkthdr->ts.tv_usec, pkthdr->len);
 //    fflush(stderr);
@@ -114,6 +115,8 @@ int open_live(char *dev, char *filter, char *errbuf) {
 Handle<Value>
     Dispatch(const Arguments& args)
 {
+    HandleScope scope;
+
     if (args.Length() != 2) {
         return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly two arguments")));
     }
@@ -132,7 +135,7 @@ Handle<Value>
 
     int packet_count = pcap_dispatch(pcap_handle, 1, packet_ready, (u_char *)&callback);
 
-    return Integer::NewFromUnsigned(packet_count);
+    return scope.Close(Integer::NewFromUnsigned(packet_count));
 }
 
 Handle<Value>
@@ -152,16 +155,22 @@ Handle<Value>
 
     int link_type = pcap_datalink(pcap_handle);
 
+    Local<Value> ret;
     switch (link_type) {
     case DLT_NULL:
-        return String::New("LINKTYPE_NULL");
+        ret = String::New("LINKTYPE_NULL");
+        break;
     case DLT_EN10MB:
-        return String::New("LINKTYPE_ETHERNET");
+        ret =  String::New("LINKTYPE_ETHERNET");
+        break;
     case DLT_IEEE802_11:
-        return String::New("LINKTYPE_IEEE802_11");
+        ret = String::New("LINKTYPE_IEEE802_11");
+        break;
     default:
-        return String::New("Unknown");
+        ret = String::New("Unknown");
+        break;
     }
+    return scope.Close(ret);
 }
 
 Handle<Value>
@@ -221,7 +230,7 @@ Handle<Value>
     }
 
     pcap_freealldevs(alldevsp);
-    return DevsArray;
+    return scope.Close(DevsArray);
 }
 
 Handle<Value>
@@ -241,7 +250,7 @@ Handle<Value>
 
     int fd = pcap_get_selectable_fd(pcap_handle);
 
-    return Integer::NewFromUnsigned(fd);
+    return scope.Close(Integer::NewFromUnsigned(fd));
 }
 
 Handle<Value>
@@ -262,7 +271,7 @@ Handle<Value>
     stats_obj->Set(String::New("ps_drop"), Integer::NewFromUnsigned(ps.ps_drop));
     stats_obj->Set(String::New("ps_ifdrop"), Integer::NewFromUnsigned(ps.ps_ifdrop));
     
-    return stats_obj;
+    return scope.Close(stats_obj);
 }
 
 extern "C" void init (Handle<Object> target)
