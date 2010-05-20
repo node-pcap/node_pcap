@@ -18,19 +18,20 @@ Pcap.prototype.findalldevs = function () {
 };
 
 Pcap.prototype.open_live = function (device, filter) {
-    binding.open_live(device, filter);
+    this.link_type = binding.open_live(device, filter);
+    sys.debug("Link type: " + this.link_type);
     this.fd = binding.fileno();
     this.opened = true;
     this.readWatcher = new process.IOWatcher();
     this.buf = new Buffer(65535);
     var me = this;
     this.readWatcher.callback = function () {
-        sys.debug("readWatcher callback");
         var packets_read = binding.dispatch(me.buf, function (header) {
-            sys.debug("callback called back.");
             me.emit('packet', header, me.buf);
         });
-        sys.debug("pcap dispatched, packet count: " + packets_read);
+        if (packets_read !== 1) {
+            sys.debug("readWatcher callback fired and dispatch read " + packets_read + " packets instead of 1");
+        }
     };
     this.readWatcher.set(this.fd, true, false);
     this.readWatcher.start();

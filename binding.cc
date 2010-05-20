@@ -37,8 +37,8 @@ Buffer *buffer;
 
 void packet_ready(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
     static int count = 1;
-    fprintf(stderr, "packet no: %d, %ld.%d, length: %d\n", count, pkthdr->ts.tv_sec, pkthdr->ts.tv_usec, pkthdr->len);
-    fflush(stderr);
+//    fprintf(stderr, "packet no: %d, %ld.%d, length: %d\n", count, pkthdr->ts.tv_sec, pkthdr->ts.tv_usec, pkthdr->len);
+//    fflush(stderr);
     count++;
 
     Local<Function> * callback = (Local<Function>*)callback_p;
@@ -50,10 +50,11 @@ void packet_ready(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_
 
     Local<Object> packet_header = Object::New();
 
-    double t = pkthdr->ts.tv_sec;
-    t += (pkthdr->ts.tv_usec / 1000000);
+    double t_ms = (pkthdr->ts.tv_sec * 1000) + (pkthdr->ts.tv_usec / 1000);
 
-    packet_header->Set(String::New("time"), Date::New(1000*t));
+    packet_header->Set(String::New("time"), Date::New(t_ms));
+    packet_header->Set(String::New("tv_sec"), Integer::NewFromUnsigned(pkthdr->ts.tv_sec));
+    packet_header->Set(String::New("tv_usec"), Integer::NewFromUnsigned(pkthdr->ts.tv_usec));
     packet_header->Set(String::New("caplen"), Integer::NewFromUnsigned(pkthdr->caplen));
     packet_header->Set(String::New("len"), Integer::NewFromUnsigned(pkthdr->len));
 
@@ -149,7 +150,18 @@ Handle<Value>
         return ThrowException(Exception::TypeError(String::New(errbuf)));
     }
 
-    return Undefined();
+    int link_type = pcap_datalink(pcap_handle);
+
+    switch (link_type) {
+    case DLT_NULL:
+        return String::New("LINKTYPE_NULL");
+    case DLT_EN10MB:
+        return String::New("LINKTYPE_ETHERNET");
+    case DLT_IEEE802_11:
+        return String::New("LINKTYPE_IEEE802_11");
+    default:
+        return String::New("Unknown");
+    }
 }
 
 Handle<Value>
