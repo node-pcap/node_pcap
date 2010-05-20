@@ -9,18 +9,40 @@ Run the test program as root to be able to open the capture device:
 
 ## Usage
 
-    var pcap = require("./pcap");
+    session = pcap.createSession("en1", "port 6667");
 
-    session = pcap.createSession("en0", "port 22");
     session.addListener('packet', function (pcap_header, raw_packet) {
-        decoded = decode_packet(pcap_header, raw_packet);
-        sys.puts((pcap_header.time - start_time) + "ms len: " + pcap_header.len + " " + 
-            decoded.ethernet.shost + " " + decoded.ethernet.dhost + " " +
-            sys.inspect(decoded.ip) + sys.inspect(decoded.tcp)
+        decoded = pcap.decode_packet(pcap_header, raw_packet);
+        sys.puts(pcap_header.len + " " + 
+            decoded.ip.saddr + ":" + decoded.tcp.sport + " -> " +
+            decoded.ip.daddr + ":" + decoded.tcp.dport + " " +
+            decoded.payload
         );
+        sys.puts(sys.inspect(session.stats()));
     });
 
-## Output from `findalldevs`:
+## Raw TCP payload dump:
+
+Capturing port 6667 (irc) and issuing `/whois _ry`:
+
+    rv-mjr2:~/work/node_pcap$ sudo node_g test.js 
+    77 10.240.0.133:64303 -> 213.92.8.4:6667 whois _ry
+
+    { ps_recv: 5, ps_drop: 0, ps_ifdrop: 1606408464 }
+    DEBUG: readWatcher callback fired and dispatch read 0 packets instead of 1
+    129 213.92.8.4:6667 -> 10.240.0.133:64303 :calvino.freenode.net 311 mjr_ _ry ~ry tinyclouds.org * :hayr
+
+    { ps_recv: 8, ps_drop: 0, ps_ifdrop: 1606408592 }
+    66 10.240.0.133:64303 -> 213.92.8.4:6667 
+    { ps_recv: 10, ps_drop: 0, ps_ifdrop: 1606407888 }
+    303 213.92.8.4:6667 -> 10.240.0.133:64303 :calvino.freenode.net 319 mjr_ _ry :#Node.js 
+    :calvino.freenode.net 312 mjr_ _ry wolfe.freenode.net :Manchester, England
+    :calvino.freenode.net 330 mjr_ _ry _ry :is logged in as
+    :calvino.freenode.net 318 mjr_ _ry :End of /WHOIS list.
+
+    { ps_recv: 10, ps_drop: 0, ps_ifdrop: 1606407888 }
+
+## Output from `session.findalldevs`:
 
     [ { name: 'en0'
       , addresses: 
