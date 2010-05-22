@@ -1,11 +1,12 @@
 node_pcap
 =========
 
-This is not done yet.  If you want to see how awesome it will be, check this out:
+This is not done yet, and patches are welcome.  If you want to see how awesome it will be, check this out:
 
 Run the test program as root to be able to open the capture device:
 
     mjr:~/work/node_pcap$ sudo node test.js
+    
 
 ## Usage
 
@@ -62,73 +63,173 @@ Capturing port 6667 (irc) and issuing `/whois _ry`:
 
 ## Ethernet, IP, and TCP decode:
 
-    5060ms len: 78 00:17:f2:0f:49:a6 00:1e:c9:45:e8:30 { version: 4
-    , header_length: 5
-    , diffserv: 0
-    , total_length: 64
-    , identification: 21049
-    , flag_reserved: 0
-    , flag_df: 1
-    , flag_mf: 0
-    , fragment_offset: 0
-    , ttl: 64
-    , protocol: 6
-    , header_checksum: 0
-    , saddr: '10.51.2;183'
-    , daddr: '184.72.56;14'
-    , protocol_name: 'TCP'
-    }{ sport: 56051
-    , dport: 22
-    , seqno: 2449256658
-    , ackno: 0
-    , data_offset: 11
-    , reserved: 0
-    , flag_cwr: 0
-    , flag_ece: 0
-    , flag_urg: 0
-    , flag_ack: 0
-    , flag_psh: 0
-    , flag_rst: 0
-    , flag_syn: 1
-    , flag_fin: 0
-    , window_size: 65535
-    , checksum: 64882
-    , urgent_pointer: 0
+### Running `curl nodejs.org`:
+
+First packet, TCP SYN:
+
+    { ethernet: 
+       { dhost: '00:18:39:ff:f9:1c'
+       , shost: '00:1f:5b:ce:3e:29'
+       , ethertype: 2048
+       , ip: 
+          { version: 4
+          , header_length: 5
+          , diffserv: 0
+          , total_length: 64
+          , identification: 49042
+          , flags: { reserved: 0, df: 1, mf: 0 }
+          , fragment_offset: 0
+          , ttl: 64
+          , protocol: 6
+          , header_checksum: 35325
+          , saddr: '10.240.0.133'
+          , daddr: '97.107.132.72'
+          , protocol_name: 'TCP'
+          , tcp: 
+             { sport: 57230
+             , dport: 80
+             , seqno: 4179361823
+             , ackno: 1540242985
+             , data_offset: 11
+             , reserved: 0
+             , flags: 
+                { cwr: 0
+                , ece: 0
+                , urg: 0
+                , ack: 0
+                , psh: 0
+                , rst: 0
+                , syn: 1
+                , fin: 0
+                }
+             , window_size: 65535
+             , checksum: 2601
+             , urgent_pointer: 0
+             , payload_offset: 78
+             , payload: { length: 0 }
+             }
+          }
+       }
+    , pcap_header: 
+       { time: Sat, 22 May 2010 07:48:40 GMT
+       , tv_sec: 1274514520
+       , tv_usec: 820479
+       , caplen: 78
+       , len: 78
+       , link_type: 'LINKTYPE_ETHERNET'
+       }
     }
-    5066ms len: 78 00:1e:c9:45:e8:30 00:17:f2:0f:49:a6 { version: 4
-    , header_length: 5
-    , diffserv: 0
-    , total_length: 60
-    , identification: 0
-    , flag_reserved: 0
-    , flag_df: 1
-    , flag_mf: 0
-    , fragment_offset: 0
-    , ttl: 49
-    , protocol: 6
-    , header_checksum: 19580
-    , saddr: '184.72.56;14'
-    , daddr: '10.51.2;183'
-    , protocol_name: 'TCP'
-    }{ sport: 22
-    , dport: 56051
-    , seqno: 2268319228
-    , ackno: 2449256659
-    , data_offset: 10
-    , reserved: 0
-    , flag_cwr: 0
-    , flag_ece: 0
-    , flag_urg: 0
-    , flag_ack: 1
-    , flag_psh: 0
-    , flag_rst: 0
-    , flag_syn: 1
-    , flag_fin: 0
-    , window_size: 5792
-    , checksum: 28115
-    , urgent_pointer: 0
+    
+Second packet, TCP SYN+ACK:
+
+    { ethernet: 
+       { dhost: '00:1f:5b:ce:3e:29'
+       , shost: '00:18:39:ff:f9:1c'
+       , ethertype: 2048
+       , ip: 
+          { version: 4
+          , header_length: 5
+          , diffserv: 32
+          , total_length: 60
+          , identification: 0
+          , flags: { reserved: 0, df: 1, mf: 0 }
+          , fragment_offset: 0
+          , ttl: 48
+          , protocol: 6
+          , header_checksum: 22900
+          , saddr: '97.107.132.72'
+          , daddr: '10.240.0.133'
+          , protocol_name: 'TCP'
+          , tcp: 
+             { sport: 80
+             , dport: 57230
+             , seqno: 1042874392
+             , ackno: 973076764
+             , data_offset: 10
+             , reserved: 0
+             , flags: 
+                { cwr: 0
+                , ece: 0
+                , urg: 0
+                , ack: 1
+                , psh: 0
+                , rst: 0
+                , syn: 1
+                , fin: 0
+                }
+             , window_size: 5792
+             , checksum: 35930
+             , urgent_pointer: 0
+             , payload_offset: 74
+             , payload: { length: 0 }
+             }
+          }
+       }
+    , pcap_header: 
+       { time: Sat, 22 May 2010 07:48:40 GMT
+       , tv_sec: 1274514520
+       , tv_usec: 915980
+       , caplen: 74
+       , len: 74
+       , link_type: 'LINKTYPE_ETHERNET'
+       }
     }
-  
+
+Third packet, TCP ACK, 3-way handshake is now complete:
+
+    { ethernet: 
+       { dhost: '00:18:39:ff:f9:1c'
+       , shost: '00:1f:5b:ce:3e:29'
+       , ethertype: 2048
+       , ip: 
+          { version: 4
+          , header_length: 5
+          , diffserv: 0
+          , total_length: 52
+          , identification: 39874
+          , flags: { reserved: 0, df: 1, mf: 0 }
+          , fragment_offset: 0
+          , ttl: 64
+          , protocol: 6
+          , header_checksum: 44505
+          , saddr: '10.240.0.133'
+          , daddr: '97.107.132.72'
+          , protocol_name: 'TCP'
+          , tcp: 
+             { sport: 57230
+             , dport: 80
+             , seqno: 4179361823
+             , ackno: 1540242985
+             , data_offset: 8
+             , reserved: 0
+             , flags: 
+                { cwr: 0
+                , ece: 0
+                , urg: 0
+                , ack: 1
+                , psh: 0
+                , rst: 0
+                , syn: 0
+                , fin: 0
+                }
+             , window_size: 65535
+             , checksum: 53698
+             , urgent_pointer: 0
+             , payload_offset: 66
+             , payload: { length: 0 }
+             }
+          }
+       }
+    , pcap_header: 
+       { time: Sat, 22 May 2010 07:48:40 GMT
+       , tv_sec: 1274514520
+       , tv_usec: 916054
+       , caplen: 66
+       , len: 66
+       , link_type: 'LINKTYPE_ETHERNET'
+       }
+    }
+
 ## Output from `pcap_stats`:
     
     { ps_recv: 17, ps_drop: 0, ps_ifdrop: 1606411320 }
