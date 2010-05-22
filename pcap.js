@@ -1,9 +1,12 @@
+"use strict";
+/*global process require exports */
+
 var sys = require("sys"),
     Buffer = require('buffer').Buffer,
     binding = require("./build/default/binding"),
     events = require("events");
 
-function Pcap () {
+function Pcap() {
     this.opened = false;
     this.fd = null;
 
@@ -28,6 +31,7 @@ Pcap.prototype.open_live = function (device, filter) {
 
     this.readWatcher.callback = function () {
         var packets_read = binding.dispatch(me.buf, function (header) {
+            header.link_type = me.link_type;
             me.emit('packet', header, me.buf);
         });
         if (packets_read !== 1) {
@@ -137,6 +141,130 @@ function decode_ip(raw_packet, offset) {
     return ret;
 }
 
+function decode_icmp(raw_packet, offset) {
+    var ret = {};
+    
+    // http://en.wikipedia.org/wiki/Internet_Control_Message_Protocol
+    ret.type = raw_packet[offset];
+    ret.code = raw_packet[offset + 1];
+    ret.checksum = unpack_uint16(raw_packet, offset + 2); // 2, 3
+    ret.id = unpack_uint16(raw_packet, offset + 4); // 4, 5
+    ret.sequence = unpack_uint16(raw_packet, offset + 6); // 6, 7
+
+    switch (ret.type) {
+    case 0:
+        ret.type_desc = "Echo Reply";
+        break;
+    case 1:
+    case 2:
+        ret.type_desc = "Reserved";
+        break;
+    case 3:
+        switch (ret.code) {
+        case 0:
+            ret.type_desc = "Destination Network Unreachable";
+            break;
+        case 1:
+            ret.type_desc = "Destination Host Unreachable";
+            break;
+        case 2:
+            ret.type_desc = "Destination Protocol Unreachable";
+            break;
+        case 3:
+            ret.type_desc = "Destination Port Unreachable";
+            break;
+        case 4:
+            ret.type_desc = "Fragmentation required, and DF flag set";
+            break;
+        case 5:
+            ret.type_desc = "Source route failed";
+            break;
+        case 6:
+            ret.type_desc = "Destination network unknown";
+            break;
+        case 7:
+            ret.type_desc = "Destination host unknown";
+            break;
+        case 8:
+            ret.type_desc = "Source host isolated";
+            break;
+        case 9:
+            ret.type_desc = "Network administratively prohibited";
+            break;
+        case 10:
+            ret.type_desc = "Host administratively prohibited";
+            break;
+        case 11:
+            ret.type_desc = "Network unreachable for TOS";
+            break;
+        case 12:
+            ret.type_desc = "Host unreachable for TOS";
+            break;
+        case 13:
+            ret.type_desc = "Communication administratively prohibited";
+            break;
+        default:
+            ret.type_desc = "Destination Unreachable (unknown code " + ret.code + ")";
+        }
+        break;
+    case 4:
+        ret.type_desc = "Source Quench";
+        break;
+    case 5:
+        switch (ret.code) {
+        case 0:
+            ret.type_desc = "Redirect Network";
+            break;
+        case 1:
+            ret.type_desc = "Redirect Host";
+            break;
+        case 2:
+            ret.type_desc = "Redirect TOS and Network";
+            break;
+        case 3:
+            ret.type_desc = "Redirect TOS and Host";
+            break;
+        default:
+            ret.type_desc = "Redirect (unknown code " + ret.code + ")";
+            break;
+        }
+        break;
+    case 6:
+        ret.type_desc = "Alternate Host Address";
+        break;
+    case 7:
+        ret.type_desc = "Reserved";
+        break;
+    case 8:
+        ret.type_desc = "Echo Request";
+        break;
+    case 9:
+        ret.type_desc = "Router Advertisement";
+        break;
+    case 10:
+        ret.type_desc = "Router Solicitation";
+        break;
+    case 11:
+        switch (ret.code) {
+        case 0:
+            ret.type_desc = "TTL expired in transit";
+            break;
+        case 1:
+            ret.type_desc = "Fragment reassembly time exceeded";
+            break;
+        default:
+            ret.type_desc = "Time Exceeded (unknown code " + ret.code + ")";
+        }
+        break;
+        // TODO - decode the rest of the well-known ICMP messages
+    default:
+        ret.type_desc = "type " + ret.type + " code " + ret.code;
+    }
+
+    // There are usually more exciting things hiding in ICMP packets after the headers
+    return ret;
+}
+
 function decode_tcp(raw_packet, offset) {
     var ret = {};
 
@@ -168,39 +296,40 @@ exports.decode_packet = function (pcap_header, raw_packet) {
     var packet = {};
 
     // TODO - this needs to handle different link types and associated offsets
-    if (session.link_type === "LINKTYPE_ETHERNET") {
+    if (pcap_header.link_type === "LINKTYPE_ETHERNET") {
         packet.ethernet = decode_ethernet(raw_packet, 0);
 
-        switch(packet.ethernet.ethertype) {
-            case 2048: // 0x0800 - IPv4
-                packet.ip = decode_ip(raw_packet, 14);
+        switch (packet.ethernet.ethertype) {
+        case 2048: // 0x0800 - IPv4
+            packet.ip = decode_ip(raw_packet, 14);
 
-                switch (packet.ip.protocol) {
-                    case 1:
-                        packet.ip.protocol_name = "ICMP";
-                        break;
-                    case 6:
-                        packet.ip.protocol_name = "TCP";
-                        packet.tcp = decode_tcp(raw_packet, 14 + (packet.ip.header_length * 4));
-                        packet.payload_offset = 14 + (packet.ip.header_length * 4) + (packet.tcp.data_offset * 4);
-                        packet.payload = raw_packet.slice(packet.payload_offset, pcap_header.caplen);
-                        break;
-                    case 17:
-                        packet.ip.protocol_name = "UDP";
-                        break;
-                    default:
-                        packet.ip.protocol_name = "Unknown";
-                }
+            switch (packet.ip.protocol) {
+            case 1:
+                packet.ip.protocol_name = "ICMP";
+                packet.icmp = decode_icmp(raw_packet, 14 + (packet.ip.header_length * 4));
                 break;
-            case 2054: // ARP
-                sys.puts("Don't yet know how to decode ARP packets");
+            case 6:
+                packet.ip.protocol_name = "TCP";
+                packet.tcp = decode_tcp(raw_packet, 14 + (packet.ip.header_length * 4));
+                packet.payload_offset = 14 + (packet.ip.header_length * 4) + (packet.tcp.data_offset * 4);
+                packet.payload = raw_packet.slice(packet.payload_offset, pcap_header.caplen);
+                break;
+            case 17:
+                packet.ip.protocol_name = "UDP";
                 break;
             default:
-                sys.puts("Don't know how to decode ethertype " + packet.ethertype);
+                packet.ip.protocol_name = "Unknown";
+            }
+            break;
+        case 2054: // ARP
+            sys.puts("Don't yet know how to decode ARP packets");
+            break;
+        default:
+            sys.puts("Don't know how to decode ethertype " + packet.ethertype);
         }
     }
     else {
-        sys.puts("Don't know how to decode link type " + session.link_type);
+        sys.puts("Don't know how to decode link type " + pcap_header.link_type);
     }
     
     return packet;
