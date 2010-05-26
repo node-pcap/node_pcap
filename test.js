@@ -5,16 +5,31 @@ var sys = require("sys"),
     pcap = require("./pcap"),
     count = 0,
     start_time = new Date(),
-    pcap_session = pcap.createSession("en1", "tcp"),
+    pcap_session = pcap.createSession("", "host ranney.com"),
     dns_cache = pcap.dns_cache,
     tcp_tracker = pcap.tcp_tracker;
 
-sys.puts("All devices: ");
-sys.puts(sys.inspect(pcap_session.findalldevs(), false, 4));
+// Print all devices, currently listening device prefixed with an asterisk
+sys.puts("All devices:");
+pcap_session.findalldevs().forEach(function (dev) {
+    if (pcap_session.device_name === dev.name) {
+        sys.print("* ");
+    }
+    sys.print(dev.name + " ");
+    if (dev.addresses.length > 0) {
+        dev.addresses.forEach(function (address) {
+            sys.print(address.addr + "/" + address.netmask);
+        });
+        sys.print("\n");
+    } else {
+        sys.print("no address\n");
+    }
+});
 
+// listen for packets, decode them, and feed TCP to the tracker
 pcap_session.addListener('packet', function (raw_packet) {
     var packet = pcap.decode.packet(raw_packet),
-        link = packet.ethernet,
+        link = packet.link,
         ip, tcp;
 
     if (link && link.ip) {
@@ -33,3 +48,13 @@ pcap_session.addListener('packet', function (raw_packet) {
     }
     sys.puts(sys.inspect(pcap_session.stats()));
 });
+
+// Coming soon:
+//
+// tcp_tracker.addListener('start', function (session) {
+//     
+// });
+// 
+// tcp_tracker.addListener('end', function (session) {
+//     
+// });

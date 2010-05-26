@@ -24,7 +24,6 @@ Pcap.prototype.open_live = function (device, filter) {
 
     this.device_name = device || binding.default_device();
     this.link_type = binding.open_live(this.device_name, filter);
-    sys.debug("Link type: " + this.link_type);
     this.fd = binding.fileno();
     this.opened = true;
     this.readWatcher = new process.IOWatcher();
@@ -74,8 +73,8 @@ function lpad(str, len) {
     return str;
 }
 
-function dump_bytes(raw_packet) {
-    for (var i = 0; i < raw_packet.pcap_header.caplen ; i += 1) {
+function dump_bytes(raw_packet, offset) {
+    for (var i = offset; i < raw_packet.pcap_header.caplen ; i += 1) {
         sys.puts(i + ": " + raw_packet[i]);
     }
 }
@@ -118,7 +117,7 @@ var decode = {
         var packet = {};
 
         if (raw_packet.pcap_header.link_type === "LINKTYPE_ETHERNET") {
-            packet.ethernet = decode.ethernet(raw_packet, 0);
+            packet.link = decode.ethernet(raw_packet, 0);
         }
         else {
             sys.puts("Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
@@ -177,6 +176,7 @@ var decode = {
         // http://en.wikipedia.org/wiki/IPv4
         ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
         ret.header_length = raw_packet[offset] & 15; // second 4 bits
+        ret.header_bytes = ret.header_length * 4;
         ret.diffserv = raw_packet[offset + 1];
         ret.total_length = unpack.uint16(raw_packet, offset + 2); // 2, 3
         ret.identification = unpack.uint16(raw_packet, offset + 4); // 4, 5
@@ -201,6 +201,12 @@ var decode = {
         case 6:
             ret.protocol_name = "TCP";
             ret.tcp = decode.tcp(raw_packet, offset + (ret.header_length * 4));
+            ret.data_offset = offset + ret.header_bytes + ret.tcp.header_bytes;
+            ret.data_bytes = (offset + ret.total_length) - ret.data_offset;
+            if (ret.data_bytes > 0) {
+                ret.data = raw_packet.slice(ret.data_offset, (ret.data_offset + ret.total_length));
+                ret.data.length = ret.data_bytes;
+            }
             break;
         case 17:
             ret.protocol_name = "UDP";
@@ -335,34 +341,93 @@ var decode = {
         return ret;
     },
     tcp: function (raw_packet, offset) {
-        var ret = {};
+        var ret = {}, option_offset, options_end;
 
         // http://en.wikipedia.org/wiki/Transmission_Control_Protocol
-        ret.sport = unpack.uint16(raw_packet, offset); // 0, 1
-        ret.dport = unpack.uint16(raw_packet, offset + 2); // 2, 3
-        ret.seqno = unpack.uint32(raw_packet, 4); // 4, 5, 6, 7
-        ret.ackno = unpack.uint32(raw_packet, 8); // 8, 9, 10, 11
-        ret.data_offset = (raw_packet[offset + 12] & 240) >> 4; // first 4 bits of 12
-        ret.reserved = raw_packet[offset + 12] & 15; // second 4 bits of 12
-        ret.flags = {};
-        ret.flags.cwr = (raw_packet[offset + 13] & 128) >> 7; // all flags packed into 13
-        ret.flags.ece = (raw_packet[offset + 13] & 64) >> 6;
-        ret.flags.urg = (raw_packet[offset + 13] & 32) >> 5;
-        ret.flags.ack = (raw_packet[offset + 13] & 16) >> 4;
-        ret.flags.psh = (raw_packet[offset + 13] & 8) >> 3;
-        ret.flags.rst = (raw_packet[offset + 13] & 4) >> 2;
-        ret.flags.syn = (raw_packet[offset + 13] & 2) >> 1;
-        ret.flags.fin = raw_packet[offset + 13] & 1;
-        ret.window_size = unpack.uint16(raw_packet, offset + 14); // 14, 15
-        ret.checksum = unpack.uint16(raw_packet, offset + 16); // 16, 17
+        ret.sport          = unpack.uint16(raw_packet, offset); // 0, 1
+        ret.dport          = unpack.uint16(raw_packet, offset + 2); // 2, 3
+        ret.seqno          = unpack.uint32(raw_packet, offset + 4); // 4, 5, 6, 7
+        ret.ackno          = unpack.uint32(raw_packet, offset + 8); // 8, 9, 10, 11
+        ret.data_offset    = (raw_packet[offset + 12] & 0xf0) >> 4; // first 4 bits of 12
+        ret.header_bytes   = ret.data_offset * 4; // convenience for using data_offset
+        ret.reserved       = raw_packet[offset + 12] & 15; // second 4 bits of 12
+        ret.flags          = {};
+        ret.flags.cwr      = (raw_packet[offset + 13] & 128) >> 7; // all flags packed into 13
+        ret.flags.ece      = (raw_packet[offset + 13] & 64) >> 6;
+        ret.flags.urg      = (raw_packet[offset + 13] & 32) >> 5;
+        ret.flags.ack      = (raw_packet[offset + 13] & 16) >> 4;
+        ret.flags.psh      = (raw_packet[offset + 13] & 8) >> 3;
+        ret.flags.rst      = (raw_packet[offset + 13] & 4) >> 2;
+        ret.flags.syn      = (raw_packet[offset + 13] & 2) >> 1;
+        ret.flags.fin      = raw_packet[offset + 13] & 1;
+        ret.window_size    = unpack.uint16(raw_packet, offset + 14); // 14, 15
+        ret.checksum       = unpack.uint16(raw_packet, offset + 16); // 16, 17
         ret.urgent_pointer = unpack.uint16(raw_packet, offset + 18); // 18, 19
-    
-        // TODO - parse TCP "options" if data_offset > 5
+        ret.options        = {};
+
+        option_offset = offset + 20;
+        options_end = offset + (ret.data_offset * 4);
+        while (option_offset < options_end) {
+            switch (raw_packet[option_offset]) {
+            case 0:
+                option_offset += 1;
+                break;
+            case 1:
+                option_offset += 1;
+                break;
+            case 2:
+                ret.options.mss = unpack.uint16(raw_packet, option_offset + 2);
+                option_offset += 4;
+                break;
+            case 3:
+                ret.options.window_scale = Math.pow(2, (raw_packet[option_offset + 2]));
+                option_offset += 3;
+                break;
+            case 4:
+                ret.options.sack_ok = true;
+                option_offset += 2;
+                break;
+            case 5:
+                ret.options.sack = [];
+                switch (raw_packet[option_offset + 1]) {
+                case 10:
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 2), unpack.uint32(raw_packet, option_offset + 6)]);
+                    option_offset += 10;
+                    break;
+                case 18:
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 2), unpack.uint32(raw_packet, option_offset + 6)]);
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 10), unpack.uint32(raw_packet, option_offset + 14)]);
+                    option_offset += 18;
+                    break;
+                case 26:
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 2), unpack.uint32(raw_packet, option_offset + 6)]);
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 10), unpack.uint32(raw_packet, option_offset + 14)]);
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 18), unpack.uint32(raw_packet, option_offset + 22)]);
+                    option_offset += 26;
+                    break;
+                case 34:
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 2), unpack.uint32(raw_packet, option_offset + 6)]);
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 10), unpack.uint32(raw_packet, option_offset + 14)]);
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 18), unpack.uint32(raw_packet, option_offset + 22)]);
+                    ret.options.sack.push([unpack.uint32(raw_packet, option_offset + 26), unpack.uint32(raw_packet, option_offset + 30)]);
+                    option_offset += 34;
+                    break;
+                default:
+                    sys.puts("Invalid TCP SACK option length " + raw_packet[option_offset + 1]);
+                    option_offset = options_end;
+                }
+                break;
+            case 8:
+                ret.options.timestamp = unpack.uint32(raw_packet, option_offset + 2);
+                ret.options.echo = unpack.uint32(raw_packet, option_offset + 6);
+                option_offset += 10;
+                break;
+            default:
+                throw new Error("Don't know how to process TCP option " + raw_packet[option_offset]);
+            }
+        }
 
         // automatic protocol decode ends here.  Higher level protocols can be decoded by using payload.
-        ret.payload_offset = offset + (ret.data_offset * 4);
-        ret.payload = raw_packet.slice(ret.payload_offset, raw_packet.pcap_header.caplen);
-
         return ret;
     }
 };
@@ -376,7 +441,7 @@ var tcp_tracker = (function () {
     }
     
     function track_next(key, packet) {
-        var ip      = packet.ethernet.ip,
+        var ip      = packet.link.ip,
             tcp     = ip.tcp;
             src     = ip.saddr + ":" + tcp.sport;
             dst     = ip.daddr + ":" + tcp.dport;
@@ -387,20 +452,32 @@ var tcp_tracker = (function () {
         switch (sessions[key].state) {
         case "SYN_SENT":
             if (tcp.flags.syn && tcp.flags.ack) {
+                session.syn_ack_time = packet.pcap_header.time;
                 session.state = "SYN_RCVD";
+                session.isn_dst = tcp.seqno;
             }
             else {
                 sys.puts("Got non SYN-ACK packet while expecting one." + sys.inspect(packet));
             }
             break;
         case "SYN_RCVD":
-            if (tcp.flags.ack) {
+            if (tcp.flags.ack) { // TODO - make sure SYN flag isn't set
                 session.state = "ESTAB";
-                session.handshake_time = packet.pcap_header.time - session.start_time;
+                session.handshake_time = packet.pcap_header.time - session.syn_time;
                 sys.puts("ESTAB: " + sys.inspect(session));
             }
             break;
         case "ESTAB":
+            if (src === session.src) {
+                if (tcp.flags.ack) {
+                }
+            } else if (src === session.dst) {
+                if (tcp.flags.ack) {
+                }
+            } else {
+                sys.puts("non-matching packet in session: " + sys.inspect(packet));
+            }
+            
             break;
         default:
             throw new Error("Don't know how to handle session state " + sessions.state);
@@ -409,12 +486,17 @@ var tcp_tracker = (function () {
     
     function track_packet(packet) {
         var ip, tcp, src, dst, key;
-        if (packet.ethernet && packet.ethernet.ip && packet.ethernet.ip.tcp) {
-            ip  = packet.ethernet.ip;
+        if (packet.link && packet.link.ip && packet.link.ip.tcp) {
+            ip  = packet.link.ip;
             tcp = ip.tcp;
             src = ip.saddr + ":" + tcp.sport;
             dst = ip.daddr + ":" + tcp.dport;
             key = session_key(src, dst);
+
+           sys.puts("seqno: " + tcp.seqno + ", ackno: " + tcp.ackno);
+           if (ip.data_bytes > 0) {
+               sys.puts("Data: " + ip.data);
+           }
 
             if (sessions[key] === undefined) {
                 if (tcp.flags.syn && !tcp.flags.ack) {
@@ -422,18 +504,23 @@ var tcp_tracker = (function () {
                     sessions[key] = {
                         src: src,
                         dst: dst,
-                        start_time: packet.pcap_header.time,
-                        state: "SYN_SENT"
+                        syn_time: packet.pcap_header.time,
+                        state: "SYN_SENT",
+                        isn_src: tcp.seqno,
+                        recv_packets: {},
+                        send_packets: {
+                            tcp.seqno: packet.pcap_header
+                        }
                     };
                 }
-                // ignore session in progress
+                // silently ignore session in progress
             }
             else {
                 track_next(key, packet);
             }
         }
         else {
-            sys.puts("tcp_tracker.track_packet fed a non-TCP packet: " + sys.inspect(packet));
+            throw new Error("tcp_tracker.track_packet fed a non-TCP packet: " + sys.inspect(packet));
         }
     }
     
