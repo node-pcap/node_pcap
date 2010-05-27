@@ -87,9 +87,13 @@ Dispatch(const Arguments& args)
 
     buffer = ObjectWrap::Unwrap<Buffer>(args[0]->ToObject());
 
-    int packet_count = pcap_dispatch(pcap_handle, 1, PacketReady, (u_char *)&callback);
+    int packet_count, total_packets = 0;
+    do {
+        packet_count = pcap_dispatch(pcap_handle, 1, PacketReady, (u_char *)&callback);
+        total_packets += packet_count;
+    } while (packet_count > 0);
 
-    return scope.Close(Integer::NewFromUnsigned(packet_count));
+    return scope.Close(Integer::NewFromUnsigned(total_packets));
 }
 
 Handle<Value>
