@@ -127,11 +127,11 @@ OpenLive(const Arguments& args)
     }
 
     if (pcap_compile(pcap_handle, &fp, (char *) *filter, 1, net) == -1) {
-        return ThrowException(Exception::Error(String::New(errbuf)));
+        return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
     }
 
     if (pcap_setfilter(pcap_handle, &fp) == -1) {
-        return ThrowException(Exception::Error(String::New(errbuf)));
+        return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
     }
 
     int fd = pcap_get_selectable_fd(pcap_handle);
