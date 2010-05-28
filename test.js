@@ -30,14 +30,14 @@ pcap_session.findalldevs().forEach(function (dev) {
 pcap_session.addListener('packet', function (raw_packet) {
     var packet = pcap.decode.packet(raw_packet),
         link = packet.link,
-        ip, tcp;
+        ip, tcp, stats;
 
     if (link && link.ip) {
         ip = link.ip;
         if (ip.tcp) {
             tcp = ip.tcp;
             sys.puts(dns_cache.ptr(ip.saddr) + ":" + tcp.sport + " > " + 
-                dns_cache.ptr(ip.daddr) + ":" + tcp.dport + " TCP length " + raw_packet.pcap_header.len);
+                dns_cache.ptr(ip.daddr) + ":" + tcp.dport + " TCP length " + raw_packet.pcap_header.len + " seq " + tcp.seqno + " ack " + tcp.ackno);
             tcp_tracker.track(packet);
         } else {
             sys.puts(dns_cache.ptr(ip.saddr) + " > " + dns_cache.ptr(ip.daddr) + 
@@ -46,7 +46,11 @@ pcap_session.addListener('packet', function (raw_packet) {
     } else {
         sys.puts("Non IP: " + sys.inspect(p));
     }
-    sys.puts(sys.inspect(pcap_session.stats()));
+    
+    stats = pcap_session.stats();
+    if (stats.ps_drop > 0) {
+        sys.puts("pcap dropped packets: " + sys.inspect(stats));
+    }
 });
 
 // Coming soon:
