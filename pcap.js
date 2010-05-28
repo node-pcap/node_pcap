@@ -450,7 +450,7 @@ var tcp_tracker = (function () {
         
         send_acks.forEach(function (v) {
             if (session.recv_packets[v]) {
-                sys.puts("RTT for recv seqno " + v + ": " + (session.send_acks[v] - session.recv_packets[v]) + "ms");
+//                sys.puts("RTT for recv seqno " + v + ": " + (session.send_acks[v] - session.recv_packets[v]) + "ms");
             } else {
                 sys.puts("send ACK with missing recv seqno: " + v);
             }
@@ -458,7 +458,7 @@ var tcp_tracker = (function () {
 
         recv_acks.forEach(function (v) {
             if (session.send_packets[v]) {
-                sys.puts("RTT for send seqno " + v + ": " + (session.recv_acks[v] - session.send_packets[v]) + "ms");
+//                sys.puts("RTT for send seqno " + v + ": " + (session.recv_acks[v] - session.send_packets[v]) + "ms");
             } else {
                 sys.puts("recv ACK with missing send seqno: " + v);
             }
@@ -517,7 +517,7 @@ var tcp_tracker = (function () {
                 session.send_bytes_tcp += tcp.header_bytes;
                 session.send_acks[tcp.ackno] = packet.pcap_header.time.getTime();
                 session.handshake_time = packet.pcap_header.time.getTime() - session.syn_time;
-                sys.puts("ESTAB: " + sys.inspect(session));
+                sys.puts("ESTAB: " + key);
                 session.state = "ESTAB";
             }
             else {
@@ -534,7 +534,7 @@ var tcp_tracker = (function () {
                 }
                 if (session.recv_packets[tcp.ackno]) {
                     if (session.send_acks[tcp.ackno]) {
-                        sys.puts("Already sent this ACK, which I'm guessing is fine.");
+//                        sys.puts("Already sent this ACK, which I'm guessing is fine.");
                     }
                     else {
                         session.send_acks[tcp.ackno] = packet.pcap_header.time.getTime();
@@ -556,7 +556,7 @@ var tcp_tracker = (function () {
                 }
                 if (session.send_packets[tcp.ackno]) {
                     if (session.recv_acks[tcp.ackno]) {
-                        sys.puts("Already received this ACK, which I'm guessing is fine.");
+//                        sys.puts("Already received this ACK, which I'm guessing is fine.");
                     }
                     else {
                         session.recv_acks[tcp.ackno] = packet.pcap_header.time.getTime();
@@ -573,7 +573,7 @@ var tcp_tracker = (function () {
                 sys.puts("non-matching packet in session: " + sys.inspect(packet));
             }
 
-            sys.puts(sys.inspect(session));
+//            sys.puts(sys.inspect(session));
             break;
         case "FIN_WAIT":
             if (src === session.dst && tcp.flags.fin) {
