@@ -37,7 +37,7 @@
             var send_times = Object.keys(obj.recv_times), last, cur;
             send_times.sort();
             for (cur = 1; cur < send_times.length ; cur += 1) {
-                ret += "Bytes " + (send_times[cur] - send_times[0]) + " RTT " + (obj.recv_times[send_times[cur]] - obj.recv_times[send_times[cur - 1]]) + "ms<br />";
+                ret += "Bytes " + (send_times[cur] - send_times[0]) + " RTT " + (obj.recv_times[send_times[cur]]) + "ms<br />";
                 last = send_times[cur];
             }
             return ret;
