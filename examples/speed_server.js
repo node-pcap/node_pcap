@@ -1,5 +1,5 @@
 "use strict";
-/*global process require exports */
+/*global process require exports setInterval __dirname */
 
 var sys = require("sys"),
     pcap = require("./pcap"),
@@ -7,7 +7,7 @@ var sys = require("sys"),
     start_time = new Date(),
     pcap_session = pcap.createSession("lo0", 'ip proto \\tcp and port 80'),
     dns_cache = pcap.dns_cache,
-    tcp_tracker = new pcap.TCP_tracker,
+    tcp_tracker = new pcap.TCP_tracker(),
     http = require('http'),
     url = require('url'),
     path = require('path'),
@@ -89,6 +89,16 @@ function lookup_mime_type(file_name) {
     return "text/plain";
 }
 
+function do_error(response, code, message) {
+    sys.puts("do_error: " + code + " - " + message);
+    response.writeHead(code, {
+        "Content-Type": "text/plain"
+    });
+    response.write(message);
+    response.closeOnFinish = true;
+    response.end();
+}
+
 function handle_file(file_name, in_request, in_response) {
     var local_name = file_name.replace(/^\//, __dirname + "/"),
         file;
@@ -125,16 +135,6 @@ function handle_file(file_name, in_request, in_response) {
     });
 }
 
-function do_error(response, code, message) {
-    sys.puts("do_error: " + code + " - " + message);
-    response.writeHead(code, {
-        "Content-Type": "text/plain"
-    });
-    response.write(message);
-    response.closeOnFinish = true;
-    response.end();
-}
-
 function send_start(url, request, response) {
     if (url.query && url.query.id) {
         track_ids[url.query.id] = {};
@@ -166,7 +166,7 @@ function get_stats(url, request, response) {
     }
 }
 
-function new_client (new_request, new_response) {
+function new_client(new_request, new_response) {
     sys.puts(new_request.connection.remoteAddress + " " + new_request.method + " " + new_request.url);
     if (new_request.method === "GET") {
         var url_parsed = url.parse(new_request.url, true),

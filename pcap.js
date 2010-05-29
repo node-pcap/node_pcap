@@ -116,7 +116,8 @@ var decode = {
     packet: function (raw_packet) {
         var packet = {};
 
-        switch (raw_packet.pcap_header.link_type) {
+        packet.link_type = raw_packet.pcap_header.link_type;
+        switch (packet.link_type) {
         case "LINKTYPE_ETHERNET":
             packet.link = decode.ethernet(raw_packet, 0);
             break;
@@ -151,10 +152,10 @@ var decode = {
 
         // http://en.wikipedia.org/wiki/EtherType
         switch (ret.ethertype) {
-        case 2048: // 0x0800 - IPv4
+        case 0x800: // IPv4
             ret.ip = decode.ip(raw_packet, 14);
             break;
-        case 2054: // ARP
+        case 0x806: // ARP
             ret.arp = decode.arp(raw_packet, 14);
             break;
         default:
@@ -167,11 +168,11 @@ var decode = {
         var ret = {};
     
         // http://en.wikipedia.org/wiki/Address_Resolution_Protocol
-        ret.htype = unpack.uint16(raw_packet, 0); // 0, 1
-        ret.ptype = unpack.uint16(raw_packet, 2); // 2, 3
-        ret.hlen = raw_packet[4];
-        ret.plen = raw_packet[5];
-        ret.operation = unpack.uint16(raw_packet, 6); // 6, 7
+        ret.htype = unpack.uint16(raw_packet, offset); // 0, 1
+        ret.ptype = unpack.uint16(raw_packet, offset + 2); // 2, 3
+        ret.hlen = raw_packet[offset + 4];
+        ret.plen = raw_packet[offset + 5];
+        ret.operation = unpack.uint16(raw_packet, offset + 6); // 6, 7
         if (ret.operation === 1) {
             ret.operation = "request";
         }
@@ -181,10 +182,13 @@ var decode = {
         else {
             ret.operation = "unknown";
         }
-        ret.sender_ha = unpack.uint16(raw_packet, 8); // 8, 9
-        ret.sender_pa = unpack.uint16(raw_packet, 10); // 10, 11
-        ret.target_ha = unpack.uint16(raw_packet, 12); // 12, 13
-        ret.target_pa = unpack.uint16(raw_packet, 14); // 14, 15
+        if (ret.hlen === 6 && ret.plen === 4) { // ethernet + IPv4
+            ret.sender_ha = unpack.ethernet_addr(raw_packet, offset + 8); // 8, 9, 10, 11, 12, 13
+            ret.sender_pa = unpack.ipv4_addr(raw_packet, offset + 14); // 14, 15, 16, 17
+            ret.target_ha = unpack.ethernet_addr(raw_packet, offset + 18); // 18, 19, 20, 21, 22, 23
+            ret.target_pa = unpack.ipv4_addr(raw_packet, offset + 24); // 24, 25, 26, 27
+        }
+        // don't know how to decode more exotic ARP types
     
         return ret;
     },
@@ -450,13 +454,129 @@ var decode = {
 };
 exports.decode = decode;
 
+var dns_cache = (function () {
+    var cache = {},
+        requests = {};
+
+    function lookup_ptr(ip) {
+        if (cache[ip]) {
+            return cache[ip];
+        }
+        else {
+            if (! requests[ip]) {
+                requests[ip] = true;
+                dns.reverse(ip, function (err, domains) {
+                    if (err) {
+                        cache[ip] = ip;
+                        // TODO - check for network and broadcast addrs, since we have iface info
+                    }
+                    else {
+                        cache[ip] = domains[0];
+                    }
+                    delete requests[ip];
+                });
+            }
+            return ip;
+        }
+    }
+    
+    return {
+        ptr: function (ip) {
+            return lookup_ptr(ip);
+        }
+    };
+}());
+exports.dns_cache = dns_cache;
+
+function print_ip(packet) {
+    var ret = "",
+        ip = packet.link.ip;
+
+    switch (ip.protocol_name) {
+    case "TCP":
+        ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport + 
+            " TCP len " + ip.total_length;
+        break;
+    case "UDP":
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " UDP len " + ip.total_length;
+        break;
+    case "ICMP":
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " + 
+            ip.icmp.sequence;
+        break;
+    default:
+        ret += " proto " + ip.protocol_name;
+        break;
+    }
+
+    return ret;
+}
+
+function print_arp(packet) {
+    var ret = "",
+        arp = packet.link.arp;
+
+    if (arp.htype === 1 && arp.ptype === 0x800 && arp.hlen === 6 && arp.plen === 4) {
+        ret += " " + arp.sender_pa + " ARP " + arp.operation + " " + arp.target_pa;
+        if (arp.operation === "reply") {
+            ret += " hwaddr " + arp.target_ha;
+        }
+    }
+    else {
+        ret = " unknown arp type";
+        ret += sys.inspect(arp);
+    }
+    
+    return ret;
+}
+
+function print_ethernet(packet) {
+    var ret = packet.link.shost + " -> " + packet.link.dhost;
+
+    switch (packet.link.ethertype) {
+    case 0x800:
+        ret += print_ip(packet);
+        break;
+    case 0x806:
+        ret += print_arp(packet);
+        break;
+    default:
+        sys.puts("Don't know how to print ethertype " + packet.link.ethertype);
+    }
+    
+    return ret;
+}
+
+function print_nulltype(packet) {
+    var ret = "loopback ";
+    
+    return ret;
+}
+
+function print_oneline(packet) {
+    var ret = "";
+    switch (packet.link_type) {
+    case "LINKTYPE_ETHERNET":
+        ret += print_ethernet(packet);
+        break;
+    case "LINKTYPE_NULL":
+        ret += print_nulltype(packet);
+        break;
+    default:
+        sys.puts("Don't yet know how to print link_type " + packet.link_type);
+    }
+    
+    return ret;
+}
+exports.print_oneline = print_oneline;
+
 function format_rate(bytes, ms) {
     return ((bytes * 8 * 1024) / (ms * 1000)).toFixed(2);
 }
 
 function make_session_key(src, dst) {
     return [ src, dst ].sort().join("-");
-};
+}
 
 function parse_http_request(buf) {
     var str = buf.toString('utf8', 0, buf.length),
@@ -524,10 +644,8 @@ TCP_tracker.prototype.session_stats = function (session) {
 
 TCP_tracker.prototype.track_next = function (key, packet) {
     var ip      = packet.link.ip,
-        tcp     = ip.tcp;
-        src     = ip.saddr + ":" + tcp.sport;
-        dst     = ip.daddr + ":" + tcp.dport;
-        key     = make_session_key(src, dst),
+        tcp     = ip.tcp,
+        src     = ip.saddr + ":" + tcp.sport,
         session = this.sessions[key];
 
     if (typeof session !== 'object') {
@@ -688,39 +806,4 @@ TCP_tracker.prototype.track_packet = function (packet) {
         throw new Error("tcp_tracker.track_packet fed a non-TCP packet: " + sys.inspect(packet));
     }
 };
-
-var dns_cache = (function () {
-    var cache = {},
-        requests = {};
-
-    function lookup_ptr(ip) {
-        if (cache[ip]) {
-            return cache[ip];
-        }
-        else {
-            if (! requests[ip]) {
-                requests[ip] = true;
-                dns.reverse(ip, function (err, domains) {
-                    if (err) {
-                        cache[ip] = ip;
-                        // TODO - check for network and broadcast addrs, since we have iface info
-                    }
-                    else {
-                        cache[ip] = domains[0];
-                    }
-                    delete requests[ip];
-                });
-            }
-            return ip;
-        }
-    }
-    
-    return {
-        ptr: function (ip) {
-            return lookup_ptr(ip);
-        }
-    };
-}());
-exports.dns_cache = dns_cache;
-
 
