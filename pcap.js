@@ -489,17 +489,19 @@ TCP_tracker.prototype.session_stats = function (session) {
     send_acks.sort();
     recv_acks.sort();
 
+    stats.recv_times = {};
     send_acks.forEach(function (v) {
         if (session.recv_packets[v]) {
-            //                sys.puts("RTT for recv seqno " + v + ": " + (session.send_acks[v] - session.recv_packets[v]) + "ms");
+            stats.recv_times[v] = session.send_acks[v] - session.recv_packets[v];
         } else {
             sys.puts("send ACK with missing recv seqno: " + v);
         }
     });
 
+    stats.send_times = {};
     recv_acks.forEach(function (v) {
         if (session.send_packets[v]) {
-            //                sys.puts("RTT for send seqno " + v + ": " + (session.recv_acks[v] - session.send_packets[v]) + "ms");
+            stats.send_times[v] = session.recv_acks[v] - session.send_packets[v];
         } else {
             sys.puts("recv ACK with missing send seqno: " + v);
         }
@@ -507,9 +509,11 @@ TCP_tracker.prototype.session_stats = function (session) {
 
     stats.total_time = total_time;
     stats.send_overhead = session.send_bytes_ip + session.send_bytes_tcp;
-    stats.send_total = stats.send_overhead + session.send_bytes_payload;
+    stats.send_payload = session.send_bytes_payload;
+    stats.send_total = stats.send_overhead + stats.send_payload;
     stats.recv_overhead = session.recv_bytes_ip + session.recv_bytes_tcp;
-    stats.recv_total = stats.recv_overhead + session.recv_bytes_payload;
+    stats.recv_payload = session.recv_bytes_payload;
+    stats.recv_total = stats.recv_overhead + stats.recv_payload;
 
     if (session.http_request) {
         stats.http_request = session.http_request;
