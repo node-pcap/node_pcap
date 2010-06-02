@@ -695,6 +695,9 @@ TCP_tracker.prototype.track_next = function (key, packet) {
                     }
                 }
                 session.send_bytes_payload += ip.data_bytes;
+                if (session.send_packets[tcp.seqno + ip.data_bytes]) {
+                    sys.puts("Retransmission send of segment " + (tcp.seqno + ip.data_bytes));
+                }
                 session.send_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time_ms;
             }
             if (session.recv_packets[tcp.ackno]) {
@@ -714,6 +717,9 @@ TCP_tracker.prototype.track_next = function (key, packet) {
             session.recv_bytes_tcp += tcp.header_bytes;
             if (ip.data_bytes) {
                 session.recv_bytes_payload += ip.data_bytes;
+                if (session.recv_packets[tcp.seqno + ip.data_bytes]) {
+                    sys.puts("Retransmission recv of segment " + (tcp.seqno + ip.data_bytes));
+                }
                 session.recv_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time_ms;
             }
             if (session.send_packets[tcp.ackno]) {
