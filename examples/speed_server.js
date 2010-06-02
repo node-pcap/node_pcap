@@ -2,7 +2,7 @@
 /*global process require exports setInterval __dirname */
 
 var sys = require("sys"),
-    pcap = require("./pcap"),
+    pcap = require("../pcap"),
     count = 0,
     start_time = new Date(),
     pcap_session = pcap.createSession("lo0", 'ip proto \\tcp and port 80'),
@@ -92,10 +92,10 @@ function lookup_mime_type(file_name) {
 function do_error(response, code, message) {
     sys.puts("do_error: " + code + " - " + message);
     response.writeHead(code, {
-        "Content-Type": "text/plain"
+        "Content-Type": "text/plain",
+        "Connection": "close"
     });
     response.write(message);
-    response.closeOnFinish = true;
     response.end();
 }
 
@@ -112,7 +112,8 @@ function handle_file(file_name, in_request, in_response) {
             file = fs.readFile(local_name, "binary", function (err, data) {
                 var out_headers = {
                     "Content-Type": lookup_mime_type(local_name),
-                    "Content-Length": data.length
+                    "Content-Length": data.length,
+                    "Connection": "close"
                 };
                 if (err) {
                     do_error(in_response, 404, "Error opening " + local_name + ": " + err);
@@ -122,10 +123,9 @@ function handle_file(file_name, in_request, in_response) {
                 if (in_request.headers.origin) {
                     out_headers["access-control-allow-origin"] = in_request.headers.origin;
                 }
-                in_response.writeHead(200, out_headers);
 
+                in_response.writeHead(200, out_headers);
                 in_response.write(data, "binary");
-                in_response.closeOnFinish = true;
                 in_response.end();
             });
         }
@@ -148,7 +148,8 @@ function send_start(url, request, response) {
 function get_stats(url, request, response) {
     if (url.query && url.query.id) {
         response.writeHead(200, {
-            "Content-Type": "text/plain"
+            "Content-Type": "text/plain",
+            "Connection": "close"
         });
         if (track_ids[url.query.id]) {
             response.write(JSON.stringify(track_ids[url.query.id]));
@@ -158,7 +159,6 @@ function get_stats(url, request, response) {
                 error: "Can't find id in session table"
             }));
         }
-        response.closeOnFinish = true;
         response.end();
     }
     else {
