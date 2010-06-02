@@ -2,10 +2,9 @@
 /*global process require exports setInterval __dirname */
 
 var sys = require("sys"),
-    pcap = require("../pcap"),
+    pcap = require("../pcap"), pcap_session,
     count = 0,
     start_time = new Date(),
-    pcap_session = pcap.createSession("", 'ip proto \\tcp and port 80'),
     dns_cache = pcap.dns_cache,
     tcp_tracker = new pcap.TCP_tracker(),
     http = require('http'),
@@ -13,6 +12,17 @@ var sys = require("sys"),
     path = require('path'),
     fs = require('fs'),
     track_ids = {};
+
+if (process.argv.length !== 4) {
+    sys.error("usage: " + process.argv[1] + " interface filter");
+    sys.error("Examples: ");
+    sys.error('  sudo node speed_server.js en0 "tcp port 80"');
+    sys.error('  sudo node speed_server.js eth1 ""');
+    sys.error('  sudo node speed_server.js lo0 "ip proto \\tcp and tcp port 80"');
+    process.exit(1);
+}
+
+pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 
 // Print all devices, currently listening device prefixed with an asterisk
 sys.puts("All devices:");
