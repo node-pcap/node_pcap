@@ -113,16 +113,35 @@ OpenLive(const Arguments& args)
         fprintf(stderr, "warning: %s - filtering may not work right\n", errbuf);
     }
 
-    // 64KB is the max IPv4 packet size, 1 is promiscuous mode, 1000ms "read timeout" which sometimes does something good
-    pcap_handle = pcap_open_live((char *) *device, 65535, 1, 1000, errbuf);
+    pcap_handle = pcap_create((char *) *device, errbuf);
     if (pcap_handle == NULL) {
         return ThrowException(Exception::Error(String::New(errbuf)));
+    }
+
+    // 64KB is the max IPv4 packet size
+    if (pcap_set_snaplen(pcap_handle, 65535) != 0) {
+        return ThrowException(Exception::Error(String::New("error setting snaplen")));
+    }
+
+    // always use promiscuous mode
+    if (pcap_set_promisc(pcap_handle, 1) != 0) {
+        return ThrowException(Exception::Error(String::New("error setting promiscuous mode")));
+    }
+
+    // 524288 = 512KB
+    if (pcap_set_buffer_size(pcap_handle, 524288) != 0) {
+        return ThrowException(Exception::Error(String::New("error setting buffer size")));
+    }
+
+    if (pcap_activate(pcap_handle) != 0) {
+        return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
     }
 
     if (pcap_setnonblock(pcap_handle, 1, errbuf) == -1) {
         return ThrowException(Exception::Error(String::New(errbuf)));
     }
 
+    // TODO - if filter is empty, don't bother with compile or set
     if (pcap_compile(pcap_handle, &fp, (char *) *filter, 1, net) == -1) {
         return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
     }
@@ -131,13 +150,12 @@ OpenLive(const Arguments& args)
         return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
     }
 
-    int fd = pcap_get_selectable_fd(pcap_handle);
-
     // Work around buffering bug in BPF on OSX 10.6 as of May 19, 2010
     // This may result in dropped packets under load because it disables the (broken) buffer
     // http://seclists.org/tcpdump/2010/q1/110
 #if defined(__APPLE_CC__) || defined(__APPLE__)
     #include <net/bpf.h>
+    int fd = pcap_get_selectable_fd(pcap_handle);
     int v = 1;
     ioctl(fd, BIOCIMMEDIATE, &v);
     // TODO - check return value
@@ -280,6 +298,14 @@ DefaultDevice(const Arguments& args)
     return scope.Close(String::New(dev));
 }
 
+Handle<Value>
+LibVersion(const Arguments &args)
+{
+    HandleScope scope;
+
+    return scope.Close(String::New(pcap_lib_version()));
+}
+
 extern "C" void init (Handle<Object> target)
 {
     HandleScope scope;
@@ -291,4 +317,5 @@ extern "C" void init (Handle<Object> target)
     target->Set(String::New("close"), FunctionTemplate::New(Close)->GetFunction());
     target->Set(String::New("stats"), FunctionTemplate::New(Stats)->GetFunction());
     target->Set(String::New("default_device"), FunctionTemplate::New(DefaultDevice)->GetFunction());
+    target->Set(String::New("lib_version"), FunctionTemplate::New(LibVersion)->GetFunction());
 }
