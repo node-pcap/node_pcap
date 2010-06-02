@@ -133,6 +133,11 @@ OpenLive(const Arguments& args)
         return ThrowException(Exception::Error(String::New("error setting buffer size")));
     }
 
+    // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
+    if (pcap_set_timeout(pcap_handle, 1000) != 0) {
+        return ThrowException(Exception::Error(String::New("error setting read timeout")));
+    }
+
     if (pcap_activate(pcap_handle) != 0) {
         return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
     }
