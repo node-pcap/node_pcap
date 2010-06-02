@@ -49,9 +49,6 @@ void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_c
 
     Local<Object> packet_header = Object::New();
 
-    double t_ms = (pkthdr->ts.tv_sec * 1000) + (pkthdr->ts.tv_usec / 1000);
-
-    packet_header->Set(String::New("time"), Date::New(t_ms));
     packet_header->Set(String::New("tv_sec"), Integer::NewFromUnsigned(pkthdr->ts.tv_sec));
     packet_header->Set(String::New("tv_usec"), Integer::NewFromUnsigned(pkthdr->ts.tv_usec));
     packet_header->Set(String::New("caplen"), Integer::NewFromUnsigned(pkthdr->caplen));
