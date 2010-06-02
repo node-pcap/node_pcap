@@ -33,6 +33,7 @@ Pcap.prototype.open_live = function (device, filter) {
     this.readWatcher.callback = function () {
         var packets_read = binding.dispatch(me.buf, function (header) {
             header.link_type = me.link_type;
+            header.time_ms = (header.tv_sec * 1000) + (header.tv_usec / 1000);
             me.buf.pcap_header = header;
             me.emit('packet', me.buf);
         });
@@ -128,6 +129,7 @@ var decode = {
             sys.puts("Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
         }
 
+        
         packet.pcap_header = raw_packet.pcap_header; // TODO - merge values here instead of putting ref on packet buffer
 
         return packet;
@@ -657,10 +659,14 @@ TCP_tracker.prototype.track_next = function (key, packet) {
         if (src === session.dst && tcp.flags.syn && tcp.flags.ack) {
             session.recv_bytes_ip += ip.header_bytes;
             session.recv_bytes_tcp += tcp.header_bytes;
-            session.recv_packets[tcp.seqno + 1] = packet.pcap_header.time.getTime();
-            session.recv_acks[tcp.ackno] = packet.pcap_header.time.getTime();
-            session.isn_dst = tcp.seqno;
+            session.recv_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
+            session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
+            session.recv_isn = tcp.seqno;
+            session.recv_window_scale = tcp.options.window_scale || 1; // multiplier, not bit shift value
             session.state = "SYN_RCVD";
+        } else if (tcp.flags.rst) {
+            sys.puts("Connection reset by receiver -> CLOSED");
+            session.state = "CLOSED";
         } else {
             sys.puts("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(packet));
         }
@@ -669,8 +675,8 @@ TCP_tracker.prototype.track_next = function (key, packet) {
         if (src === session.src && tcp.flags.ack) { // TODO - make sure SYN flag isn't set, also match src and dst
             session.send_bytes_ip += ip.header_bytes;
             session.send_bytes_tcp += tcp.header_bytes;
-            session.send_acks[tcp.ackno] = packet.pcap_header.time.getTime();
-            session.handshake_time = packet.pcap_header.time.getTime() - session.syn_time;
+            session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
+            session.handshake_time = packet.pcap_header.time_ms;
             this.emit('start', session);
             session.state = "ESTAB";
         } else {
@@ -689,19 +695,18 @@ TCP_tracker.prototype.track_next = function (key, packet) {
                     }
                 }
                 session.send_bytes_payload += ip.data_bytes;
-                session.send_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time.getTime();
+                session.send_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time_ms;
             }
             if (session.recv_packets[tcp.ackno]) {
                 if (session.send_acks[tcp.ackno]) {
                     // sys.puts("Already sent this ACK, which I'm guessing is fine.");
                 } else {
-                    session.send_acks[tcp.ackno] = packet.pcap_header.time.getTime();
+                    session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
                 }
             } else {
                 sys.puts("sending ACK for packet we didn't see received.");
             }
             if (tcp.flags.fin) {
-                sys.puts("FIN send -> FIN_WAIT");
                 session.state = "FIN_WAIT";
             }
         } else if (src === session.dst) {
@@ -709,19 +714,18 @@ TCP_tracker.prototype.track_next = function (key, packet) {
             session.recv_bytes_tcp += tcp.header_bytes;
             if (ip.data_bytes) {
                 session.recv_bytes_payload += ip.data_bytes;
-                session.recv_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time.getTime();
+                session.recv_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time_ms;
             }
             if (session.send_packets[tcp.ackno]) {
                 if (session.recv_acks[tcp.ackno]) {
                     // sys.puts("Already received this ACK, which I'm guessing is fine.");
                 } else {
-                    session.recv_acks[tcp.ackno] = packet.pcap_header.time.getTime();
+                    session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
                 }
             } else {
                 sys.puts("receiving ACK for packet we didn't see sent.");
             }
             if (tcp.flags.fin) {
-                sys.puts("FIN received -> CLOSE_WAIT");
                 session.state = "CLOSE_WAIT";
             }
         } else {
@@ -730,28 +734,24 @@ TCP_tracker.prototype.track_next = function (key, packet) {
         break;
     case "FIN_WAIT":
         if (src === session.dst && tcp.flags.fin) {
-            sys.puts("FIN received -> CLOSING");
             session.state = "CLOSING";
         }
         break;
     case "CLOSE_WAIT":
         if (src === session.src && tcp.flags.fin) {
-            sys.puts("FIN sent -> LAST_ACK");
             session.state = "LAST_ACK";
         }
         break;
     case "LAST_ACK":
         if (src === session.dst) {
-            sys.puts("LAST_ACK -> CLOSED");
-            session.close_time = packet.pcap_header.time.getTime();
+            session.close_time = packet.pcap_header.time_ms;
             session.state = "CLOSED";
             this.emit('end', session);
         }
         break;
     case "CLOSING":
         if (src === session.src) {
-            sys.puts("CLOSING -> CLOSED");
-            session.close_time = packet.pcap_header.time.getTime();
+            session.close_time = packet.pcap_header.time_ms;
             session.state = "CLOSED";
             this.emit('end', session);
         }
@@ -782,9 +782,10 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 this.sessions[key] = {
                     src: src, // the side the sent the initial SYN
                     dst: dst, // the side that the initial SYN was sent to
-                    syn_time: packet.pcap_header.time,
+                    syn_time: packet.pcap_header.time_ms,
                     state: "SYN_SENT",
-                    isn_src: tcp.seqno,
+                    send_isn: tcp.seqno,
+                    send_window_scale: tcp.options.window_scale || 1, // multipler, not bit shift value
                     recv_packets: {},
                     recv_acks: {},
                     recv_bytes_ip: 0,
@@ -796,7 +797,7 @@ TCP_tracker.prototype.track_packet = function (packet) {
                     send_bytes_tcp: tcp.header_bytes,
                     send_bytes_payload: 0
                 };
-                this.sessions[key].send_packets[tcp.seqno + 1] = packet.pcap_header.time.getTime();
+                this.sessions[key].send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
             }
             // silently ignore session in progress
         } else {
