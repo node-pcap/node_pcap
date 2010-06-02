@@ -15,6 +15,8 @@ function Pcap() {
 }
 sys.inherits(Pcap, events.EventEmitter);
 
+exports.lib_version = binding.lib_version();
+
 Pcap.prototype.findalldevs = function () {
     return binding.findalldevs();
 };
