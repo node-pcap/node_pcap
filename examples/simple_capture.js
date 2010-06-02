@@ -10,6 +10,8 @@ if (process.argv.length !== 4) {
 
 pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 
+sys.puts(pcap.lib_version);
+
 // Print all devices, currently listening device prefixed with an asterisk
 pcap_session.findalldevs().forEach(function (dev) {
     if (pcap_session.device_name === dev.name) {
