@@ -128,8 +128,8 @@ OpenLive(const Arguments& args)
         return ThrowException(Exception::Error(String::New("error setting promiscuous mode")));
     }
 
-    // 524288 = 512KB
-    if (pcap_set_buffer_size(pcap_handle, 524288) != 0) {
+    // Try to set a 5MB buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
+    if (pcap_set_buffer_size(pcap_handle, 5 * 1024 * 1024) != 0) {
         return ThrowException(Exception::Error(String::New("error setting buffer size")));
     }
 
@@ -137,6 +137,12 @@ OpenLive(const Arguments& args)
     if (pcap_set_timeout(pcap_handle, 1000) != 0) {
         return ThrowException(Exception::Error(String::New("error setting read timeout")));
     }
+
+    // TODO - pass in an option to enable rfmon on supported interfaces.  Sadly, it can be a disruptive
+    // operation, so we can't just always try to turn it on.
+    // if (pcap_set_rfmon(pcap_handle, 1) != 0) {
+    //     return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
+    // }
 
     if (pcap_activate(pcap_handle) != 0) {
         return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
@@ -176,11 +182,12 @@ OpenLive(const Arguments& args)
     case DLT_EN10MB: // most wifi interfaces pretend to be "ethernet"
         ret =  String::New("LINKTYPE_ETHERNET");
         break;
-    case DLT_IEEE802_11: // I think this is for "monitor" mode
-        ret = String::New("LINKTYPE_IEEE802_11");
+    case DLT_IEEE802_11_RADIO: // 802.11 "monitor mode"
+        ret = String::New("LINKTYPE_IEEE802_11_RADIO");
         break;
     default:
-        ret = String::New("Unknown");
+        snprintf(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
+        ret = String::New(errbuf);
         break;
     }
     return scope.Close(ret);
