@@ -59,7 +59,7 @@ tcp_tracker.addListener('http_request', function (session) {
         sys.puts("Added tracking for " + matches[1]);
     }
     else {
-        sys.puts("Didn't add tracking for " + sys.inspect(session));
+        sys.puts("Didn't add tracking for " + sys.inspect(session.http_request));
     }
 });
 
@@ -67,7 +67,6 @@ tcp_tracker.addListener('end', function (session) {
     sys.puts("End of TCP session between " + session.src + " and " + session.dst);
     if (session.track_id) {
         track_ids[session.track_id] = tcp_tracker.session_stats(session);
-        sys.puts("Set stats for session: " + sys.inspect(track_ids));
     }
 });
 
@@ -163,6 +162,7 @@ function get_stats(url, request, response) {
         });
         if (track_ids[url.query.id]) {
             response.write(JSON.stringify(track_ids[url.query.id]));
+            delete track_ids[url.query.id];
         }
         else {
             response.write(JSON.stringify({
@@ -186,6 +186,9 @@ function new_client(new_request, new_response) {
         case "/":
         case "/index.html":
         case "/favicon.ico":
+        case "/jquery.flot.js":
+        case "/jquery.js":
+        case "/jquery.min.js":
             handle_file(pathname, new_request, new_response);
             break;
         case "/send_file":
