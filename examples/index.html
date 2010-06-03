@@ -2,6 +2,8 @@
 <html>
 <head>
     <title>Packet Capture Test</title>
+    <script language="javascript" type="text/javascript" src="jquery.min.js"></script> 
+    <script language="javascript" type="text/javascript" src="jquery.flot.js"></script> 
     <style type="text/css">
         .load_status {
             border: 1px solid black;
@@ -34,12 +36,33 @@
                     "kbits/sec</td><td>" + format_rate(obj.recv_total, obj.total_time) + "kbits/sec</td></tr>";
             ret += "</table>";
 
-            var send_times = Object.keys(obj.recv_times), last, cur;
+            var send_times = Object.keys(obj.recv_times), last, cur, ack_data = [], retrans_data = [];
             send_times.sort();
             for (cur = 1; cur < send_times.length ; cur += 1) {
-                ret += "Bytes " + (send_times[cur] - send_times[0]) + " RTT " + (obj.recv_times[send_times[cur]]) + "ms<br />";
+                ack_data.push([(send_times[cur] - send_times[0]), parseInt(obj.recv_times[send_times[cur]])]);
                 last = send_times[cur];
             }
+
+            Object.keys(obj.recv_retrans).forEach(function (v) {
+                retrans_data.push([v - send_times[0], parseInt(obj.recv_retrans[v])]);
+            });
+
+            console.log(retrans_data);
+
+            $.plot($("#graph"), [{
+                data: ack_data,
+                label: "Send to ACK time (ms)"
+            }, {
+                data: retrans_data,
+                label: "Retransmissions",
+                yaxis: 2,
+                bars: { show: true, fill: true }
+            }], {
+                xaxis: { min: 0 },
+                y2axis: { min: 0 },
+                legend: { position: 'ne' }
+            });
+            
             return ret;
         }
 
@@ -47,6 +70,7 @@
             document.getElementById('go_button').addEventListener('click', function (event) {
                 launch_test();
             }, false);
+            $.plot($("#graph"), []);
         }
         
         function launch_test() {
@@ -95,6 +119,7 @@
     <button id="go_button">Run Test</button>
     <div id="updates_area">
     </div>
+    <div id="graph" style="width:1000px;height:500px;"></div>
     <div id="results"></div>
 </body>
 </html>
