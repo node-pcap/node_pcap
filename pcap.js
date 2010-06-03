@@ -631,6 +631,11 @@ TCP_tracker.prototype.session_stats = function (session) {
         }
     });
 
+    stats.recv_retrans = {};
+    Object.keys(session.recv_retrans).forEach(function (v) {
+        stats.recv_retrans[v] = session.recv_retrans[v];
+    });
+    
     stats.total_time = total_time;
     stats.send_overhead = session.send_bytes_ip + session.send_bytes_tcp;
     stats.send_payload = session.send_bytes_payload;
@@ -704,7 +709,7 @@ TCP_tracker.prototype.track_next = function (key, packet) {
             }
             if (session.recv_packets[tcp.ackno]) {
                 if (session.send_acks[tcp.ackno]) {
-                    // sys.puts("Already sent this ACK, which I'm guessing is fine.");
+//                    sys.puts("Already sent this ACK, which I'm guessing is fine.");
                 } else {
                     session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
                 }
@@ -721,12 +726,17 @@ TCP_tracker.prototype.track_next = function (key, packet) {
                 session.recv_bytes_payload += ip.data_bytes;
                 if (session.recv_packets[tcp.seqno + ip.data_bytes]) {
                     sys.puts("Retransmission recv of segment " + (tcp.seqno + ip.data_bytes));
+                    if (session.recv_retrans[tcp.seqno + ip.data_bytes]) {
+                        session.recv_retrans[tcp.seqno + ip.data_bytes] += 1;
+                    } else {
+                        session.recv_retrans[tcp.seqno + ip.data_bytes] = 1;
+                    }
                 }
                 session.recv_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time_ms;
             }
             if (session.send_packets[tcp.ackno]) {
                 if (session.recv_acks[tcp.ackno]) {
-                    // sys.puts("Already received this ACK, which I'm guessing is fine.");
+//                    sys.puts("Already received this ACK, which I'm guessing is fine.");
                 } else {
                     session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
                 }
@@ -796,11 +806,13 @@ TCP_tracker.prototype.track_packet = function (packet) {
                     send_window_scale: tcp.options.window_scale || 1, // multipler, not bit shift value
                     recv_packets: {},
                     recv_acks: {},
+                    recv_retrans: {},
                     recv_bytes_ip: 0,
                     recv_bytes_tcp: 0,
                     recv_bytes_payload: 0,
                     send_packets: {}, // send_packets is indexed by the expected ackno: seqno + length
                     send_acks: {},
+                    send_retrans: {},
                     send_bytes_ip: ip.header_bytes,
                     send_bytes_tcp: tcp.header_bytes,
                     send_bytes_payload: 0
