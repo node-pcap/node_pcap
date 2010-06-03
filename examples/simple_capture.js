@@ -2,10 +2,17 @@
 /*global process require exports */
 
 var sys = require("sys"),
-    pcap = require("../pcap"), pcap_session;
-
+    pcap = require("../pcap"), pcap_session,
+    dns_cache = pcap.dns_cache,
+    tcp_tracker = new pcap.TCP_tracker();
+    
 if (process.argv.length !== 4) {
-    throw new Error("usage: " + process.argv[1] + " interface filter");
+    sys.error("usage: " + process.argv[1] + " interface filter");
+    sys.error("Examples: ");
+    sys.error('  sudo node simple_capture.js en0 "tcp port 80"');
+    sys.error('  sudo node simple_capture.js eth1 ""');
+    sys.error('  sudo node simple_capture.js lo0 "ip proto \\tcp and tcp port 80"');
+    process.exit(1);
 }
 
 pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
