@@ -1,47 +1,118 @@
 node_pcap
 =========
 
-This is not done yet, and patches are welcome.  If you want to see how awesome it will be, check this out:
+This is a set of bindings from `libpcap` to node as well as some useful libraries to decode, print, and
+analyze packets.  `libpcap` is a packet capture library used by programs like `tcpdump` and `wireshark`.
+It has been tested on OSX and Linux.
 
-Run the test program as root to be able to open the capture device:
+Sadly, `node_pcap` is _not done_ yet.  While it is incomplete, it is still already useful for capturing
+and manipulating packets in JavaScript.
 
-    mjr:~/work/node_pcap$ sudo node test.js
-    
+## Why?
+
+There are already many tools for capturing, decoding, and analyzing packets.  Many of them are thoroughly
+tested and very fast.  Why would anybody want to capture and manipulate packets in JavaScript?  A few reasons:
+
+* JavaScript makes writing event-based programs very natural.  Each packet that is captured generates an
+event, and as higher level protocols are decoded, they might generate events as well.  Writing code to handle
+these events is much easier and more readable with anonymous functions and closures.
+
+* node makes handling binary data in JavaScript fast and efficient with its Buffer class.  Decoding packets involves
+a lot of binary slicing and dicing which can be awkward with JavaScript strings.
+
+* Writing servers that capture packets, process them somehow, and then serve the processed data up in some way is
+very straightforward in node.
+
+## Help Wanted
+
+I want to build up decoders and printers for all popular protocols.  I'm already working on HTTP, DNS,
+and 802.11 "monitor" mode.  If you want to write a decoder or printer for another protocol, let me know,
+or just send me a patch.
+
 
 ## Usage
 
-    session = pcap.createSession("en1", "port 6667");
+There are several example programs that show how to use `node_pcap`.  These examples are best documentation.
+Try them out and see what they do.
 
-    session.addListener('packet', function (pcap_header, raw_packet) {
-        decoded = pcap.decode_packet(pcap_header, raw_packet);
-        sys.puts(pcap_header.len + " " + 
-            decoded.ip.saddr + ":" + decoded.tcp.sport + " -> " +
-            decoded.ip.daddr + ":" + decoded.tcp.dport + " " +
-            decoded.payload
-        );
-        sys.puts(sys.inspect(session.stats()));
+To start a pcap session:
+
+    var pcap = require('./pcap'),
+        pcap_session = pcap.createSession(interface, filter);
+
+`interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
+will try to pick a "default" interface, which is often just the first one in some list.
+
+`fitler` is a pcap filter expression, see `pcap-filter(7)` for more information.  An empty string will capture
+all packets visible on the interface.
+
+`pcap_session` is an `EventEmitter` that emits a `packet` event.  The only argument to the callback will be a
+`Buffer` object with the raw bytes returned by `libpcap`.
+
+Listening for packets:
+
+    pcap_session.addListener('packet', function (raw_packet) {
+        // do some stuff with a raw packet
     });
 
-## Raw TCP payload dump:
+To convert the raw packet into a JavaScript object that is easy to work with, decode it:
+    
+    var packet = pcap.decode.packet(raw_packet);
 
-Capturing port 6667 (irc) and issuing `/whois _ry`:
+The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
+which is encapsulated within IP, which is encapsulated within a link layer.  Access it like this:
 
-    rv-mjr2:~/work/node_pcap$ sudo node_g test.js 
-    77 10.240.0.133:64303 -> 213.92.8.4:6667 whois _ry
+    packet.link.ip.tcp.dport
 
-    { ps_recv: 5, ps_drop: 0, ps_ifdrop: 1606408464 }
-    DEBUG: readWatcher callback fired and dispatch read 0 packets instead of 1
-    129 213.92.8.4:6667 -> 10.240.0.133:64303 :calvino.freenode.net 311 mjr_ _ry ~ry tinyclouds.org * :hayr
+This structure is easy to explore with `sys.inspect`.
 
-    { ps_recv: 8, ps_drop: 0, ps_ifdrop: 1606408592 }
-    66 10.240.0.133:64303 -> 213.92.8.4:6667 
-    { ps_recv: 10, ps_drop: 0, ps_ifdrop: 1606407888 }
-    303 213.92.8.4:6667 -> 10.240.0.133:64303 :calvino.freenode.net 319 mjr_ _ry :#Node.js 
-    :calvino.freenode.net 312 mjr_ _ry wolfe.freenode.net :Manchester, England
-    :calvino.freenode.net 330 mjr_ _ry _ry :is logged in as
-    :calvino.freenode.net 318 mjr_ _ry :End of /WHOIS list.
 
-    { ps_recv: 10, ps_drop: 0, ps_ifdrop: 1606407888 }
+Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
+Unless you are root already, you'll probably want to start your node program like this:
+
+    sudo node test.js
+    
+## examples/simple_capture.js
+
+This program captures packets and prints them as best it can.  Here's a sample of it's output.
+In another window I ran `curl nodejs.org`.
+
+    mjr:~/work/node_pcap$ sudo node examples/simple_capture.js en1 ""
+    libpcap version 1.0.0
+    en0 no address
+    * en1 10.240.0.133/255.255.255.0
+    lo0 127.0.0.1/255.0.0.0
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 10.240.0.1 ARP request 10.240.0.133
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c 10.240.0.133 ARP reply 10.240.0.1 hwaddr 00:18:39:ff:f9:1c
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c 10.240.0.133:53808 -> 97.107.132.72:80 TCP len 64
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c 10.240.0.133:57052 -> 10.240.0.1:53 DNS question 133.0.240.10.in-addr.arpa PTR
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c 10.240.0.133:57052 -> 10.240.0.1:53 DNS question 72.132.107.97.in-addr.arpa PTR
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c 10.240.0.133:57052 -> 10.240.0.1:53 DNS question 1.0.240.10.in-addr.arpa PTR
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 10.240.0.1:53 -> 10.240.0.133:57052 DNS answer 133.0.240.10.in-addr.arpa PTR
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 10.240.0.1:53 -> rv-mjr2.ranney.com:57052 DNS answer 72.132.107.97.in-addr.arpa PTR
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 10.240.0.1:53 -> rv-mjr2.ranney.com:57052 DNS answer 1.0.240.10.in-addr.arpa PTR
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 60
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 196
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 52
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 1500
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 1500
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 1500
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 1500
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 1500
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 1500
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 1500
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 337
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+    00:18:39:ff:f9:1c -> 00:1f:5b:ce:3e:29 tinyclouds.org:80 -> rv-mjr2.ranney.com:53808 TCP len 52
+    00:1f:5b:ce:3e:29 -> 00:18:39:ff:f9:1c rv-mjr2.ranney.com:53808 -> tinyclouds.org:80 TCP len 52
+
 
 ## Output from `session.findalldevs`:
 
@@ -61,9 +132,10 @@ Capturing port 6667 (irc) and issuing `/whois _ry`:
       }
     ]
 
-## Ethernet, IP, and TCP decode:
 
-### Running `curl nodejs.org`:
+### Deep decode of `curl nodejs.org`:
+
+Running `sys.inspect` on the first three decoded packets of this TCP session.
 
 First packet, TCP SYN:
 
@@ -229,10 +301,6 @@ Third packet, TCP ACK, 3-way handshake is now complete:
        , link_type: 'LINKTYPE_ETHERNET'
        }
     }
-
-## Output from `pcap_stats`:
-    
-    { ps_recv: 17, ps_drop: 0, ps_ifdrop: 1606411320 }
 
 ## LICENSE - "MIT License"
 
