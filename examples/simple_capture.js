@@ -2,9 +2,7 @@
 /*global process require exports */
 
 var sys = require("sys"),
-    pcap = require("../pcap"), pcap_session,
-    dns_cache = pcap.dns_cache,
-    tcp_tracker = new pcap.TCP_tracker();
+    pcap = require("../pcap"), pcap_session;
     
 if (process.argv.length !== 4) {
     sys.error("usage: " + process.argv[1] + " interface filter");
@@ -17,6 +15,7 @@ if (process.argv.length !== 4) {
 
 pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 
+// libpcap's internal version numnber
 sys.puts(pcap.lib_version);
 
 // Print all devices, currently listening device prefixed with an asterisk
