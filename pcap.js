@@ -226,6 +226,8 @@ var decode = {
         case 6:
             ret.protocol_name = "TCP";
             ret.tcp = decode.tcp(raw_packet, offset + (ret.header_length * 4));
+            // This business with the data_offset and ret.data is temporary until some more higher level
+            // decoders are done, notably HTTP.
             ret.data_offset = offset + ret.header_bytes + ret.tcp.header_bytes;
             ret.data_bytes = (offset + ret.total_length) - ret.data_offset;
             if (ret.data_bytes > 0) {
@@ -235,6 +237,7 @@ var decode = {
             break;
         case 17:
             ret.protocol_name = "UDP";
+            ret.udp = decode.udp(raw_packet, offset + (ret.header_length * 4));
             break;
         default:
             ret.protocol_name = "Unknown";
@@ -365,6 +368,21 @@ var decode = {
         // There are usually more exciting things hiding in ICMP packets after the headers
         return ret;
     },
+    udp: function (raw_packet, offset) {
+        var ret = {};
+
+        // http://en.wikipedia.org/wiki/User_Datagram_Protocol
+        ret.sport = unpack.uint16(raw_packet, offset); // 0, 1
+        ret.dport = unpack.uint16(raw_packet, offset + 2); // 2, 3
+        ret.length = unpack.uint16(raw_packet, offset + 4); // 4, 5
+        ret.checksum = unpack.uint16(raw_packet, offset + 6); // 6, 7
+
+        if (ret.sport === 53 || ret.dport === 53) {
+            ret.dns = decode.dns(raw_packet, offset + 8);
+        }
+        
+        return ret;
+    },
     tcp: function (raw_packet, offset) {
         var ret = {}, option_offset, options_end;
 
@@ -454,9 +472,134 @@ var decode = {
 
         // automatic protocol decode ends here.  Higher level protocols can be decoded by using payload.
         return ret;
+    },
+    dns: function (raw_packet, offset) {
+        var ret = {}, i, internal_offset;
+
+        // http://tools.ietf.org/html/rfc1035
+        
+        ret.header = {};
+        ret.header.id = unpack.uint16(raw_packet, offset); // 0, 1
+        ret.header.qr = (raw_packet[offset + 2] & 128) >> 7;
+        ret.header.opcode = (raw_packet[offset + 2] & 120) >> 3;
+        ret.header.aa = (raw_packet[offset + 2] & 4) >> 2;
+        ret.header.tc = (raw_packet[offset + 2] & 2) >> 1;
+        ret.header.rd = raw_packet[offset + 2] & 1;
+        ret.header.ra = (raw_packet[offset + 3] & 128) >> 7;
+        ret.header.z = 0; // spec says this MUST always be 0
+        ret.header.rcode = raw_packet[offset + 3] & 15;
+        ret.header.qdcount = unpack.uint16(raw_packet, offset + 4); // 4, 5
+        ret.header.ancount = unpack.uint16(raw_packet, offset + 6); // 6, 7
+        ret.header.nscount = unpack.uint16(raw_packet, offset + 8); // 8, 9
+        ret.header.arcount = unpack.uint16(raw_packet, offset + 10); // 10, 11
+
+        internal_offset = offset + 12;
+
+        ret.question = [];
+        for (i = 0; i < ret.header.qdcount ; i += 1) {
+            ret.question[i] = {};
+            var question_done = false, len, parts = [];
+            while (!question_done && internal_offset < raw_packet.pcap_header.caplen) {
+                len = raw_packet[internal_offset];
+                if (len > 0) {
+                    parts.push(raw_packet.toString("ascii", internal_offset + 1, internal_offset + 1 + len));
+                } else {
+                    question_done = true;
+                }
+                internal_offset += (len + 1);
+            }
+            ret.question[i].qname = parts.join('.');
+            ret.question[i].qtype = dns_util.qtype_to_string(unpack.uint16(raw_packet, internal_offset));
+            internal_offset += 2;
+            ret.question[i].qclass = dns_util.qclass_to_string(unpack.uint16(raw_packet, internal_offset));
+            internal_offset += 2;
+        }
+
+        // TODO - actual hard parts here, understand RR compression scheme, etc.
+        ret.answer = {};
+        ret.authority = {};
+        ret.additional = {};
+
+        return ret;
     }
 };
 exports.decode = decode;
+
+var dns_util = {
+    type_to_string: function (type_num) {
+        switch(type_num) {
+        case 1:
+            return "A";
+        case 2:
+            return "NS";
+        case 3:
+            return "MD";
+        case 4:
+            return "MF";
+        case 5:
+            return "CNAME";
+        case 6:
+            return "SOA";
+        case 7:
+            return "MB";
+        case 8:
+            return "MG";
+        case 9:
+            return "MR";
+        case 10:
+            return "NULL";
+        case 11:
+            return "WKS";
+        case 12:
+            return "PTR";
+        case 13:
+            return "HINFO";
+        case 14:
+            return "MINFO";
+        case 15:
+            return "MX";
+        case 16:
+            return "TXT";
+        default:
+            return ("Unknown (" + type_num + ")");
+        }
+    },
+    qtype_to_string: function (qtype_num) {
+        switch(qtype_num) {
+        case 252:
+            return "AXFR";
+        case 253:
+            return "MAILB";
+        case 254:
+            return "MAILA";
+        case 255:
+            return "*";
+        default:
+            return dns_util.type_to_string(qtype_num);
+        }
+    },
+    class_to_string: function (class_num) {
+        switch(class_num) {
+        case 1:
+            return "IN";
+        case 2:
+            return "CS";
+        case 3:
+            return "CH";
+        case 4:
+            return "HS";
+        default:
+            return "Unknown (" + class_num + ")";
+        }
+    },
+    qclass_to_string: function (qclass_num) {
+        if (qclass_num === 255) {
+            return "*";
+        } else {
+            return dns_util.class_to_string(qclass_num);
+        }
+    }
+};
 
 var dns_cache = (function () {
     var cache = {},
@@ -492,97 +635,118 @@ var dns_cache = (function () {
 }());
 exports.dns_cache = dns_cache;
 
-function print_ip(packet) {
-    var ret = "",
-        ip = packet.link.ip;
-
-    switch (ip.protocol_name) {
-    case "TCP":
-        ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport + 
-            " TCP len " + ip.total_length;
-        break;
-    case "UDP":
-        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " UDP len " + ip.total_length;
-        break;
-    case "ICMP":
-        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " + 
-            ip.icmp.sequence;
-        break;
-    default:
-        ret += " proto " + ip.protocol_name;
-        break;
-    }
-
-    return ret;
-}
-
-function print_arp(packet) {
-    var ret = "",
-        arp = packet.link.arp;
-
-    if (arp.htype === 1 && arp.ptype === 0x800 && arp.hlen === 6 && arp.plen === 4) {
-        ret += " " + arp.sender_pa + " ARP " + arp.operation + " " + arp.target_pa;
-        if (arp.operation === "reply") {
-            ret += " hwaddr " + arp.target_ha;
+var print = {
+    dns: function (packet) {
+        var ret = " DNS", dns = packet.link.ip.udp.dns;
+        
+        if (dns.header.qr === 0) {
+            ret += " question";
+        } else if (dns.header.qr === 1) {
+            ret += " answer";
+        } else {
+            return " DNS format invalid: qr = " + dns.header.qr;
         }
+
+        ret += " " + dns.question[0].qname + " " + dns.question[0].qtype;
+        
+        return ret;
+    },
+    ip: function (packet) {
+        var ret = "",
+            ip = packet.link.ip;
+
+        switch (ip.protocol_name) {
+        case "TCP":
+            ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport + 
+                " TCP len " + ip.total_length;
+            break;
+        case "UDP":
+            ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.udp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.udp.dport;
+            if (ip.udp.sport === 53 || ip.udp.dport === 53) {
+                ret += print.dns(packet);
+            } else {
+                ret += " UDP len " + ip.total_length;
+            }
+            break;
+        case "ICMP":
+            ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " + 
+                ip.icmp.sequence;
+            break;
+        default:
+            ret += " proto " + ip.protocol_name;
+            break;
+        }
+
+        return ret;
+    },
+    arp: function (packet) {
+        var ret = "",
+            arp = packet.link.arp;
+
+        if (arp.htype === 1 && arp.ptype === 0x800 && arp.hlen === 6 && arp.plen === 4) {
+            ret += " " + arp.sender_pa + " ARP " + arp.operation + " " + arp.target_pa;
+            if (arp.operation === "reply") {
+                ret += " hwaddr " + arp.target_ha;
+            }
+        }
+        else {
+            ret = " unknown arp type";
+            ret += sys.inspect(arp);
+        }
+
+        return ret;
+    },
+    ethernet: function (packet) {
+        var ret = packet.link.shost + " -> " + packet.link.dhost;
+
+        switch (packet.link.ethertype) {
+        case 0x800:
+            ret += print.ip(packet);
+            break;
+        case 0x806:
+            ret += print.arp(packet);
+            break;
+        default:
+            sys.puts("Don't know how to print ethertype " + packet.link.ethertype);
+        }
+
+        return ret;
+    },
+    nulltype: function (packet) {
+        var ret = "loopback ";
+
+        return ret;
+    },
+    packet: function (packet_to_print) {
+        var ret = "";
+        switch (packet_to_print.link_type) {
+        case "LINKTYPE_ETHERNET":
+            ret += print.ethernet(packet_to_print);
+            break;
+        case "LINKTYPE_NULL":
+            ret += print.nulltype(packet_to_print);
+            break;
+        default:
+            sys.puts("Don't yet know how to print link_type " + packet_to_print.link_type);
+        }
+
+        return ret;
     }
-    else {
-        ret = " unknown arp type";
-        ret += sys.inspect(arp);
-    }
-    
-    return ret;
+};    
+exports.print = print;
+
+function TCP_tracker() {
+    this.sessions = {};
+    events.EventEmitter.call(this);
 }
+sys.inherits(TCP_tracker, events.EventEmitter);
+exports.TCP_tracker = TCP_tracker;
 
-function print_ethernet(packet) {
-    var ret = packet.link.shost + " -> " + packet.link.dhost;
-
-    switch (packet.link.ethertype) {
-    case 0x800:
-        ret += print_ip(packet);
-        break;
-    case 0x806:
-        ret += print_arp(packet);
-        break;
-    default:
-        sys.puts("Don't know how to print ethertype " + packet.link.ethertype);
-    }
-    
-    return ret;
-}
-
-function print_nulltype(packet) {
-    var ret = "loopback ";
-    
-    return ret;
-}
-
-function print_oneline(packet) {
-    var ret = "";
-    switch (packet.link_type) {
-    case "LINKTYPE_ETHERNET":
-        ret += print_ethernet(packet);
-        break;
-    case "LINKTYPE_NULL":
-        ret += print_nulltype(packet);
-        break;
-    default:
-        sys.puts("Don't yet know how to print link_type " + packet.link_type);
-    }
-    
-    return ret;
-}
-exports.print_oneline = print_oneline;
-
-function format_rate(bytes, ms) {
-    return ((bytes * 8 * 1024) / (ms * 1000)).toFixed(2);
-}
-
-function make_session_key(src, dst) {
+TCP_tracker.prototype.make_session_key = function (src, dst) {
     return [ src, dst ].sort().join("-");
-}
+};
 
-function parse_http_request(buf) {
+TCP_tracker.prototype.parse_http_request = function (buf) {
     var str = buf.toString('utf8', 0, buf.length),
         matches = /^(GET|POST) ([^\s]+) /.exec(str);
 
@@ -595,14 +759,7 @@ function parse_http_request(buf) {
     else {
         return null;
     }
-}
-
-function TCP_tracker() {
-    this.sessions = {};
-    events.EventEmitter.call(this);
-}
-sys.inherits(TCP_tracker, events.EventEmitter);
-exports.TCP_tracker = TCP_tracker;
+};
 
 TCP_tracker.prototype.session_stats = function (session) {
     var send_acks = Object.keys(session.send_acks),
