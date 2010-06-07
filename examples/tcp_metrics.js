@@ -1,10 +1,10 @@
 "use strict";
 /*global process require exports setInterval */
 
-var sys = require("sys"),
-    pcap = require("../pcap"), pcap_session,
-    dns_cache = pcap.dns_cache,
-    tcp_tracker = new pcap.TCP_tracker();
+var sys          = require("sys"),
+    pcap         = require("../pcap"), pcap_session,
+    dns_cache    = pcap.dns_cache,
+    tcp_tracker  = new pcap.TCP_tracker();
     
 if (process.argv.length !== 4) {
     sys.error("usage: " + process.argv[1] + " interface filter");
@@ -16,6 +16,8 @@ if (process.argv.length !== 4) {
 }
 
 pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
+
+sys.puts("Listening on " + pcap_session.device_name);
 
 // Check for pcap dropped packets on an interval
 setInterval(function () {
@@ -29,8 +31,12 @@ tcp_tracker.addListener('start', function (session) {
     sys.puts("Start of TCP session between " + session.src + " and " + session.dst);
 });
 
-tcp_tracker.addListener('http_request', function (session) {
-    sys.puts("HTTP " + sys.inspect(session.http_request));
+tcp_tracker.addListener('http_request', function (session, http) {
+    sys.puts("HTTP request: " + sys.inspect(http.request));
+});
+
+tcp_tracker.addListener('http_response', function (session, http) {
+    sys.puts("HTTP response headers " + sys.inspect(http.response));
 });
 
 tcp_tracker.addListener('end', function (session) {
@@ -42,8 +48,5 @@ tcp_tracker.addListener('end', function (session) {
 pcap_session.addListener('packet', function (raw_packet) {
     var packet = pcap.decode.packet(raw_packet);
 
-    if (packet.link.ip.tcp.options.sack) {
-        sys.puts("SACK magic: " + sys.inspect(packet.link.ip.tcp.options.sack));
-    }
     tcp_tracker.track_packet(packet);
 });
