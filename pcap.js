@@ -1,11 +1,13 @@
 "use strict";
 /*global process require exports */
 
-var sys     = require("sys"),
-    dns     = require("dns"),
-    Buffer  = require('buffer').Buffer,
-    events  = require("events"),
-    binding = require("./build/default/binding");
+var sys        = require('sys'),
+    dns        = require('dns'),
+    Buffer     = require('buffer').Buffer,
+    events     = require('events'),
+    binding    = require('./build/default/binding'),
+    HTTPParser = process.binding('http_parser').HTTPParser,
+    url        = require('url');
 
 function Pcap() {
     this.opened = false;
@@ -225,15 +227,7 @@ var decode = {
             break;
         case 6:
             ret.protocol_name = "TCP";
-            ret.tcp = decode.tcp(raw_packet, offset + (ret.header_length * 4));
-            // This business with the data_offset and ret.data is temporary until some more higher level
-            // decoders are done, notably HTTP.
-            ret.data_offset = offset + ret.header_bytes + ret.tcp.header_bytes;
-            ret.data_bytes = (offset + ret.total_length) - ret.data_offset;
-            if (ret.data_bytes > 0) {
-                ret.data = raw_packet.slice(ret.data_offset, (ret.data_offset + ret.total_length));
-                ret.data.length = ret.data_bytes;
-            }
+            ret.tcp = decode.tcp(raw_packet, offset + (ret.header_length * 4), ret);
             break;
         case 17:
             ret.protocol_name = "UDP";
@@ -383,7 +377,7 @@ var decode = {
         
         return ret;
     },
-    tcp: function (raw_packet, offset) {
+    tcp: function (raw_packet, offset, ip) {
         var ret = {}, option_offset, options_end;
 
         // http://en.wikipedia.org/wiki/Transmission_Control_Protocol
@@ -470,11 +464,22 @@ var decode = {
             }
         }
 
+        ret.data_offset = offset + ret.header_bytes;
+        ret.data_end = offset + ip.total_length - ip.header_bytes;
+        ret.data_bytes = ret.data_end - ret.data_offset;
+        if (ret.data_bytes > 0) {
+            // add a buffer slice pointing to the data area of this TCP packet.
+            // Note that this does not make a copy, so ret.data is only valid for this current
+            // trip through the capture loop.
+            ret.data = raw_packet.slice(ret.data_offset, ret.data_end);
+            ret.data.length = ret.data_bytes;
+        }
+
         // automatic protocol decode ends here.  Higher level protocols can be decoded by using payload.
         return ret;
     },
     dns: function (raw_packet, offset) {
-        var ret = {}, i, internal_offset;
+        var ret = {}, i, internal_offset, question_done, len, parts;
 
         // http://tools.ietf.org/html/rfc1035
         
@@ -498,7 +503,8 @@ var decode = {
         ret.question = [];
         for (i = 0; i < ret.header.qdcount ; i += 1) {
             ret.question[i] = {};
-            var question_done = false, len, parts = [];
+            question_done = false;
+            parts = [];
             while (!question_done && internal_offset < raw_packet.pcap_header.caplen) {
                 len = raw_packet[internal_offset];
                 if (len > 0) {
@@ -527,7 +533,7 @@ exports.decode = decode;
 
 var dns_util = {
     type_to_string: function (type_num) {
-        switch(type_num) {
+        switch (type_num) {
         case 1:
             return "A";
         case 2:
@@ -565,7 +571,7 @@ var dns_util = {
         }
     },
     qtype_to_string: function (qtype_num) {
-        switch(qtype_num) {
+        switch (qtype_num) {
         case 252:
             return "AXFR";
         case 253:
@@ -579,7 +585,7 @@ var dns_util = {
         }
     },
     class_to_string: function (class_num) {
-        switch(class_num) {
+        switch (class_num) {
         case 1:
             return "IN";
         case 2:
@@ -746,9 +752,9 @@ TCP_tracker.prototype.make_session_key = function (src, dst) {
     return [ src, dst ].sort().join("-");
 };
 
-TCP_tracker.prototype.parse_http_request = function (buf) {
+TCP_tracker.prototype.detect_http_request = function (buf) {
     var str = buf.toString('utf8', 0, buf.length),
-        matches = /^(GET|POST) ([^\s]+) /.exec(str);
+        matches = /^(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|COPY|LOCK|MKCOL|MOVE|PROPFIND|PROPPATCH|UNLOCK) ([^\s\r\n]+) HTTP\/\d\.\d\r\n/.exec(str);
 
     if (matches) {
         return {
@@ -808,6 +814,122 @@ TCP_tracker.prototype.session_stats = function (session) {
     return stats;
 };
 
+TCP_tracker.prototype.setup_http_tracking = function (session) {
+    var self = this, http = {};
+
+    http.request_parser = new HTTPParser('request');
+    http.request_parser.onMessageBegin = function () {
+        http.request = {
+            headers: {},
+            url: "",
+            method: "",
+            http_version: null
+        };
+
+        http.request_parser.onURL = function (buf, start, len) {
+            var url_string = buf.toString('ascii', start, start + len);
+            if (http.request.url) {
+                http.request.url += url_string;
+            } else {
+                http.request.url = url_string;
+            }            
+        };
+
+        http.request_parser.onHeaderField = function (buf, start, len) {
+            var field = buf.toString('ascii', start, start + len);
+            if (http.request_parser.header_value) {
+                http.request.headers[http.request_parser.header_field] = http.request_parser.header_value;
+                http.request_parser.header_field = null;
+                http.request_parser.header_value = null;
+            }
+            if (http.request_parser.header_field) {
+                http.request_parser.header_field += field;
+            } else {
+                http.request_parser.header_field = field;
+            }
+        };
+
+        http.request_parser.onHeaderValue = function (buf, start, len) {
+            var value = buf.toString('ascii', start, start + len);
+            if (http.request_parser.header_value) {
+                http.request_parser.header_value += value;
+            } else {
+                http.request_parser.header_value = value;
+            }
+        };
+
+        http.request_parser.onHeadersComplete = function (info) {
+            if (http.request_parser.header_field && http.request_parser.header_value) {
+                http.request.headers[http.request_parser.header_field] = http.request_parser.header_value;
+            }
+
+            http.request.http_version = info.versionMajor + "." + info.versionMinor;
+
+            http.request.method = info.method;
+        };
+
+        http.request_parser.onData = function (buf, start, len) {
+            sys.puts("HTTP request chunk, length " + len);
+        };
+
+        http.request_parser.onMessageComplete = function () {
+            self.emit("http_request", session, http);
+        };
+    };
+
+    http.response_parser = new HTTPParser('response');
+    http.response_parser.onMessageBegin = function () {
+        http.response = {
+            headers: {},
+            status_code: null,
+            http_version: null
+        };
+        
+        http.response_parser.onHeaderField = function (buf, start, len) {
+            var field = buf.toString('ascii', start, start + len);
+            if (http.response_parser.header_value) {
+                http.response.headers[http.response_parser.header_field] = http.response_parser.header_value;
+                http.response_parser.header_field = null;
+                http.response_parser.header_value = null;
+            }
+            if (http.response_parser.header_field) {
+                http.response_parser.header_field += field;
+            } else {
+                http.response_parser.header_field = field;
+            }
+        };
+
+        http.response_parser.onHeaderValue = function (buf, start, len) {
+            var value = buf.toString('ascii', start, start + len);
+            if (http.response_parser.header_value) {
+                http.response_parser.header_value += value;
+            } else {
+                http.response_parser.header_value = value;
+            }
+        };
+
+        http.response_parser.onHeadersComplete = function (info) {
+            if (http.response_parser.header_field && http.response_parser.header_value) {
+                http.response.headers[http.response_parser.header_field] = http.response_parser.header_value;
+            }
+
+            http.response.http_version = info.versionMajor + "." + info.versionMinor;
+            http.response.status_code = info.statusCode;
+
+            self.emit('http_response', session, http);
+        };
+
+        http.response_parser.onBody = function (buf, start, len) {
+        };
+        
+        http.response_parser.onMessageComplete = function () {
+            self.emit('http_response_complete', session, http);
+        };
+    };
+
+    session.http = http;
+};
+
 TCP_tracker.prototype.track_next = function (key, packet) {
     var ip      = packet.link.ip,
         tcp     = ip.tcp,
@@ -816,6 +938,11 @@ TCP_tracker.prototype.track_next = function (key, packet) {
 
     if (typeof session !== 'object') {
         throw new Error("track_next: couldn't find session for " + key);
+    }
+
+    if (tcp.options.sack) {
+        sys.puts("SACK magic: " + sys.inspect(tcp.options.sack));
+        sys.puts(sys.inspect(ip, false, 5));
     }
 
     switch (session.state) {
@@ -832,7 +959,7 @@ TCP_tracker.prototype.track_next = function (key, packet) {
             sys.puts("Connection reset by receiver -> CLOSED");
             session.state = "CLOSED";
         } else {
-            sys.puts("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(packet));
+            sys.puts("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(packet, false, 4));
         }
         break;
     case "SYN_RCVD":
@@ -851,18 +978,26 @@ TCP_tracker.prototype.track_next = function (key, packet) {
         if (src === session.src) {
             session.send_bytes_ip += ip.header_bytes;
             session.send_bytes_tcp += tcp.header_bytes;
-            if (ip.data_bytes) {
+            if (tcp.data_bytes) {
                 if (session.send_bytes_payload === 0) {
-                    session.http_request = parse_http_request(ip.data);
-                    if (session.http_request) {
-                        this.emit('http_request', session);
+                    session.http_detect = this.detect_http_request(tcp.data);
+                    if (session.http_detect) {
+                        this.setup_http_tracking(session);
                     }
                 }
-                session.send_bytes_payload += ip.data_bytes;
-                if (session.send_packets[tcp.seqno + ip.data_bytes]) {
-                    sys.puts("Retransmission send of segment " + (tcp.seqno + ip.data_bytes));
+                session.send_bytes_payload += tcp.data_bytes;
+                if (session.send_packets[tcp.seqno + tcp.data_bytes]) {
+                    sys.puts("Retransmission send of segment " + (tcp.seqno + tcp.data_bytes));
+                } else {
+                    if (session.http_detect) {
+                        try {
+                            session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
+                        } catch (request_err) {
+                            sys.puts("HTTP request parser exception: " + request_err);
+                        }
+                    }
                 }
-                session.send_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time_ms;
+                session.send_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
             }
             if (session.recv_packets[tcp.ackno]) {
                 if (session.send_acks[tcp.ackno]) {
@@ -879,17 +1014,23 @@ TCP_tracker.prototype.track_next = function (key, packet) {
         } else if (src === session.dst) {
             session.recv_bytes_ip += ip.header_bytes;
             session.recv_bytes_tcp += tcp.header_bytes;
-            if (ip.data_bytes) {
-                session.recv_bytes_payload += ip.data_bytes;
-                if (session.recv_packets[tcp.seqno + ip.data_bytes]) {
-                    sys.puts("Retransmission recv of segment " + (tcp.seqno + ip.data_bytes));
-                    if (session.recv_retrans[tcp.seqno + ip.data_bytes]) {
-                        session.recv_retrans[tcp.seqno + ip.data_bytes] += 1;
+            if (tcp.data_bytes) {
+                session.recv_bytes_payload += tcp.data_bytes;
+                if (session.recv_packets[tcp.seqno + tcp.data_bytes]) {
+                    sys.puts("Retransmission recv of segment " + (tcp.seqno + tcp.data_bytes));
+                    if (session.recv_retrans[tcp.seqno + tcp.data_bytes]) {
+                        session.recv_retrans[tcp.seqno + tcp.data_bytes] += 1;
                     } else {
-                        session.recv_retrans[tcp.seqno + ip.data_bytes] = 1;
+                        session.recv_retrans[tcp.seqno + tcp.data_bytes] = 1;
+                    }
+                } else {
+                    try {
+                        session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
+                    } catch (response_err) {
+                        sys.puts("HTTP response parser exception: " + response_err);
                     }
                 }
-                session.recv_packets[tcp.seqno + ip.data_bytes] = packet.pcap_header.time_ms;
+                session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
             }
             if (session.send_packets[tcp.ackno]) {
                 if (session.recv_acks[tcp.ackno]) {
@@ -950,10 +1091,10 @@ TCP_tracker.prototype.track_packet = function (packet) {
         tcp = ip.tcp;
         src = ip.saddr + ":" + tcp.sport;
         dst = ip.daddr + ":" + tcp.dport;
-        key = make_session_key(src, dst);
+        key = this.make_session_key(src, dst);
 
-        if (this.sessions[key] === undefined) {
-            if (tcp.flags.syn && !tcp.flags.ack) {
+        if (tcp.flags.syn && !tcp.flags.ack) {
+            if (this.sessions[key] === undefined) {
                 this.sessions[key] = {
                     src: src, // the side the sent the initial SYN
                     dst: dst, // the side that the initial SYN was sent to
@@ -975,13 +1116,17 @@ TCP_tracker.prototype.track_packet = function (packet) {
                     send_bytes_payload: 0
                 };
                 this.sessions[key].send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
+            } else { // SYN retry
+                sys.puts("SYN retry from " + src + " to " + dst);
             }
-            // silently ignore session in progress
-        } else {
-            this.track_next(key, packet);
+        } else { // not a SYN
+            if (this.sessions[key]) {
+                this.track_next(key, packet);
+            } else {
+                // silently ignore session in progress
+            }
         }
     } else {
         throw new Error("tcp_tracker.track_packet fed a non-TCP packet: " + sys.inspect(packet));
     }
 };
-
