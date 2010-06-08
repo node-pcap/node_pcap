@@ -611,7 +611,7 @@ var dns_cache = (function () {
     var cache = {},
         requests = {};
 
-    function lookup_ptr(ip) {
+    function lookup_ptr(ip, callback) {
         if (cache[ip]) {
             return cache[ip];
         }
@@ -625,6 +625,9 @@ var dns_cache = (function () {
                     }
                     else {
                         cache[ip] = domains[0];
+                        if (typeof callback === 'function') {
+                            callback(domains[0]);
+                        }
                     }
                     delete requests[ip];
                 });
@@ -634,8 +637,8 @@ var dns_cache = (function () {
     }
     
     return {
-        ptr: function (ip) {
-            return lookup_ptr(ip);
+        ptr: function (ip, callback) {
+            return lookup_ptr(ip, callback);
         }
     };
 }());
@@ -753,18 +756,9 @@ TCP_tracker.prototype.make_session_key = function (src, dst) {
 };
 
 TCP_tracker.prototype.detect_http_request = function (buf) {
-    var str = buf.toString('utf8', 0, buf.length),
-        matches = /^(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|COPY|LOCK|MKCOL|MOVE|PROPFIND|PROPPATCH|UNLOCK) ([^\s\r\n]+) HTTP\/\d\.\d\r\n/.exec(str);
-
-    if (matches) {
-        return {
-            method: matches[1],
-            url: matches[2]
-        };
-    }
-    else {
-        return null;
-    }
+    var str = buf.toString('utf8', 0, buf.length);
+    
+    return (/^(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|COPY|LOCK|MKCOL|MOVE|PROPFIND|PROPPATCH|UNLOCK) [^\s\r\n]+ HTTP\/\d\.\d\r\n/.test(str));
 };
 
 TCP_tracker.prototype.session_stats = function (session) {
@@ -920,6 +914,7 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
         };
 
         http.response_parser.onBody = function (buf, start, len) {
+            self.emit('http_response_body', session, http)
         };
         
         http.response_parser.onMessageComplete = function () {
@@ -941,7 +936,7 @@ TCP_tracker.prototype.track_next = function (key, packet) {
     }
 
     if (tcp.options.sack) {
-        sys.puts("SACK magic: " + sys.inspect(tcp.options.sack));
+        sys.puts("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
         sys.puts(sys.inspect(ip, false, 5));
     }
 
@@ -993,7 +988,7 @@ TCP_tracker.prototype.track_next = function (key, packet) {
                         try {
                             session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
                         } catch (request_err) {
-                            sys.puts("HTTP request parser exception: " + request_err);
+                            sys.puts("HTTP request parser exception: " + request_err.stack);
                         }
                     }
                 }
@@ -1024,10 +1019,12 @@ TCP_tracker.prototype.track_next = function (key, packet) {
                         session.recv_retrans[tcp.seqno + tcp.data_bytes] = 1;
                     }
                 } else {
-                    try {
-                        session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
-                    } catch (response_err) {
-                        sys.puts("HTTP response parser exception: " + response_err);
+                    if (session.http_detect) {
+                        try {
+                            session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
+                        } catch (response_err) {
+                            sys.puts("HTTP response parser exception: " + response_err.stack);
+                        }
                     }
                 }
                 session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
@@ -1084,7 +1081,7 @@ TCP_tracker.prototype.track_next = function (key, packet) {
 };
 
 TCP_tracker.prototype.track_packet = function (packet) {
-    var ip, tcp, src, dst, key;
+    var ip, tcp, src, dst, key, session;
 
     if (packet.link && packet.link.ip && packet.link.ip.tcp) {
         ip  = packet.link.ip;
@@ -1092,9 +1089,10 @@ TCP_tracker.prototype.track_packet = function (packet) {
         src = ip.saddr + ":" + tcp.sport;
         dst = ip.daddr + ":" + tcp.dport;
         key = this.make_session_key(src, dst);
+        session = this.sessions[key];
 
         if (tcp.flags.syn && !tcp.flags.ack) {
-            if (this.sessions[key] === undefined) {
+            if (session === undefined) {
                 this.sessions[key] = {
                     src: src, // the side the sent the initial SYN
                     dst: dst, // the side that the initial SYN was sent to
@@ -1115,7 +1113,14 @@ TCP_tracker.prototype.track_packet = function (packet) {
                     send_bytes_tcp: tcp.header_bytes,
                     send_bytes_payload: 0
                 };
-                this.sessions[key].send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
+                session = this.sessions[key];
+                session.send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
+                session.src_name = dns_cache.ptr(ip.saddr, function (name) {
+                    session.src_name = name + ":" + tcp.sport;
+                }) + ":" + tcp.sport;
+                session.dst_name = dns_cache.ptr(ip.daddr, function (name) {
+                    session.dst_name = name + ":" + tcp.dport;
+                }) + ":" + tcp.dport;
             } else { // SYN retry
                 sys.puts("SYN retry from " + src + " to " + dst);
             }

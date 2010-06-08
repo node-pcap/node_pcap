@@ -28,19 +28,19 @@ setInterval(function () {
 }, 2000);
 
 tcp_tracker.addListener('start', function (session) {
-    sys.puts("Start of TCP session between " + session.src + " and " + session.dst);
+    sys.puts("Start of TCP session between " + session.src_name + " and " + session.dst_name);
 });
 
 tcp_tracker.addListener('http_request', function (session, http) {
-    sys.puts("HTTP request: " + sys.inspect(http.request));
+    sys.puts("HTTP request: " + http.request.headers.Host + ": " + http.request.method + " " + http.request.url);
 });
 
 tcp_tracker.addListener('http_response', function (session, http) {
-    sys.puts("HTTP response headers " + sys.inspect(http.response));
+    sys.puts("HTTP response: " + http.response.status_code + " " + http.response.headers["Content-Type"]);
 });
 
 tcp_tracker.addListener('end', function (session) {
-    sys.puts("End of TCP session between " + session.src + " and " + session.dst);
+    sys.puts("End of TCP session between " + session.src_name + " and " + session.dst_name);
     sys.puts("Set stats for session: " + sys.inspect(tcp_tracker.session_stats(session)));
 });
 
