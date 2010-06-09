@@ -817,6 +817,7 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
             headers: {},
             url: "",
             method: "",
+            body_len: 0,
             http_version: null
         };
 
@@ -864,7 +865,8 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
         };
 
         http.request_parser.onBody = function (buf, start, len) {
-            self.emit("http_request_body", session, buf.slice(start, start + len));
+            http.request.body_len += len;
+            self.emit("http_request_body", session, http, buf.slice(start, start + len));
         };
 
         http.request_parser.onMessageComplete = function () {
@@ -877,6 +879,7 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
         http.response = {
             headers: {},
             status_code: null,
+            body_len: 0,
             http_version: null
         };
         
@@ -915,6 +918,7 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
         };
 
         http.response_parser.onBody = function (buf, start, len) {
+            http.response.body_len += len;
             self.emit('http_response_body', session, http, buf.slice(start, start + len));
         };
         
@@ -936,10 +940,10 @@ TCP_tracker.prototype.track_next = function (key, packet) {
         throw new Error("track_next: couldn't find session for " + key);
     }
 
-    if (tcp.options.sack) {
-        sys.puts("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
-        sys.puts(sys.inspect(ip, false, 5));
-    }
+    // if (tcp.options.sack) {
+    //     sys.puts("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
+    //     sys.puts(sys.inspect(ip, false, 5));
+    // }
 
     switch (session.state) {
     case "SYN_SENT":
