@@ -29,6 +29,23 @@ I want to build up decoders and printers for all popular protocols.  I'm already
 and 802.11 "monitor" mode.  If you want to write a decoder or printer for another protocol, let me know,
 or just send me a patch.
 
+## Installation
+
+You will need `libpcap` installed.  Most OSX machines seem to have it.  All major Linux distributions have it available
+either by default or with a package like `libpcap-dev`.
+
+Clone the repo somehow, probably like this:
+
+    git clone git://github.com/mranney/node_pcap.git
+
+To compile the native code bindings, do this:
+
+    cd node_pcap
+    node-waf configure build
+
+Assuming it built without errors, you should be able to run the examples and then write your own packet
+capture programs.
+
 
 ## Usage
 
