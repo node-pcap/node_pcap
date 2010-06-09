@@ -46,6 +46,11 @@ tcp_tracker.addListener('http_request_body', function (session, http, data) {
         data.length + " bytes");
 });
 
+tcp_tracker.addListener('http_request_complete', function (session, http, data) {
+    sys.puts(session.src_name + " -> " + session.dst_name + " #" + session.http_request_count +
+        " HTTP " + http.request.http_version + " request complete " + (http.request.body_len / 1024).toFixed(2) + "KB");
+});
+
 tcp_tracker.addListener('http_response', function (session, http) {
     sys.puts(session.dst_name + " -> " + session.src_name + " #" + session.http_request_count + 
         " HTTP " + http.response.http_version + " response: " + http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code]);
