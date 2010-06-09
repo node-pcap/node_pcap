@@ -860,14 +860,15 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
             http.request.http_version = info.versionMajor + "." + info.versionMinor;
 
             http.request.method = info.method;
+            self.emit("http_request", session, http);
         };
 
-        http.request_parser.onData = function (buf, start, len) {
-            sys.puts("HTTP request chunk, length " + len);
+        http.request_parser.onBody = function (buf, start, len) {
+            self.emit("http_request_body", session, buf.slice(start, start + len));
         };
 
         http.request_parser.onMessageComplete = function () {
-            self.emit("http_request", session, http);
+            self.emit("http_request_complete", session, http);
         };
     };
 
@@ -914,7 +915,7 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
         };
 
         http.response_parser.onBody = function (buf, start, len) {
-            self.emit('http_response_body', session, http)
+            self.emit('http_response_body', session, http, buf.slice(start, start + len));
         };
         
         http.response_parser.onMessageComplete = function () {
