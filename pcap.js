@@ -5,7 +5,7 @@ var sys        = require('sys'),
     dns        = require('dns'),
     Buffer     = require('buffer').Buffer,
     events     = require('events'),
-    binding    = require('./build/default/binding'),
+    binding    = require('pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
     url        = require('url');
 
@@ -930,156 +930,199 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
     session.http = http;
 };
 
+TCP_tracker.prototype.track_states = {};
+
+TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
+    var ip  = packet.link.ip,
+        tcp = ip.tcp,
+        src = ip.saddr + ":" + tcp.sport;
+
+    if (src === session.dst && tcp.flags.syn && tcp.flags.ack) {
+        session.recv_bytes_ip += ip.header_bytes;
+        session.recv_bytes_tcp += tcp.header_bytes;
+        session.recv_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
+        session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
+        session.recv_isn = tcp.seqno;
+        session.recv_window_scale = tcp.options.window_scale || 1; // multiplier, not bit shift value
+        session.state = "SYN_RCVD";
+    } else if (tcp.flags.rst) {
+        sys.puts("Connection reset by receiver -> CLOSED");
+        session.state = "CLOSED";
+    } else {
+        sys.puts("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(packet, false, 4));
+    }
+};
+
+TCP_tracker.prototype.track_states.SYN_RCVD = function (packet, session) {
+    var ip  = packet.link.ip,
+        tcp = ip.tcp,
+        src = ip.saddr + ":" + tcp.sport;
+
+    if (src === session.src && tcp.flags.ack) { // TODO - make sure SYN flag isn't set, also match src and dst
+        session.send_bytes_ip += ip.header_bytes;
+        session.send_bytes_tcp += tcp.header_bytes;
+        session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
+        session.handshake_time = packet.pcap_header.time_ms;
+        this.emit('start', session);
+        session.state = "ESTAB";
+    } else {
+        sys.puts("Didn't get ACK packet from src while handshaking: " + sys.inspect(packet));
+    }
+};
+
+TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
+    var ip  = packet.link.ip,
+        tcp = ip.tcp,
+        src = ip.saddr + ":" + tcp.sport;
+        
+// if (tcp.options.sack) {
+//     sys.puts("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
+//     sys.puts(sys.inspect(ip, false, 5));
+// }
+
+    if (src === session.src) { // this packet came from the active opener / client
+        session.send_bytes_ip += ip.header_bytes;
+        session.send_bytes_tcp += tcp.header_bytes;
+        if (tcp.data_bytes) {
+            if (session.send_bytes_payload === 0) {
+                session.http_detect = this.detect_http_request(tcp.data);
+                if (session.http_detect) {
+                    this.setup_http_tracking(session);
+                }
+            }
+            session.send_bytes_payload += tcp.data_bytes;
+            if (session.send_packets[tcp.seqno + tcp.data_bytes]) {
+                sys.puts("Retransmission send of segment " + (tcp.seqno - session.send_isn + tcp.data_bytes));
+            } else {
+                if (session.http_detect) {
+                    try {
+                        session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
+                    } catch (request_err) {
+                        sys.puts("HTTP request parser exception: " + request_err.stack);
+                    }
+                }
+            }
+            session.send_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
+        }
+        if (session.recv_packets[tcp.ackno]) {
+            if (session.send_acks[tcp.ackno]) {
+                //                    sys.puts("Already sent this ACK, which I'm guessing is fine.");
+            } else {
+                session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
+            }
+        } else {
+            sys.puts("sending ACK for packet we didn't see received: " + tcp.ackno);
+        }
+        if (tcp.flags.fin) {
+            session.state = "FIN_WAIT";
+        }
+    } else if (src === session.dst) { // this packet came from the passive opener / server
+        session.recv_bytes_ip += ip.header_bytes;
+        session.recv_bytes_tcp += tcp.header_bytes;
+        if (tcp.data_bytes) {
+            session.recv_bytes_payload += tcp.data_bytes;
+            if (session.recv_packets[tcp.seqno + tcp.data_bytes]) {
+                sys.puts("Retransmission recv of segment " + (tcp.seqno - session.recv_isn + tcp.data_bytes));
+                if (session.recv_retrans[tcp.seqno + tcp.data_bytes]) {
+                    session.recv_retrans[tcp.seqno + tcp.data_bytes] += 1;
+                } else {
+                    session.recv_retrans[tcp.seqno + tcp.data_bytes] = 1;
+                }
+            } else {
+                if (session.http_detect) {
+                    try {
+                        session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
+                    } catch (response_err) {
+                        sys.puts("HTTP response parser exception: " + response_err.stack);
+                    }
+                }
+            }
+            session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
+        }
+        if (session.send_packets[tcp.ackno]) {
+            if (session.recv_acks[tcp.ackno]) {
+                //                    sys.puts("Already received this ACK, which I'm guessing is fine.");
+            } else {
+                session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
+            }
+        } else {
+            sys.puts("receiving ACK for packet we didn't see sent: " + tcp.ackno);
+        }
+        if (tcp.flags.fin) {
+            session.state = "CLOSE_WAIT";
+        }
+    } else {
+        sys.puts("non-matching packet in session: " + sys.inspect(packet));
+    }
+};
+
+TCP_tracker.prototype.track_states.FIN_WAIT = function (packet, session) {
+    var ip  = packet.link.ip,
+        tcp = ip.tcp,
+        src = ip.saddr + ":" + tcp.sport;
+
+    // TODO - need to track half-closed data
+    if (src === session.dst && tcp.flags.fin) {
+        session.state = "CLOSING";
+    }
+};
+
+TCP_tracker.prototype.track_states.CLOSE_WAIT = function (packet, session) {
+    var ip  = packet.link.ip,
+        tcp = ip.tcp,
+        src = ip.saddr + ":" + tcp.sport;
+
+    // TODO - need to track half-closed data
+    if (src === session.src && tcp.flags.fin) {
+        session.state = "LAST_ACK";
+    }
+};
+
+TCP_tracker.prototype.track_states.LAST_ACK = function (packet, session) {
+    var ip  = packet.link.ip,
+        tcp = ip.tcp,
+        src = ip.saddr + ":" + tcp.sport;
+
+    // TODO - need to track half-closed data
+    if (src === session.dst) {
+        session.close_time = packet.pcap_header.time_ms;
+        session.state = "CLOSED";
+        this.emit('end', session);
+    }
+};
+
+TCP_tracker.prototype.track_states.CLOSING = function (packet, session) {
+    var ip  = packet.link.ip,
+        tcp = ip.tcp,
+        src = ip.saddr + ":" + tcp.sport;
+
+    // TODO - need to track half-closed data
+    if (src === session.src) {
+        session.close_time = packet.pcap_header.time_ms;
+        session.state = "CLOSED";
+        this.emit('end', session);
+    }
+};
+
+TCP_tracker.prototype.track_states.CLOSED = function (packet, session) {
+    var ip  = packet.link.ip,
+        tcp = ip.tcp,
+        src = ip.saddr + ":" + tcp.sport;
+
+    // The states aren't quite right here.  All possible states of FIN and FIN/ACKs aren't handled.
+    // So some of the bytes of the session may not be properly accounted for.
+};
+
 TCP_tracker.prototype.track_next = function (key, packet) {
-    var ip      = packet.link.ip,
-        tcp     = ip.tcp,
-        src     = ip.saddr + ":" + tcp.sport,
-        session = this.sessions[key];
+    var session = this.sessions[key];
 
     if (typeof session !== 'object') {
         throw new Error("track_next: couldn't find session for " + key);
     }
 
-    // if (tcp.options.sack) {
-    //     sys.puts("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
-    //     sys.puts(sys.inspect(ip, false, 5));
-    // }
-
-    switch (session.state) {
-    case "SYN_SENT":
-        if (src === session.dst && tcp.flags.syn && tcp.flags.ack) {
-            session.recv_bytes_ip += ip.header_bytes;
-            session.recv_bytes_tcp += tcp.header_bytes;
-            session.recv_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
-            session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
-            session.recv_isn = tcp.seqno;
-            session.recv_window_scale = tcp.options.window_scale || 1; // multiplier, not bit shift value
-            session.state = "SYN_RCVD";
-        } else if (tcp.flags.rst) {
-            sys.puts("Connection reset by receiver -> CLOSED");
-            session.state = "CLOSED";
-        } else {
-            sys.puts("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(packet, false, 4));
-        }
-        break;
-    case "SYN_RCVD":
-        if (src === session.src && tcp.flags.ack) { // TODO - make sure SYN flag isn't set, also match src and dst
-            session.send_bytes_ip += ip.header_bytes;
-            session.send_bytes_tcp += tcp.header_bytes;
-            session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
-            session.handshake_time = packet.pcap_header.time_ms;
-            this.emit('start', session);
-            session.state = "ESTAB";
-        } else {
-            sys.puts("Didn't get ACK packet from src while handshaking: " + sys.inspect(packet));
-        }
-        break;
-    case "ESTAB":
-        if (src === session.src) {
-            session.send_bytes_ip += ip.header_bytes;
-            session.send_bytes_tcp += tcp.header_bytes;
-            if (tcp.data_bytes) {
-                if (session.send_bytes_payload === 0) {
-                    session.http_detect = this.detect_http_request(tcp.data);
-                    if (session.http_detect) {
-                        this.setup_http_tracking(session);
-                    }
-                }
-                session.send_bytes_payload += tcp.data_bytes;
-                if (session.send_packets[tcp.seqno + tcp.data_bytes]) {
-                    sys.puts("Retransmission send of segment " + (tcp.seqno + tcp.data_bytes));
-                } else {
-                    if (session.http_detect) {
-                        try {
-                            session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
-                        } catch (request_err) {
-                            sys.puts("HTTP request parser exception: " + request_err.stack);
-                        }
-                    }
-                }
-                session.send_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
-            }
-            if (session.recv_packets[tcp.ackno]) {
-                if (session.send_acks[tcp.ackno]) {
-//                    sys.puts("Already sent this ACK, which I'm guessing is fine.");
-                } else {
-                    session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
-                }
-            } else {
-                sys.puts("sending ACK for packet we didn't see received.");
-            }
-            if (tcp.flags.fin) {
-                session.state = "FIN_WAIT";
-            }
-        } else if (src === session.dst) {
-            session.recv_bytes_ip += ip.header_bytes;
-            session.recv_bytes_tcp += tcp.header_bytes;
-            if (tcp.data_bytes) {
-                session.recv_bytes_payload += tcp.data_bytes;
-                if (session.recv_packets[tcp.seqno + tcp.data_bytes]) {
-                    sys.puts("Retransmission recv of segment " + (tcp.seqno + tcp.data_bytes));
-                    if (session.recv_retrans[tcp.seqno + tcp.data_bytes]) {
-                        session.recv_retrans[tcp.seqno + tcp.data_bytes] += 1;
-                    } else {
-                        session.recv_retrans[tcp.seqno + tcp.data_bytes] = 1;
-                    }
-                } else {
-                    if (session.http_detect) {
-                        try {
-                            session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
-                        } catch (response_err) {
-                            sys.puts("HTTP response parser exception: " + response_err.stack);
-                        }
-                    }
-                }
-                session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
-            }
-            if (session.send_packets[tcp.ackno]) {
-                if (session.recv_acks[tcp.ackno]) {
-//                    sys.puts("Already received this ACK, which I'm guessing is fine.");
-                } else {
-                    session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
-                }
-            } else {
-                sys.puts("receiving ACK for packet we didn't see sent.");
-            }
-            if (tcp.flags.fin) {
-                session.state = "CLOSE_WAIT";
-            }
-        } else {
-            sys.puts("non-matching packet in session: " + sys.inspect(packet));
-        }
-        break;
-    case "FIN_WAIT":
-        if (src === session.dst && tcp.flags.fin) {
-            session.state = "CLOSING";
-        }
-        break;
-    case "CLOSE_WAIT":
-        if (src === session.src && tcp.flags.fin) {
-            session.state = "LAST_ACK";
-        }
-        break;
-    case "LAST_ACK":
-        if (src === session.dst) {
-            session.close_time = packet.pcap_header.time_ms;
-            session.state = "CLOSED";
-            this.emit('end', session);
-        }
-        break;
-    case "CLOSING":
-        if (src === session.src) {
-            session.close_time = packet.pcap_header.time_ms;
-            session.state = "CLOSED";
-            this.emit('end', session);
-        }
-        break;
-    case "CLOSED":
-        // The states aren't quite right here.  All possible states of FIN and FIN/ACKs aren't handled.
-        // So some of the bytes of the session may not be properly accounted for.
-        // sys.puts("Got packet for CLOSED session: " + sys.inspect(ip));
-        break;
-    default:
+    if (typeof this.track_states[session.state] === 'function') {
+        this.track_states[session.state].call(this, packet, session);
+    } else {
         sys.puts(sys.debug(session));
         throw new Error("Don't know how to handle session state " + session.state);
     }
@@ -1103,20 +1146,28 @@ TCP_tracker.prototype.track_packet = function (packet) {
                     dst: dst, // the side that the initial SYN was sent to
                     syn_time: packet.pcap_header.time_ms,
                     state: "SYN_SENT",
+
                     send_isn: tcp.seqno,
                     send_window_scale: tcp.options.window_scale || 1, // multipler, not bit shift value
-                    recv_packets: {},
-                    recv_acks: {},
-                    recv_retrans: {},
-                    recv_bytes_ip: 0,
-                    recv_bytes_tcp: 0,
-                    recv_bytes_payload: 0,
                     send_packets: {}, // send_packets is indexed by the expected ackno: seqno + length
                     send_acks: {},
                     send_retrans: {},
+                    send_next_seq: tcp.seqno + 1,
+                    send_acked_seq: null,
                     send_bytes_ip: ip.header_bytes,
                     send_bytes_tcp: tcp.header_bytes,
-                    send_bytes_payload: 0
+                    send_bytes_payload: 0,
+
+                    recv_isn: null,
+                    recv_window_scale: null,
+                    recv_packets: {},
+                    recv_acks: {},
+                    recv_retrans: {},
+                    recv_next_seq: null,
+                    recv_acked_seq: null,
+                    recv_bytes_ip: 0,
+                    recv_bytes_tcp: 0,
+                    recv_bytes_payload: 0
                 };
                 session = this.sessions[key];
                 session.send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
@@ -1126,11 +1177,13 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 session.dst_name = dns_cache.ptr(ip.daddr, function (name) {
                     session.dst_name = name + ":" + tcp.dport;
                 }) + ":" + tcp.dport;
+                session.current_cap_time = packet.pcap_header.time_ms;
             } else { // SYN retry
                 sys.puts("SYN retry from " + src + " to " + dst);
             }
         } else { // not a SYN
-            if (this.sessions[key]) {
+            if (session) {
+                session.current_cap_time = packet.pcap_header.time_ms;
                 this.track_next(key, packet);
             } else {
                 // silently ignore session in progress
