@@ -34,13 +34,17 @@ Pcap.prototype.open_live = function (device, filter) {
     this.empty_reads = 0;
     this.buf = new Buffer(65535);
 
-    this.readWatcher.callback = function () {
-        var packets_read = binding.dispatch(me.buf, function (header) {
-            header.link_type = me.link_type;
-            header.time_ms = (header.tv_sec * 1000) + (header.tv_usec / 1000);
-            me.buf.pcap_header = header;
-            me.emit('packet', me.buf);
-        });
+    // called for each packet read by pcap
+    function packet_ready(header) {
+        header.link_type = me.link_type;
+        header.time_ms = (header.tv_sec * 1000) + (header.tv_usec / 1000);
+        me.buf.pcap_header = header;
+        me.emit('packet', me.buf);
+    }
+
+    // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
+    this.readWatcher.callback = function pcap_read_callback() {
+        var packets_read = binding.dispatch(me.buf, packet_ready);
         if (packets_read < 1) {
             // TODO - figure out what is causing this, and if it is bad.
             me.empty_reads += 1;
@@ -667,7 +671,12 @@ var print = {
         switch (ip.protocol_name) {
         case "TCP":
             ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport + 
-                " TCP len " + ip.total_length;
+                " TCP len " + ip.total_length + " [" + 
+                Object.keys(ip.tcp.flags).filter(function (v) {
+                    if (ip.tcp.flags[v] === 1) {
+                        return true;
+                    }
+                }).join(",") + "]";
             break;
         case "UDP":
             ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.udp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.udp.dport;
@@ -948,7 +957,7 @@ TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
         sys.puts("Connection reset by receiver -> CLOSED");
         session.state = "CLOSED";
     } else {
-        sys.puts("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(packet, false, 4));
+        sys.puts("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(tcp, false, 4));
     }
 };
 
@@ -965,7 +974,7 @@ TCP_tracker.prototype.track_states.SYN_RCVD = function (packet, session) {
         this.emit('start', session);
         session.state = "ESTAB";
     } else {
-        sys.puts("Didn't get ACK packet from src while handshaking: " + sys.inspect(packet));
+        sys.puts("Didn't get ACK packet from src while handshaking: " + sys.inspect(tcp, false, 4));
     }
 };
 
@@ -1086,6 +1095,7 @@ TCP_tracker.prototype.track_states.LAST_ACK = function (packet, session) {
     if (src === session.dst) {
         session.close_time = packet.pcap_header.time_ms;
         session.state = "CLOSED";
+        delete this.sessions[session.key];
         this.emit('end', session);
     }
 };
@@ -1099,6 +1109,7 @@ TCP_tracker.prototype.track_states.CLOSING = function (packet, session) {
     if (src === session.src) {
         session.close_time = packet.pcap_header.time_ms;
         session.state = "CLOSED";
+        delete this.sessions[session.key];
         this.emit('end', session);
     }
 };
@@ -1145,6 +1156,7 @@ TCP_tracker.prototype.track_packet = function (packet) {
                     dst: dst, // the side that the initial SYN was sent to
                     syn_time: packet.pcap_header.time_ms,
                     state: "SYN_SENT",
+                    key: key, // so we can easily remove ourselves
 
                     send_isn: tcp.seqno,
                     send_window_scale: tcp.options.window_scale || 1, // multipler, not bit shift value
