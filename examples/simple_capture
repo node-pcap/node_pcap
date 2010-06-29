@@ -1,8 +1,9 @@
-"use strict";
+#!/usr/bin/env node
+
 /*global process require exports */
 
 var sys = require("sys"),
-    pcap = require("../pcap"), pcap_session;
+    pcap = require("pcap"), pcap_session;
     
 if (process.argv.length !== 4) {
     sys.error("usage: " + process.argv[1] + " interface filter");

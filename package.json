@@ -1,0 +1,10 @@
+{   "name" : "pcap",
+    "version" : "0.0.2",
+    "description" : "raw packet capture, decoding, and analysis",
+    "author": "Matt Ranney <mjr@ranney.com>",
+    "main": "./pcap",
+    "bin": { "http_trace": "./examples/http_trace" },
+    "bin": { "simple_capture": "./examples/simple_capture" },
+    "bin": { "tcp_metrics": "./examples/tcp_metrics" },
+    "scripts": { "install": "node-waf configure build" }
+}

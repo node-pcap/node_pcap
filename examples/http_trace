@@ -1,9 +1,10 @@
-"use strict";
+#!/usr/bin/env node
+
 /*global process require exports setInterval */
 
 var sys         = require("sys"),
     node_http   = require('http'),
-    pcap        = require("../pcap"), pcap_session,
+    pcap        = require("pcap"), pcap_session,
     dns_cache   = pcap.dns_cache,
     tcp_tracker = new pcap.TCP_tracker();
     
@@ -37,7 +38,9 @@ tcp_tracker.addListener('http_request', function (session, http) {
     sys.puts(session.src_name + " -> " + session.dst_name + " #" + session.http_request_count + 
         " HTTP " + http.request.http_version + " request: " + 
         http.request.method + " " + http.request.url);
-//    sys.puts(sys.inspect(http.request.headers));
+    Object.keys(http.request.headers).forEach(function (v) {
+        sys.puts("    " + v + ": " + http.request.headers[v]);
+    });
 });
 
 tcp_tracker.addListener('http_request_body', function (session, http, data) {
@@ -54,7 +57,9 @@ tcp_tracker.addListener('http_request_complete', function (session, http, data) 
 tcp_tracker.addListener('http_response', function (session, http) {
     sys.puts(session.dst_name + " -> " + session.src_name + " #" + session.http_request_count + 
         " HTTP " + http.response.http_version + " response: " + http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code]);
-//    sys.puts(sys.inspect(http.request.headers));
+    Object.keys(http.response.headers).forEach(function (v) {
+        sys.puts("    " + v + ": " + http.response.headers[v]);
+    });
 });
 
 tcp_tracker.addListener('http_response_body', function (session, http, data) {

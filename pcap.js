@@ -5,7 +5,7 @@ var sys        = require('sys'),
     dns        = require('dns'),
     Buffer     = require('buffer').Buffer,
     events     = require('events'),
-    binding    = require('pcap_binding'),
+    binding    = require('./build/default/pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
     url        = require('url');
 

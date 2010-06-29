@@ -1,8 +1,9 @@
-"use strict";
+#!/usr/bin/env node
+
 /*global process require exports setInterval */
 
 var sys          = require("sys"),
-    pcap         = require("../pcap"), pcap_session,
+    pcap         = require("pcap"), pcap_session,
     dns_cache    = pcap.dns_cache,
     tcp_tracker  = new pcap.TCP_tracker();
     
