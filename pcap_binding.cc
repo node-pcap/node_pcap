@@ -128,8 +128,9 @@ OpenLive(const Arguments& args)
         return ThrowException(Exception::Error(String::New("error setting promiscuous mode")));
     }
 
-    // Try to set a 5MB buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
-    if (pcap_set_buffer_size(pcap_handle, 5 * 1024 * 1024) != 0) {
+    // Try to set a 10MB buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
+    // TODO - make this settable at runtime
+    if (pcap_set_buffer_size(pcap_handle, 10 * 1024 * 1024) != 0) {
         return ThrowException(Exception::Error(String::New("error setting buffer size")));
     }
 
