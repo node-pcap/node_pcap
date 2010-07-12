@@ -1,0 +1,171 @@
+"use strict";
+/*global process require exports setInterval __dirname */
+
+var sys = require("sys"),
+    pcap = require("pcap"), pcap_session,
+    dns_cache = pcap.dns_cache,
+    Buffer = require('buffer').Buffer,
+    dgram = require('dgram'),
+    http = require('http');
+
+if (process.argv.length !== 3) {
+    sys.error("usage: " + process.argv[1] + " interface");
+    sys.error("Examples: ");
+    sys.error('  sudo trace_server en0');
+    sys.error('  sudo trace_server eth2');
+    process.exit(1);
+}
+
+function handle_response(packet) {
+    console.log("Got response: " + sys.inspect(packet.link.ip));
+}
+
+pcap.createSession(process.argv[2], "icmp").on('packet', function (raw_packet) {
+    handle_response(pcap.decode.packet(raw_packet));
+});
+
+function send_probe(addr, ttl) {
+    var msg = new Buffer("probe ttl " + ttl),
+        sock = dgram.createSocket();
+
+    sock.options = {
+        ttl: ttl
+    };
+    sock.send(45678, addr, msg, 0, msg.length);
+}
+
+for (var i = 1; i < 64; i += 1) {
+    send_probe("75.119.207.0", i);
+}
+
+function lookup_mime_type(file_name) {
+    var mime_types = {
+            html: "text/html",
+            txt: "text/plain",
+            js: "application/javascript",
+            css: "text/css",
+            ico: "image/x-icon",
+            jpg: "image/jpeg"
+        },
+        index = file_name.lastIndexOf('.'),
+        suffix;
+    // TODO - use path.extname() here
+    if (index > 0 && index < (file_name.length - 2)) {
+        suffix = file_name.substring(index + 1);
+        if (mime_types[suffix] !== undefined) {
+            return mime_types[suffix];
+        }
+    }
+    return "text/plain";
+}
+
+function do_error(response, code, message) {
+    sys.puts("do_error: " + code + " - " + message);
+    response.writeHead(code, {
+        "Content-Type": "text/plain",
+        "Connection": "close"
+    });
+    response.write(message);
+    response.end();
+}
+
+function handle_file(file_name, in_request, in_response) {
+    var local_name = file_name.replace(/^\//, __dirname + "/"),
+        file;
+
+    if (local_name.match(/\/$/)) {
+        local_name += "index.html";
+    }
+
+    path.exists(local_name, function (exists) {
+        if (exists) {
+            file = fs.readFile(local_name, "binary", function (err, data) {
+                var out_headers = {
+                    "Content-Type": lookup_mime_type(local_name),
+                    "Content-Length": data.length,
+                    "Connection": "close"
+                };
+                if (err) {
+                    do_error(in_response, 404, "Error opening " + local_name + ": " + err);
+                    return;
+                }
+                in_request.setEncoding("binary");
+                if (in_request.headers.origin) {
+                    out_headers["access-control-allow-origin"] = in_request.headers.origin;
+                }
+
+                in_response.writeHead(200, out_headers);
+                in_response.write(data, "binary");
+                in_response.end();
+            });
+        }
+        else {
+            do_error(in_response, 404, local_name + " does not exist");
+        }
+    });
+}
+
+function send_start(url, request, response) {
+    if (url.query && url.query.id) {
+        track_ids[url.query.id] = {};
+        handle_file('/testfile.txt', request, response);
+    }
+    else {
+        do_error(response, 400, "Missing id in query string");
+    }
+}
+
+function get_stats(url, request, response) {
+    if (url.query && url.query.id) {
+        response.writeHead(200, {
+            "Content-Type": "text/plain",
+            "Connection": "close"
+        });
+        if (track_ids[url.query.id]) {
+            response.write(JSON.stringify(track_ids[url.query.id]));
+            delete track_ids[url.query.id];
+        }
+        else {
+            response.write(JSON.stringify({
+                error: "Can't find id in session table"
+            }));
+        }
+        response.end();
+    }
+    else {
+        do_error(response, 400, "Missing id in query string");
+    }
+}
+
+function new_client(new_request, new_response) {
+    sys.puts(new_request.connection.remoteAddress + " " + new_request.method + " " + new_request.url);
+    if (new_request.method === "GET") {
+        var url_parsed = url.parse(new_request.url, true),
+            pathname = url_parsed.pathname;
+
+        switch (url_parsed.pathname) {
+        case "/":
+        case "/index.html":
+        case "/favicon.ico":
+            handle_file(pathname, new_request, new_response);
+            break;
+        case "/send_file":
+            send_start(url_parsed, new_request, new_response);
+            break;
+        case "/get_stats":
+            get_stats(url_parsed, new_request, new_response);
+            break;
+        default:
+            do_error(new_response, 404, "Not found");
+        }
+    } else {
+        do_error(new_response, 404, "WTF");
+    }
+}
+
+http.createServer(new_client).listen(80);
+sys.puts("Listening for HTTP");
+
+process.addListener("uncaughtException", function (event) {
+    sys.puts("Uncaught Exception: " + event.stack);
+});
