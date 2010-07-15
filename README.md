@@ -97,7 +97,7 @@ The TCP tracker looks for HTTP at the beginning of every TCP connection.  If fou
 will be fed to node's HTTP parser and events will be generated.  `http_trace` has listeners for these events and will
 print out some helpful information.
 
-!(http://ranney.com/httptrace.png)
+![http_trace screenshot](http://ranney.com/httptrace.png)
 
 
 ## examples/simple_capture
