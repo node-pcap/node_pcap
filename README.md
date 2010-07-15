@@ -89,52 +89,18 @@ Unless you are root already, you'll probably want to start your node program lik
 
     sudo node test.js
 
-## examples/http_trace.js
+## examples/http_trace
+
+This is a handy standalone program that can help diagnose HTTP traffic.
 
 The TCP tracker looks for HTTP at the beginning of every TCP connection.  If found, all captured on this connection
-will be fed to node's HTTP parser and events will be generated.  `examples/http_trace.js` is an example of this.
+will be fed to node's HTTP parser and events will be generated.  `http_trace` has listeners for these events and will
+print out some helpful information.
 
-Listen to all TCP connections for HTTP, then open `nodejs.org` in Safari:
-
-    rv-mjr2:~/work/node_pcap (master)$ sudo node examples/http_trace.js en1 tcp
-    Listening on en1
-    rv-mjr2.ranney.com:54784 -> tinyclouds.org:80 #1 HTTP 1.1 request: GET /
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #1 HTTP 1.1 response: 200 OK
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #1 HTTP 1.1 response body: 10 bytes
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #1 HTTP 1.1 response body: 1178 bytes
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #1 HTTP 1.1 response body: 1448 bytes
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #1 HTTP 1.1 response body: 1448 bytes
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #1 HTTP 1.1 response body: 210 bytes
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #1 HTTP 1.1 response complete 4.19KB
-    rv-mjr2.ranney.com:54785 -> tinyclouds.org:80 #1 HTTP 1.1 request: GET /sh_main.js
-    rv-mjr2.ranney.com:54786 -> tinyclouds.org:80 #1 HTTP 1.1 request: GET /sh_vim-dark.css
-    rv-mjr2.ranney.com:54788 -> tinyclouds.org:80 #1 HTTP 1.1 request: GET /sh_javascript.min.js
-    rv-mjr2.ranney.com:54787 -> tinyclouds.org:80 #1 HTTP 1.1 request: GET /pipe.css
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54785 #1 HTTP 1.1 response: 304 Not Modified
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54785 #1 HTTP 1.1 response complete 0.00KB
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54786 #1 HTTP 1.1 response: 304 Not Modified
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54786 #1 HTTP 1.1 response complete 0.00KB
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54788 #1 HTTP 1.1 response: 304 Not Modified
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54788 #1 HTTP 1.1 response complete 0.00KB
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54787 #1 HTTP 1.1 response: 304 Not Modified
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54787 #1 HTTP 1.1 response complete 0.00KB
-    rv-mjr2.ranney.com:54784 -> tinyclouds.org:80 #2 HTTP 1.1 request: GET /logo.png
-    rv-mjr2.ranney.com:54789 -> 74.125.53.138:80 #1 HTTP 1.1 request: GET /ga.js
-    74.125.53.138:80 -> rv-mjr2.ranney.com:54789 #1 HTTP 1.1 response: 304 Not Modified
-    74.125.53.138:80 -> rv-mjr2.ranney.com:54789 #1 HTTP 1.1 response complete 0.00KB
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #2 HTTP 1.1 response: 304 Not Modified
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #2 HTTP 1.1 response complete 0.00KB
-    rv-mjr2.ranney.com:54789 -> 74.125.53.138:80 #2 HTTP 1.1 request: GET /__utm.gif?utmwv=4.7.2&utmn=1295457147&utmhn=nodejs.org&utmcs=UTF-8&utmsr=2560x1600&utmsc=24-bit&utmul=en-us&utmje=1&utmfl=10.0%20r42&utmdt=node.js&utmhid=303497140&utmr=-&utmp=%2F&utmac=UA-10874194-2&utmcc=__utma%3D212211339.882401248.1271227610.1276063650.1276069881.7%3B%2B__utmz%3D212211339.1271227610.1.1.utmcsr%3D(direct)%7Cutmccn%3D(direct)%7Cutmcmd%3D(none)%3B
-    74.125.53.138:80 -> rv-mjr2.ranney.com:54789 #2 HTTP 1.1 response: 200 OK
-    74.125.53.138:80 -> rv-mjr2.ranney.com:54789 #2 HTTP 1.1 response body: 35 bytes
-    74.125.53.138:80 -> rv-mjr2.ranney.com:54789 #2 HTTP 1.1 response complete 0.03KB
-    rv-mjr2.ranney.com:54784 -> tinyclouds.org:80 #3 HTTP 1.1 request: GET /favicon.ico
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #3 HTTP 1.1 response: 404 Not Found
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #3 HTTP 1.1 response body: 169 bytes
-    tinyclouds.org:80 -> rv-mjr2.ranney.com:54784 #3 HTTP 1.1 response complete 0.17KB
+!(http://ranney.com/httptrace.png)
 
 
-## examples/simple_capture.js
+## examples/simple_capture
 
 This program captures packets and prints them as best it can.  Here's a sample of it's output.
 In another window I ran `curl nodejs.org`.
