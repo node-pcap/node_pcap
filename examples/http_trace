@@ -4,78 +4,169 @@
 
 var sys         = require("sys"),
     node_http   = require('http'),
+    node_url    = require('url'),
     pcap        = require("pcap"), pcap_session,
     dns_cache   = pcap.dns_cache,
-    tcp_tracker = new pcap.TCP_tracker();
+    tcp_tracker = new pcap.TCP_tracker(),
+    ANSI;
     
+ANSI = (function () {
+    // http://en.wikipedia.org/wiki/ANSI_escape_code
+    var formats = {
+        bold: [1, 22], // bright
+        light: [2, 22], // faint
+        italic: [3, 23],
+        underline: [4, 24], // underline single
+        blink_slow: [5, 25],
+        blink_fast: [6, 25],
+        inverse: [7, 27],
+        conceal: [8, 28],
+        strikethrough: [9, 29], // crossed-out
+        // 10 - 20 are font control
+        underline_double: [21, 24],
+        black: [30, 39],
+        red: [31, 39],
+        green: [32, 39],
+        yellow: [33, 39],
+        blue: [34, 39],
+        magenta: [35, 39],
+        cyan: [36, 39],
+        white: [37, 39],
+        grey: [90, 39]
+    };
+
+    var CSI = String.fromCharCode(27) + '[';
+
+    return function (str, format) {
+        return CSI + formats[format][0] + 'm' + str + CSI + formats[format][1] + 'm';
+    };
+}());
+
+function lpad(num, len) {
+    var str = num.toString();
+
+    while (str.length < len) {
+        str = "0" + str;
+    }
+    return str;
+}
+
+function format_timestamp(timems) {
+    var date_obj = new Date(timems);
+
+    return ANSI(lpad(date_obj.getHours(), 2) + ":" + lpad(date_obj.getMinutes(), 2) + ":" + lpad(date_obj.getSeconds(), 2) + "." +
+        lpad(date_obj.getMilliseconds(), 3), "blue");
+}
+
+function format_hostname(hostname) {
+    if (/[a-zA-Z]/.test(hostname)) {
+        var parts = hostname.split(":");
+        return ANSI(parts[0].split('.')[0] + ":" + parts[1], "magenta");
+    } else {
+        return ANSI(hostname, "magenta");
+    }
+}
+
+function format_line_start(ts, src, dst) {
+    return format_timestamp(ts) + " " + format_hostname(src) + " -> " + format_hostname(dst);
+}
+
+function format_headers(headers) {
+    return Object.keys(headers).map(function (val) {
+        if (val === "Cookie") {
+            var cookie_pairs = headers[val].split("; ").sort();
+            return("    " + ANSI(val, "white") + ": " + ANSI(cookie_pairs.map(function (pair) {
+                var parts = pair.split('=');
+                return parts[0] + ": " + parts[1];
+            }).join("\n            "), "grey"));
+        } else {
+            return("    " + ANSI(val, "white") + ": " + ANSI(headers[val], "grey"));
+        }
+    }).join("\n");
+}
+
+function format_size(size) {
+    if (size < 1024 * 2) {
+        return size + "B";
+    } else if (size < 1024 * 1024 * 2) {
+        return (size / 1024).toFixed(2) + "KB";
+    } else {
+        return (size / 1024 / 1024).toFixed(2) + "MB"
+    }
+}
+
 if (process.argv.length !== 4) {
     sys.error("usage: " + process.argv[1] + " interface filter");
     sys.error("Examples: ");
-    sys.error('  sudo node http_trace.js en0 "tcp port 80"');
-    sys.error('  sudo node http_trace.js eth1 ""');
-    sys.error('  sudo node http_trace.js lo0 "ip proto \\tcp and tcp port 80"');
+    sys.error('  sudo http_trace.js en0 "tcp port 80"');
+    sys.error('  sudo http_trace.js eth1 ""');
+    sys.error('  sudo http_trace.js lo0 "ip proto \\tcp and tcp port 80"');
     process.exit(1);
 }
 
 pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 
-sys.puts("Listening on " + pcap_session.device_name);
+console.log("Listening on " + pcap_session.device_name);
 
 // Check for pcap dropped packets on an interval
 setInterval(function () {
     var stats = pcap_session.stats();
     if (stats.ps_drop > 0) {
-        sys.puts("pcap dropped packets: " + sys.inspect(stats));
+        sys.puts(ANSI("pcap dropped packets: " + sys.inspect(stats), bold));
     }
 }, 2000);
 
-tcp_tracker.addListener('http_request', function (session, http) {
+tcp_tracker.on('http_request', function (session, http) {
     if (session.http_request_count) {
         session.http_request_count += 1;
     } else {
         session.http_request_count = 1;
     }
-    sys.puts(session.src_name + " -> " + session.dst_name + " #" + session.http_request_count + 
-        " HTTP " + http.request.http_version + " request: " + 
-        http.request.method + " " + http.request.url);
-    Object.keys(http.request.headers).forEach(function (v) {
-        sys.puts("    " + v + ": " + http.request.headers[v]);
-    });
+    console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+        " #" + session.http_request_count + " HTTP " + http.request.http_version + " request: " + 
+        ANSI(ANSI(http.request.method, "bold") + " " + http.request.url, "yellow"));
+    console.log(format_headers(http.request.headers));
 });
 
-tcp_tracker.addListener('http_request_body', function (session, http, data) {
-    sys.puts(session.src_name + " -> " + session.dst_name + " #" + session.http_request_count + 
-        " HTTP " + http.request.http_version + " request body: " + 
-        data.length + " bytes");
+tcp_tracker.on('http_request_body', function (session, http, data) {
+    console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+        " #" + session.http_request_count + " HTTP " + http.request.http_version + " request body: " + 
+        format_size(data.length));
+    if (/application\/x-www-form-urlencoded/.test(http.request.headers["Content-Type"])) {
+        console.log(ANSI(data.toString("utf8"), "green"));
+    }
 });
 
-tcp_tracker.addListener('http_request_complete', function (session, http, data) {
-    sys.puts(session.src_name + " -> " + session.dst_name + " #" + session.http_request_count +
-        " HTTP " + http.request.http_version + " request complete " + (http.request.body_len / 1024).toFixed(2) + "KB");
+tcp_tracker.on('http_request_complete', function (session, http, data) {
+    console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+        " #" + session.http_request_count + " HTTP " + http.request.http_version + " request complete " +
+        format_size(http.request.body_len));
 });
 
-tcp_tracker.addListener('http_response', function (session, http) {
-    sys.puts(session.dst_name + " -> " + session.src_name + " #" + session.http_request_count + 
-        " HTTP " + http.response.http_version + " response: " + http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code]);
-    Object.keys(http.response.headers).forEach(function (v) {
-        sys.puts("    " + v + ": " + http.response.headers[v]);
-    });
+tcp_tracker.on('http_response', function (session, http) {
+    console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
+        " #" + session.http_request_count + " HTTP " + http.response.http_version + " response: " +
+        ANSI(http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code], "yellow"));
+    console.log(format_headers(http.response.headers));
 });
 
-tcp_tracker.addListener('http_response_body', function (session, http, data) {
-    sys.puts(session.dst_name + " -> " + session.src_name + " #" + session.http_request_count + 
-        " HTTP " + http.response.http_version + " response body: " + 
-        data.length + " bytes");
-//    sys.puts(data);
+tcp_tracker.on('http_response_body', function (session, http, data) {
+    console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
+        " #" + session.http_request_count + " HTTP " + http.response.http_version + " response body: " + 
+        format_size(data.length));
+    if (!http.response.headers["Content-Encoding"] && /^text/.test(http.response.headers["Content-Type"])) {
+        console.log(ANSI(data.toString("utf8"), "green"));
+    }
 });
 
-tcp_tracker.addListener('http_response_complete', function (session, http, data) {
-    sys.puts(session.dst_name + " -> " + session.src_name + " #" + session.http_request_count +
-        " HTTP " + http.response.http_version + " response complete " + (http.response.body_len / 1024).toFixed(2) + "KB");
+tcp_tracker.on('http_response_complete', function (session, http, data) {
+    console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
+        " #" + session.http_request_count + " HTTP " + http.response.http_version + " response complete " + 
+        format_size(http.response.body_len));
 });
 
 // listen for packets, decode them, and feed TCP to the tracker
-pcap_session.addListener('packet', function (raw_packet) {
+pcap_session.on('packet', function (raw_packet) {
     var packet = pcap.decode.packet(raw_packet);
 
     tcp_tracker.track_packet(packet);
