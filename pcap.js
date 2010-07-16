@@ -364,6 +364,13 @@ var decode = {
         }
 
         // There are usually more exciting things hiding in ICMP packets after the headers
+        ret.data_len = raw_packet.pcap_header.caplen - offset + 8;
+        if (ret.data_len > 0) {
+            // add a buffer slice pointing to the remainder of this ICMP packet.
+            // many ICMP messages copy part of the packet they are responding to into this part.
+            ret.data = raw_packet.slice(offset + 8, raw_packet.pcap_header.caplen);
+        }
+
         return ret;
     },
     udp: function (raw_packet, offset) {
