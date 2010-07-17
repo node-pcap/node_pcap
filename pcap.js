@@ -769,6 +769,50 @@ print.packet = function (packet_to_print) {
 
 exports.print = print;
 
+// Meaningfully hold the different types of frames at some point
+function WebSocketFrame() {
+    this.type = null;
+    this.data = "";
+}
+
+function WebSocketParser() {
+    this.buffer = new Buffer(64 * 1024); // 64KB is the max message size
+    this.buffer.end = 0;
+    this.state = "frame_type";
+    this.frame = new WebSocketFrame();
+
+    events.EventEmitter.call(this);
+}
+sys.inherits(WebSocketParser, events.EventEmitter);
+
+WebSocketParser.prototype.execute = function (incoming_buf) {
+    var pos = 0;
+
+    while (pos < incoming_buf.length) {
+        switch (this.state) {
+        case "frame_type":
+            this.frame.type = incoming_buf[pos];
+            pos += 1;
+            this.state = "read_until_marker";
+            break;
+        case "read_until_marker":
+            if (incoming_buf[pos] !== 255) {
+                this.buffer[this.buffer.end] = incoming_buf[pos];
+                this.buffer.end += 1;
+                pos += 1;
+            } else {
+                this.frame.data = this.buffer.toString('utf8', 0, this.buffer.end);
+                this.emit("message", this.frame.data);
+                this.state = "frame_type";
+                this.buffer.end = 0;
+                pos += 1;
+            }
+            break;
+        default:
+            throw new Error("invalid state " + this.state);
+        }
+    }
+};
 
 function TCP_tracker() {
     this.sessions = {};
@@ -939,10 +983,12 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
             http.response.http_version = info.versionMajor + "." + info.versionMinor;
             http.response.status_code = info.statusCode;
 
-            if (http.response.statusCode === 101 && http.response.headers["Upgrade"] === "WebSocket") {
+            if (http.response.status_code === 101 && http.response.headers.Upgrade === "WebSocket") {
+                self.setup_websocket_tracking(session);
                 self.emit('websocket_upgrade', session, http);
                 session.http_detect = false;
                 session.websocket_detect = true;
+                delete http.response_parser.onMessageComplete;
             } else {
                 self.emit('http_response', session, http);
             }
@@ -959,6 +1005,19 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
     };
 
     session.http = http;
+};
+
+TCP_tracker.prototype.setup_websocket_tracking = function (session) {
+    var self = this;
+    
+    session.websocket_parser_send = new WebSocketParser();
+    session.websocket_parser_send.on("message", function (message_string) {
+        self.emit("websocket_message", session, "send", message_string);
+    })
+    session.websocket_parser_recv = new WebSocketParser();
+    session.websocket_parser_recv.on("message", function (message_string) {
+        self.emit("websocket_message", session, "recv", message_string);
+    })
 };
 
 TCP_tracker.prototype.track_states = {};
@@ -1032,7 +1091,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                         sys.puts("HTTP request parser exception: " + request_err.stack);
                     }
                 } else if (session.websocket_detect) {
-                    session.websocket_parser.execute("src", tcp.data);
+                    session.websocket_parser_send.execute(tcp.data);
                 }
             }
             session.send_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
@@ -1068,6 +1127,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                     } catch (response_err) {
                         sys.puts("HTTP response parser exception: " + response_err.stack);
                     }
+                } else if (session.websocket_detect) {
+                    session.websocket_parser_recv.execute(tcp.data);
                 }
             }
             session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
