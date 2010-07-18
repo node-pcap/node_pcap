@@ -1,4 +1,5 @@
-"use strict";
+#!/usr/bin/env node
+
 /*global process require exports setInterval __dirname */
 
 var sys = require("sys"),
@@ -16,9 +17,9 @@ var sys = require("sys"),
 if (process.argv.length !== 4) {
     sys.error("usage: " + process.argv[1] + " interface filter");
     sys.error("Examples: ");
-    sys.error('  sudo node speed_server.js en0 "tcp port 80"');
-    sys.error('  sudo node speed_server.js eth1 ""');
-    sys.error('  sudo node speed_server.js lo0 "ip proto \\tcp and tcp port 80"');
+    sys.error('  sudo speed_server.js en0 "tcp port 80"');
+    sys.error('  sudo speed_server.js eth1 ""');
+    sys.error('  sudo speed_server.js lo0 "ip proto \\tcp and tcp port 80"');
     process.exit(1);
 }
 
