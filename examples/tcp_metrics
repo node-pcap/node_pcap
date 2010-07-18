@@ -10,9 +10,9 @@ var sys          = require("sys"),
 if (process.argv.length !== 4) {
     sys.error("usage: " + process.argv[1] + " interface filter");
     sys.error("Examples: ");
-    sys.error('  sudo node tcp_metrics.js en0 "tcp port 80"');
-    sys.error('  sudo node tcp_metrics.js eth1 ""');
-    sys.error('  sudo node tcp_metrics.js lo0 "ip proto \\tcp and tcp port 80"');
+    sys.error('  sudo tcp_metrics.js en0 "tcp port 80"');
+    sys.error('  sudo tcp_metrics.js eth1 ""');
+    sys.error('  sudo tcp_metrics.js lo0 "ip proto \\tcp and tcp port 80"');
     process.exit(1);
 }
 
@@ -28,17 +28,17 @@ setInterval(function () {
     }
 }, 2000);
 
-tcp_tracker.addListener('start', function (session) {
+tcp_tracker.on('start', function (session) {
     sys.puts("Start of TCP session between " + session.src_name + " and " + session.dst_name);
 });
 
-tcp_tracker.addListener('end', function (session) {
+tcp_tracker.on('end', function (session) {
     sys.puts("End of TCP session between " + session.src_name + " and " + session.dst_name);
     sys.puts("Set stats for session: " + sys.inspect(tcp_tracker.session_stats(session)));
 });
 
 // listen for packets, decode them, and feed TCP to the tracker
-pcap_session.addListener('packet', function (raw_packet) {
+pcap_session.on('packet', function (raw_packet) {
     var packet = pcap.decode.packet(raw_packet);
 
     tcp_tracker.track_packet(packet);

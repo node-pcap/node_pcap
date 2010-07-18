@@ -3,6 +3,7 @@
 /*global process require exports setInterval __dirname */
 
 var sys = require("sys"),
+    Buffer = require("buffer").Buffer,
     pcap = require("pcap"), pcap_session,
     count = 0,
     start_time = new Date(),
@@ -12,7 +13,8 @@ var sys = require("sys"),
     url = require('url'),
     path = require('path'),
     fs = require('fs'),
-    track_ids = {};
+    track_ids = {},
+    bulk_data;
 
 if (process.argv.length !== 4) {
     sys.error("usage: " + process.argv[1] + " interface filter");
@@ -23,10 +25,15 @@ if (process.argv.length !== 4) {
     process.exit(1);
 }
 
+bulk_data = new Buffer(1024 * 1024);
+for (var i = 0; i < (1024 * 1024); i += 1) {
+    bulk_data[i] = 33;
+}
+
 pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 
 // Print all devices, currently listening device prefixed with an asterisk
-sys.puts("All devices:");
+console.log("All devices:");
 pcap_session.findalldevs().forEach(function (dev) {
     if (pcap_session.device_name === dev.name) {
         sys.print("* ");
@@ -45,34 +52,34 @@ pcap_session.findalldevs().forEach(function (dev) {
 setInterval(function () {
     var stats = pcap_session.stats();
     if (stats.ps_drop > 0) {
-        sys.puts("pcap dropped packets: " + sys.inspect(stats));
+        console.log("pcap dropped packets: " + sys.inspect(stats));
     }
 }, 5000);
 
-tcp_tracker.addListener('start', function (session) {
-    sys.puts("Start of TCP session between " + session.src + " and " + session.dst);
+tcp_tracker.on('start', function (session) {
+    console.log("Start of TCP session between " + session.src + " and " + session.dst);
 });
 
-tcp_tracker.addListener('http_request', function (session) {
-    var matches = /send_file\?id=(\d+)/.exec(session.http_request.url);
+tcp_tracker.on('http_request', function (session, http) {
+    var matches = /send_file\?id=(\d+)/.exec(http.request.url);
     if (matches && matches[1]) {
         session.track_id = matches[1];
-        sys.puts("Added tracking for " + matches[1]);
+        console.log("Added tracking for " + matches[1]);
     }
     else {
-        sys.puts("Didn't add tracking for " + sys.inspect(session.http_request));
+        console.log("Didn't add tracking for " + sys.inspect(http.request));
     }
 });
 
-tcp_tracker.addListener('end', function (session) {
-    sys.puts("End of TCP session between " + session.src + " and " + session.dst);
+tcp_tracker.on('end', function (session) {
+    console.log("End of TCP session between " + session.src + " and " + session.dst);
     if (session.track_id) {
         track_ids[session.track_id] = tcp_tracker.session_stats(session);
     }
 });
 
 // listen for packets, decode them, and feed TCP to the tracker
-pcap_session.addListener('packet', function (raw_packet) {
+pcap_session.on('packet', function (raw_packet) {
     var packet = pcap.decode.packet(raw_packet);
     
     tcp_tracker.track_packet(packet);
@@ -100,7 +107,7 @@ function lookup_mime_type(file_name) {
 }
 
 function do_error(response, code, message) {
-    sys.puts("do_error: " + code + " - " + message);
+    console.log("do_error: " + code + " - " + message);
     response.writeHead(code, {
         "Content-Type": "text/plain",
         "Connection": "close"
@@ -119,7 +126,7 @@ function handle_file(file_name, in_request, in_response) {
 
     path.exists(local_name, function (exists) {
         if (exists) {
-            file = fs.readFile(local_name, "binary", function (err, data) {
+            file = fs.readFile(local_name, function (err, data) {
                 var out_headers = {
                     "Content-Type": lookup_mime_type(local_name),
                     "Content-Length": data.length,
@@ -129,13 +136,12 @@ function handle_file(file_name, in_request, in_response) {
                     do_error(in_response, 404, "Error opening " + local_name + ": " + err);
                     return;
                 }
-                in_request.setEncoding("binary");
                 if (in_request.headers.origin) {
                     out_headers["access-control-allow-origin"] = in_request.headers.origin;
                 }
 
                 in_response.writeHead(200, out_headers);
-                in_response.write(data, "binary");
+                in_response.write(data);
                 in_response.end();
             });
         }
@@ -148,7 +154,14 @@ function handle_file(file_name, in_request, in_response) {
 function send_start(url, request, response) {
     if (url.query && url.query.id) {
         track_ids[url.query.id] = {};
-        handle_file('/testfile.txt', request, response);
+        var out_headers = {
+            "Content-Type": "text/plain",
+            "Content-Length": bulk_data.length,
+            "Connection": "close"
+        };
+        response.writeHead(200, out_headers);
+        response.write(bulk_data);
+        response.end();
     }
     else {
         do_error(response, 400, "Missing id in query string");
@@ -162,6 +175,7 @@ function get_stats(url, request, response) {
             "Connection": "close"
         });
         if (track_ids[url.query.id]) {
+            console.log("Sending back: " + sys.inspect(track_ids));
             response.write(JSON.stringify(track_ids[url.query.id]));
             delete track_ids[url.query.id];
         }
@@ -178,7 +192,7 @@ function get_stats(url, request, response) {
 }
 
 function new_client(new_request, new_response) {
-    sys.puts(new_request.connection.remoteAddress + " " + new_request.method + " " + new_request.url);
+    console.log(new_request.connection.remoteAddress + " " + new_request.method + " " + new_request.url);
     if (new_request.method === "GET") {
         var url_parsed = url.parse(new_request.url, true),
             pathname = url_parsed.pathname;
@@ -207,8 +221,8 @@ function new_client(new_request, new_response) {
 }
 
 http.createServer(new_client).listen(80);
-sys.puts("Listening for HTTP");
+console.log("Listening for HTTP");
 
 process.addListener("uncaughtException", function (event) {
-    sys.puts("Uncaught Exception: " + event.stack);
+    console.log("Uncaught Exception: " + event.stack);
 });
