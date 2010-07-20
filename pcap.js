@@ -871,8 +871,8 @@ TCP_tracker.prototype.session_stats = function (session) {
     stats.recv_payload = session.recv_bytes_payload;
     stats.recv_total = stats.recv_overhead + stats.recv_payload;
 
-    if (session.http_request) {
-        stats.http_request = session.http_request;
+    if (session.http.request) {
+        stats.http_request = session.http.request;
     }
 
     return stats;
