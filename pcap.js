@@ -84,7 +84,7 @@ function lpad(str, len) {
 
 function dump_bytes(raw_packet, offset) {
     for (var i = offset; i < raw_packet.pcap_header.caplen ; i += 1) {
-        sys.puts(i + ": " + raw_packet[i]);
+        console.log(i + ": " + raw_packet[i]);
     }
 }
 
@@ -134,7 +134,7 @@ decode.packet = function (raw_packet) {
         packet.link = decode.nulltype(raw_packet, 0);
         break;
     default:
-        sys.puts("Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
+        console.log("pcap.js: decode.packet() - Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
     }
     
     packet.pcap_header = raw_packet.pcap_header; // TODO - merge values here instead of putting ref on packet buffer
@@ -148,9 +148,10 @@ decode.nulltype = function (raw_packet, offset) {
     ret.pftype = raw_packet[0];  // this is a pretty big hack as the compiler is the only one that knows this for sure.
     if (ret.pftype === 2) { // AF_INET, at least on my Linux and OSX machines right now
         ret.ip = decode.ip(raw_packet, 4);
-    }
-    else {
-        sys.puts("Don't know how to decode protocol family " + ret.pftype);
+    } else if (ret.pftype === 30) { // AF_INET6, often
+        console.log("pcap.js: decode.nulltype() - Don't know how to decode IPv6 packets.");
+    } else {
+        console.log("pcap.js: decode.nulltype() - Don't know how to decode protocol family " + ret.pftype);
     }
 
     return ret;
@@ -172,7 +173,7 @@ decode.ethernet = function (raw_packet, offset) {
         ret.arp = decode.arp(raw_packet, 14);
         break;
     default:
-        sys.puts("Don't know how to decode ethertype " + ret.ethertype);
+        console.log("pcap.js: decode.ethernet() - Don't know how to decode ethertype " + ret.ethertype);
     }
 
     return ret;
@@ -463,7 +464,7 @@ decode.tcp = function (raw_packet, offset, ip) {
                 option_offset += 34;
                 break;
             default:
-                sys.puts("Invalid TCP SACK option length " + raw_packet[option_offset + 1]);
+                console.log("Invalid TCP SACK option length " + raw_packet[option_offset + 1]);
                 option_offset = options_end;
             }
             break;
@@ -739,7 +740,7 @@ print.ethernet = function (packet) {
         ret += print.arp(packet);
         break;
     default:
-        sys.puts("Don't know how to print ethertype " + packet.link.ethertype);
+        console.log("Don't know how to print ethertype " + packet.link.ethertype);
     }
 
     return ret;
@@ -761,7 +762,7 @@ print.packet = function (packet_to_print) {
         ret += print.nulltype(packet_to_print);
         break;
     default:
-        sys.puts("Don't yet know how to print link_type " + packet_to_print.link_type);
+        console.log("Don't yet know how to print link_type " + packet_to_print.link_type);
     }
 
     return ret;
@@ -845,7 +846,7 @@ TCP_tracker.prototype.session_stats = function (session) {
         if (session.recv_packets[v]) {
             stats.recv_times[v] = session.send_acks[v] - session.recv_packets[v];
         } else {
-            sys.puts("send ACK with missing recv seqno: " + v);
+            console.log("send ACK with missing recv seqno: " + v);
         }
     });
 
@@ -854,7 +855,7 @@ TCP_tracker.prototype.session_stats = function (session) {
         if (session.send_packets[v]) {
             stats.send_times[v] = session.recv_acks[v] - session.send_packets[v];
         } else {
-            sys.puts("recv ACK with missing send seqno: " + v);
+            console.log("recv ACK with missing send seqno: " + v);
         }
     });
 
@@ -1013,11 +1014,11 @@ TCP_tracker.prototype.setup_websocket_tracking = function (session) {
     session.websocket_parser_send = new WebSocketParser();
     session.websocket_parser_send.on("message", function (message_string) {
         self.emit("websocket_message", session, "send", message_string);
-    })
+    });
     session.websocket_parser_recv = new WebSocketParser();
     session.websocket_parser_recv.on("message", function (message_string) {
         self.emit("websocket_message", session, "recv", message_string);
-    })
+    });
 };
 
 TCP_tracker.prototype.track_states = {};
@@ -1036,10 +1037,10 @@ TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
         session.recv_window_scale = tcp.options.window_scale || 1; // multiplier, not bit shift value
         session.state = "SYN_RCVD";
     } else if (tcp.flags.rst) {
-        sys.puts("Connection reset by receiver -> CLOSED");
+        console.log("Connection reset by receiver -> CLOSED");
         session.state = "CLOSED";
     } else {
-        sys.puts("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(tcp, false, 4));
+        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(tcp, false, 4));
     }
 };
 
@@ -1056,7 +1057,7 @@ TCP_tracker.prototype.track_states.SYN_RCVD = function (packet, session) {
         this.emit('start', session);
         session.state = "ESTAB";
     } else {
-        sys.puts("Didn't get ACK packet from src while handshaking: " + sys.inspect(tcp, false, 4));
+        console.log("Didn't get ACK packet from src while handshaking: " + sys.inspect(tcp, false, 4));
     }
 };
 
@@ -1066,8 +1067,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
         src = ip.saddr + ":" + tcp.sport;
         
 // if (tcp.options.sack) {
-//     sys.puts("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
-//     sys.puts(sys.inspect(ip, false, 5));
+//     console.log("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
+//     console.log(sys.inspect(ip, false, 5));
 // }
 
     if (src === session.src) { // this packet came from the active opener / client
@@ -1082,13 +1083,13 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
             }
             session.send_bytes_payload += tcp.data_bytes;
             if (session.send_packets[tcp.seqno + tcp.data_bytes]) {
-                sys.puts("Retransmission send of segment " + (tcp.seqno - session.send_isn + tcp.data_bytes));
+                console.log("Retransmission send of segment " + (tcp.seqno - session.send_isn + tcp.data_bytes));
             } else {
                 if (session.http_detect) {
                     try {
                         session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
                     } catch (request_err) {
-                        sys.puts("HTTP request parser exception: " + request_err.stack);
+                        console.log("HTTP request parser exception: " + request_err.stack);
                     }
                 } else if (session.websocket_detect) {
                     session.websocket_parser_send.execute(tcp.data);
@@ -1098,12 +1099,12 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
         }
         if (session.recv_packets[tcp.ackno]) {
             if (session.send_acks[tcp.ackno]) {
-                //                    sys.puts("Already sent this ACK, which I'm guessing is fine.");
+                //                    console.log("Already sent this ACK, which I'm guessing is fine.");
             } else {
                 session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
             }
         } else {
-            sys.puts("sending ACK for packet we didn't see received: " + tcp.ackno);
+            console.log("sending ACK for packet we didn't see received: " + tcp.ackno);
         }
         if (tcp.flags.fin) {
             session.state = "FIN_WAIT";
@@ -1114,7 +1115,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
         if (tcp.data_bytes) {
             session.recv_bytes_payload += tcp.data_bytes;
             if (session.recv_packets[tcp.seqno + tcp.data_bytes]) {
-                sys.puts("Retransmission recv of segment " + (tcp.seqno - session.recv_isn + tcp.data_bytes));
+                console.log("Retransmission recv of segment " + (tcp.seqno - session.recv_isn + tcp.data_bytes));
                 if (session.recv_retrans[tcp.seqno + tcp.data_bytes]) {
                     session.recv_retrans[tcp.seqno + tcp.data_bytes] += 1;
                 } else {
@@ -1125,7 +1126,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                     try {
                         session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
                     } catch (response_err) {
-                        sys.puts("HTTP response parser exception: " + response_err.stack);
+                        console.log("HTTP response parser exception: " + response_err.stack);
                     }
                 } else if (session.websocket_detect) {
                     session.websocket_parser_recv.execute(tcp.data);
@@ -1135,18 +1136,18 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
         }
         if (session.send_packets[tcp.ackno]) {
             if (session.recv_acks[tcp.ackno]) {
-                //                    sys.puts("Already received this ACK, which I'm guessing is fine.");
+                //                    console.log("Already received this ACK, which I'm guessing is fine.");
             } else {
                 session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
             }
         } else {
-            sys.puts("receiving ACK for packet we didn't see sent: " + tcp.ackno);
+            console.log("receiving ACK for packet we didn't see sent: " + tcp.ackno);
         }
         if (tcp.flags.fin) {
             session.state = "CLOSE_WAIT";
         }
     } else {
-        sys.puts("non-matching packet in session: " + sys.inspect(packet));
+        console.log("non-matching packet in session: " + sys.inspect(packet));
     }
 };
 
@@ -1219,7 +1220,7 @@ TCP_tracker.prototype.track_next = function (key, packet) {
     if (typeof this.track_states[session.state] === 'function') {
         this.track_states[session.state].call(this, packet, session);
     } else {
-        sys.puts(sys.debug(session));
+        console.log(sys.debug(session));
         throw new Error("Don't know how to handle session state " + session.state);
     }
 };
@@ -1276,7 +1277,7 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 }) + ":" + tcp.dport;
                 session.current_cap_time = packet.pcap_header.time_ms;
             } else { // SYN retry
-                sys.puts("SYN retry from " + src + " to " + dst);
+                console.log("SYN retry from " + src + " to " + dst);
             }
         } else { // not a SYN
             if (session) {
@@ -1287,6 +1288,6 @@ TCP_tracker.prototype.track_packet = function (packet) {
             }
         }
     } else {
-        throw new Error("tcp_tracker.track_packet fed a non-TCP packet: " + sys.inspect(packet));
+        throw new Error("tcp_tracker.track_packet fed a non-IPv4 TCP packet: " + sys.inspect(packet));
     }
 };

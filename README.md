@@ -6,7 +6,7 @@ analyze packets.  `libpcap` is a packet capture library used by programs like `t
 It has been tested on OSX and Linux.
 
 Sadly, `node_pcap` is _not done_ yet.  While it is incomplete, it is still already useful for capturing
-and manipulating packets in JavaScript.
+and manipulating packets in JavaScript.  The best example of this so far is `http_trace`, described below.
 
 ## Why?
 
@@ -23,11 +23,7 @@ a lot of binary slicing and dicing which can be awkward with JavaScript strings.
 * Writing servers that capture packets, process them somehow, and then serve the processed data up in some way is
 very straightforward in node.
 
-## Help Wanted
-
-I want to build up decoders and printers for all popular protocols.  I'm already working on HTTP, DNS,
-and 802.11 "monitor" mode.  If you want to write a decoder or printer for another protocol, let me know,
-or just send me a patch.
+* Node has a very good HTTP parser that is used to progressively decode HTTP sessions.
 
 ## Installation
 
@@ -56,13 +52,16 @@ capture programs.
 There are several example programs that show how to use `node_pcap`.  These examples are best documentation.
 Try them out and see what they do.
 
-To start a pcap session:
+To start a pcap session in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm` 
+takes care of this automatically.
 
-    var pcap = require('./pcap'),
+Starting a session:
+
+    var pcap = require('pcap'),
         pcap_session = pcap.createSession(interface, filter);
 
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
-will try to pick a "default" interface, which is often just the first one in some list.
+will try to pick a "default" interface, which is often just the first one in some list and not what you want.
 
 `fitler` is a pcap filter expression, see `pcap-filter(7)` for more information.  An empty string will capture
 all packets visible on the interface.
@@ -87,11 +86,55 @@ which is encapsulated within IP, which is encapsulated within a link layer.  Acc
 
 This structure is easy to explore with `sys.inspect`.
 
-
 Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
 Unless you are root already, you'll probably want to start your node program like this:
 
     sudo node test.js
+    
+## Some Common Problems
+
+### TCP Segmentation Offload - TSO
+
+TSO is a technique that modern operating systems use to offload the burden of IP/TCP header computation to 
+the network hardware.  It also reduces the number of times that data is moved data between the kernel and the
+network hardware.  TSO saves CPU when sending data that is larger than a single IP packet.
+
+This is amazing and wonderful, but it does make some kinds of packet sniffing more difficult.  In many cases,
+it is important to see the exact packets that are sent, but if the network hardware is sending the packets, 
+these are not available to `libpcap`.  The solution is to disable TSO.
+
+OSX:
+
+    sudo sysctl -w net.inet.tcp.tso=0
+    
+Linux (substitute correct interface name):
+
+    sudo ethtool -K eth0 tso off
+
+The symptoms of needing to disable TSO are messages like, "Received ACK for packet we didn't see get sent".
+
+### IPv6
+
+Sadly, `node_pcap` does not know how to decode IPv6 packets yet.  Often when capturing traffic to `localhost`, IPv6 traffic
+will arrive surprisingly, even though you were expecting IPv4.  A common case is the hostname `localhost`, which many client programs will
+resolve to the IPv6 address `::1` and then will try `127.0.0.1`.  Until we get IPv6 decode support, a `libpcap` filter can be
+set to only see IPv4 traffic:
+
+    sudo http_trace lo0 lo0 "ip proto \tcp"
+    
+The backslash is important.  The pcap filter language has an ambiguity with the word "tcp", so by escaping it,
+you'll get the correct interpretation for this case.
+
+### Dropped packets
+
+There are several levels of buffering involved in capturing packets.  Sometimes these buffers fill up, and
+you'll drop packets.  If this happens, it becomes difficult to reconstruct higher level protocols.  The best
+way to keep the buffers from filling up is to use pcap filters to only consider traffic that you need to decode.
+The pcap filters are very efficient and run close to the kernel where they can process high packet rates.
+
+If the pcap filters are set correctly and `libpcap` still drops packets, it is possible to increase `libpcap`'s
+buffer size.  At the moment, this requires changing `pcap_binding.cc`.  Look for `pcap_set_buffer_size()` and
+set to a larger value.
 
 ## examples/http_trace
 
@@ -335,6 +378,13 @@ Third packet, TCP ACK, 3-way handshake is now complete:
        , link_type: 'LINKTYPE_ETHERNET'
        }
     }
+
+## Help Wanted
+
+I want to build up decoders and printers for all popular protocols.  I'm already working on HTTP 802.11 
+"monitor" mode.  If you want to write a decoder or printer for another protocol, let me know,
+or just send me a patch.
+
 
 ## LICENSE - "MIT License"
 
