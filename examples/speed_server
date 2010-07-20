@@ -67,7 +67,7 @@ tcp_tracker.on('http_request', function (session, http) {
         console.log("Added tracking for " + matches[1]);
     }
     else {
-        console.log("Didn't add tracking for " + sys.inspect(http.request));
+        console.log("Didn't add tracking for " + http.request.url);
     }
 });
 
@@ -175,7 +175,6 @@ function get_stats(url, request, response) {
             "Connection": "close"
         });
         if (track_ids[url.query.id]) {
-            console.log("Sending back: " + sys.inspect(track_ids));
             response.write(JSON.stringify(track_ids[url.query.id]));
             delete track_ids[url.query.id];
         }
