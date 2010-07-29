@@ -149,8 +149,21 @@ see the wonderful things it can do for you.  Hopefully the names of the properti
 ### HTTP Analysis
 
 The `TCP_tracker` also detects and decodes HTTP on all streams it receives.  If HTTP is detected, several
-new events will be emitted: `http_request`, `http_request_body`, `http_request_complete`, `http_response`, 
-`http_response_body`, and `http_response_complete`.
+new events will be emitted: 
+
+* `http_request`: function(session, http)
+* `http_request_body`: function(session, http, data)
+
+    Note that `data` is a node Buffer object sliced from the original packet.  If you want to use it past the
+    current tick, you'll need to make a copy somehow.
+
+* `http_request_complete`: function(session, http)
+* `http_response`: function(session, http)
+* `http_response_body`: function(session, http, data)
+
+    `data` is a Buffer slice.  See above.
+
+* `http_response_complete`: function(session, http)
 
 See `examples/http_trace` for an example of how to use these events to decode HTTP.
 
@@ -454,9 +467,7 @@ Third packet, TCP ACK, 3-way handshake is now complete:
 
 ## Help Wanted
 
-I want to build up decoders and printers for all popular protocols.  I'm already working on HTTP 802.11 
-"monitor" mode.  If you want to write a decoder or printer for another protocol, let me know,
-or just send me a patch.
+I want to build up decoders and printers for all popular protocols.  Patches are welcome.
 
 
 ## LICENSE - "MIT License"
