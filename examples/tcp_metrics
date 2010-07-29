@@ -29,12 +29,12 @@ setInterval(function () {
 }, 2000);
 
 tcp_tracker.on('start', function (session) {
-    sys.puts("Start of TCP session between " + session.src_name + " and " + session.dst_name);
+    console.log("Start of TCP session between " + session.src_name + " and " + session.dst_name);
 });
 
 tcp_tracker.on('end', function (session) {
-    sys.puts("End of TCP session between " + session.src_name + " and " + session.dst_name);
-    sys.puts("Set stats for session: " + sys.inspect(tcp_tracker.session_stats(session)));
+    console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
+    console.log("Set stats for session: " + sys.inspect(tcp_tracker.session_stats(session)));
 });
 
 // listen for packets, decode them, and feed TCP to the tracker
