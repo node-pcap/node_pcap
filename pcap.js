@@ -1226,7 +1226,7 @@ TCP_tracker.prototype.track_next = function (key, packet) {
 };
 
 TCP_tracker.prototype.track_packet = function (packet) {
-    var ip, tcp, src, dst, key, session;
+    var ip, tcp, src, dst, key, session, self = this;
 
     if (packet.link && packet.link.ip && packet.link.ip.tcp) {
         ip  = packet.link.ip;
@@ -1271,9 +1271,11 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 session.send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
                 session.src_name = dns_cache.ptr(ip.saddr, function (name) {
                     session.src_name = name + ":" + tcp.sport;
+                    self.emit("reverse", ip.saddr, name);
                 }) + ":" + tcp.sport;
                 session.dst_name = dns_cache.ptr(ip.daddr, function (name) {
                     session.dst_name = name + ":" + tcp.dport;
+                    self.emit("reverse", ip.daddr, name);
                 }) + ":" + tcp.dport;
                 session.current_cap_time = packet.pcap_header.time_ms;
             } else { // SYN retry
