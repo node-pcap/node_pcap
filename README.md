@@ -52,10 +52,12 @@ capture programs.
 There are several example programs that show how to use `node_pcap`.  These examples are best documentation.
 Try them out and see what they do.
 
-To start a pcap session in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm` 
+To use this library in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm` 
 takes care of this automatically.
 
-Starting a session:
+### Starting a capture session
+
+To start a capture session, call `pcap.createSession` with an interface name and a pcap filter string:
 
     var pcap = require('pcap'),
         pcap_session = pcap.createSession(interface, filter);
@@ -66,16 +68,21 @@ will try to pick a "default" interface, which is often just the first one in som
 `fitler` is a pcap filter expression, see `pcap-filter(7)` for more information.  An empty string will capture
 all packets visible on the interface.
 
+Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
+Unless you are recklessly roaming about as root already, you'll probably want to start your node program like this:
+
+    sudo node test.js
+
 `pcap_session` is an `EventEmitter` that emits a `packet` event.  The only argument to the callback will be a
 `Buffer` object with the raw bytes returned by `libpcap`.
 
 Listening for packets:
 
-    pcap_session.addListener('packet', function (raw_packet) {
+    pcap_session.on('packet', function (raw_packet) {
         // do some stuff with a raw packet
     });
 
-To convert the raw packet into a JavaScript object that is easy to work with, decode it:
+To convert `raw_packet` into a JavaScript object that is easy to work with, decode it:
     
     var packet = pcap.decode.packet(raw_packet);
 
@@ -86,10 +93,76 @@ which is encapsulated within IP, which is encapsulated within a link layer.  Acc
 
 This structure is easy to explore with `sys.inspect`.
 
-Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
-Unless you are root already, you'll probably want to start your node program like this:
+### TCP Analysis
 
-    sudo node test.js
+TCP can be analyzed by feeding the packets into a `TCP_tracker` and then listening for `start` and `end` events.
+
+    var pcap = require('pcap'),
+        tcp_tracker = new pcap.TCP_tracker(),
+        pcap_session = pcap.createSession(interface, "ip proto \tcp");
+
+    tcp_tracker.on('start', function (session) {
+        console.log("Start of TCP session between " + session.src_name + " and " + session.dst_name);
+    });
+
+    tcp_tracker.on('end', function (session) {
+        console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
+    });
+
+    pcap_session.on('packet', function (raw_packet) {
+        var packet = pcap.decode.packet(raw_packet);
+        tcp_tracker.track_packet(packet);
+    });
+
+You must only send IPv4 TCP packets to the TCP tracker.  Explore the `session` object with `sys.inspect` to
+see the wonderful things it can do for you.  Hopefully the names of the properties are self-explanatory:
+
+    { src: '10.51.2.130:55965'
+    , dst: '75.119.207.0:80'
+    , syn_time: 1280425738896.771
+    , state: 'ESTAB'
+    , key: '10.51.2.130:55965-75.119.207.0:80'
+    , send_isn: 2869922608
+    , send_window_scale: 8
+    , send_packets: { '2869922609': 1280425738896.771 }
+    , send_acks: { '1063203923': 1280425738911.618 }
+    , send_retrans: {}
+    , send_next_seq: 2869922609
+    , send_acked_seq: null
+    , send_bytes_ip: 60
+    , send_bytes_tcp: 108
+    , send_bytes_payload: 144
+    , recv_isn: 1063203922
+    , recv_window_scale: 128
+    , recv_packets: { '1063203923': 1280425738911.536 }
+    , recv_acks: { '2869922609': 1280425738911.536 }
+    , recv_retrans: {}
+    , recv_next_seq: null
+    , recv_acked_seq: null
+    , recv_bytes_ip: 20
+    , recv_bytes_tcp: 40
+    , recv_bytes_payload: 0
+    , src_name: '10.51.2.130:55965'
+    , dst_name: '75.119.207.0:80'
+    , current_cap_time: 1280425738911.65
+
+### HTTP Analysis
+
+The `TCP_tracker` also detects and decodes HTTP on all streams it receives.  If HTTP is detected, several
+new events will be emitted: `http_request`, `http_request_body`, `http_request_complete`, `http_response`, 
+`http_response_body`, and `http_response_complete`.
+
+See `examples/http_trace` for an example of how to use these events to decode HTTP.
+
+### WebSocket Analysis
+
+The `TCP_tracker` further detects and decodes WebSocket traffic on all streams it receives.
+
+* `websocket_upgrade`: function(session, http)
+* `websocket_message`: function(session, dir, message)
+
+See `examples/http_trace` for an example of how to use these events to decode WebSocket.
+
     
 ## Some Common Problems
 
@@ -120,7 +193,7 @@ will arrive surprisingly, even though you were expecting IPv4.  A common case is
 resolve to the IPv6 address `::1` and then will try `127.0.0.1`.  Until we get IPv6 decode support, a `libpcap` filter can be
 set to only see IPv4 traffic:
 
-    sudo http_trace lo0 lo0 "ip proto \tcp"
+    sudo http_trace lo0 "ip proto \tcp"
     
 The backslash is important.  The pcap filter language has an ambiguity with the word "tcp", so by escaping it,
 you'll get the correct interpretation for this case.
@@ -151,7 +224,7 @@ If a WebSocket upgrade is detected, `http_trace` will start looking for WebSocke
 
 ## examples/simple_capture
 
-This program captures packets and prints them as best it can.  Here's a sample of it's output.
+This program captures packets and prints them using the built in simple printer.  Here's a sample of it's output.
 In another window I ran `curl nodejs.org`.
 
     mjr:~/work/node_pcap$ sudo node examples/simple_capture.js en1 ""
