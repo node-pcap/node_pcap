@@ -6,7 +6,6 @@ var sys         = require("sys"),
     node_http   = require('http'),
     node_url    = require('url'),
     pcap        = require("pcap"), pcap_session,
-    dns_cache   = pcap.dns_cache,
     tcp_tracker = new pcap.TCP_tracker(),
     ANSI;
     
