@@ -148,7 +148,7 @@ tcp_tracker.addListener('http_request_body', function (session, http, data) {
     }
 });
 
-tcp_tracker.addListener('http_request_complete', function (session, http, data) {
+tcp_tracker.addListener('http_request_complete', function (session, http) {
     console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
         " #" + session.http_request_count + " HTTP " + http.request.http_version + " request complete " +
         format_size(http.request.body_len));
@@ -170,7 +170,7 @@ tcp_tracker.addListener('http_response_body', function (session, http, data) {
     }
 });
 
-tcp_tracker.addListener('http_response_complete', function (session, http, data) {
+tcp_tracker.addListener('http_response_complete', function (session, http) {
     console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
         " #" + session.http_request_count + " HTTP " + http.response.http_version + " response complete " + 
         format_size(http.response.body_len));
