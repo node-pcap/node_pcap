@@ -635,11 +635,11 @@ var dns_cache = (function () {
             if (! requests[ip]) {
                 requests[ip] = true;
                 dns.reverse(ip, function (err, domains) {
+                    console.log("pcap: dns.reverse: " + ip + " " + sys.inspect(domains));
                     if (err) {
                         cache[ip] = ip;
                         // TODO - check for network and broadcast addrs, since we have iface info
-                    }
-                    else {
+                    } else {
                         cache[ip] = domains[0];
                         if (typeof callback === 'function') {
                             callback(domains[0]);
@@ -776,10 +776,15 @@ function WebSocketFrame() {
     this.data = "";
 }
 
-function WebSocketParser() {
+function WebSocketParser(flag) {
     this.buffer = new Buffer(64 * 1024); // 64KB is the max message size
     this.buffer.end = 0;
-    this.state = "frame_type";
+    if (flag === "draft76") {
+        this.state = "skip_response";
+        this.skipped_bytes = 0;
+    } else {
+        this.state = "frame_type";
+    }
     this.frame = new WebSocketFrame();
 
     events.EventEmitter.call(this);
@@ -791,6 +796,13 @@ WebSocketParser.prototype.execute = function (incoming_buf) {
 
     while (pos < incoming_buf.length) {
         switch (this.state) {
+        case "skip_response":
+            this.skipped_bytes += 1;
+            if (this.skipped_bytes === 16) {
+                this.state = "frame_type";
+            }
+            pos += 1;
+            break;
         case "frame_type":
             this.frame.type = incoming_buf[pos];
             pos += 1;
@@ -985,7 +997,11 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
             http.response.status_code = info.statusCode;
 
             if (http.response.status_code === 101 && http.response.headers.Upgrade === "WebSocket") {
-                self.setup_websocket_tracking(session);
+                if (http.response.headers["Sec-WebSocket-Location"]) {
+                    self.setup_websocket_tracking(session, "draft76");
+                } else {
+                    self.setup_websocket_tracking(session);
+                }
                 self.emit('websocket_upgrade', session, http);
                 session.http_detect = false;
                 session.websocket_detect = true;
@@ -1008,14 +1024,14 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
     session.http = http;
 };
 
-TCP_tracker.prototype.setup_websocket_tracking = function (session) {
+TCP_tracker.prototype.setup_websocket_tracking = function (session, flag) {
     var self = this;
-    
+
     session.websocket_parser_send = new WebSocketParser();
     session.websocket_parser_send.on("message", function (message_string) {
         self.emit("websocket_message", session, "send", message_string);
     });
-    session.websocket_parser_recv = new WebSocketParser();
+    session.websocket_parser_recv = new WebSocketParser(flag);
     session.websocket_parser_recv.on("message", function (message_string) {
         self.emit("websocket_message", session, "recv", message_string);
     });
@@ -1271,10 +1287,12 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 session.send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
                 session.src_name = dns_cache.ptr(ip.saddr, function (name) {
                     session.src_name = name + ":" + tcp.sport;
+                    console.log("reverse mapping " + ip.saddr + " to " + name);
                     self.emit("reverse", ip.saddr, name);
                 }) + ":" + tcp.sport;
                 session.dst_name = dns_cache.ptr(ip.daddr, function (name) {
                     session.dst_name = name + ":" + tcp.dport;
+                    console.log("reverse mapping " + ip.saddr + " to " + name);
                     self.emit("reverse", ip.daddr, name);
                 }) + ":" + tcp.dport;
                 session.current_cap_time = packet.pcap_header.time_ms;
