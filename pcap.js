@@ -635,7 +635,6 @@ var dns_cache = (function () {
             if (! requests[ip]) {
                 requests[ip] = true;
                 dns.reverse(ip, function (err, domains) {
-                    console.log("pcap: dns.reverse: " + ip + " " + sys.inspect(domains));
                     if (err) {
                         cache[ip] = ip;
                         // TODO - check for network and broadcast addrs, since we have iface info
@@ -747,7 +746,15 @@ print.ethernet = function (packet) {
 };
 
 print.nulltype = function (packet) {
-    var ret = "loopback ";
+    var ret = "loopback";
+
+    if (packet.link.pftype === 2) { // AF_INET, at least on my Linux and OSX machines right now
+        ret += print.ip(packet);
+    } else if (packet.link.pftype === 30) { // AF_INET6, often
+        console.log("pcap.js: print.nulltype() - Don't know how to print IPv6 packets.");
+    } else {
+        console.log("pcap.js: print.nulltype() - Don't know how to print protocol family " + packet.link.pftype);
+    }
 
     return ret;
 };
@@ -1287,12 +1294,10 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 session.send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
                 session.src_name = dns_cache.ptr(ip.saddr, function (name) {
                     session.src_name = name + ":" + tcp.sport;
-                    console.log("reverse mapping " + ip.saddr + " to " + name);
                     self.emit("reverse", ip.saddr, name);
                 }) + ":" + tcp.sport;
                 session.dst_name = dns_cache.ptr(ip.daddr, function (name) {
                     session.dst_name = name + ":" + tcp.dport;
-                    console.log("reverse mapping " + ip.saddr + " to " + name);
                     self.emit("reverse", ip.daddr, name);
                 }) + ":" + tcp.dport;
                 session.current_cap_time = packet.pcap_header.time_ms;
