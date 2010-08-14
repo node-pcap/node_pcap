@@ -248,6 +248,10 @@ decode.ip = function (raw_packet, offset) {
         ret.protocol_name = "ICMP";
         ret.icmp = decode.icmp(raw_packet, offset + (ret.header_length * 4));
         break;
+    case 2:
+        ret.protocol_name = "IGMP";
+        ret.igmp = decode.igmp(raw_packet, offset + (ret.header_length * 4));
+        break;
     case 6:
         ret.protocol_name = "TCP";
         ret.tcp = decode.tcp(raw_packet, offset + (ret.header_length * 4), ret);
@@ -386,6 +390,45 @@ decode.icmp = function (raw_packet, offset) {
     // There are usually more exciting things hiding in ICMP packets after the headers
     return ret;
 };
+
+decode.igmp = function (raw_packet, offset) {
+    var ret = {};
+
+    // http://en.wikipedia.org/wiki/Internet_Group_Management_Protocol
+    ret.type = raw_packet[offset];
+    ret.max_response_time = raw_packet[offset + 1];
+    ret.checksum = unpack.uint16(raw_packet, offset + 2); // 2, 3
+    ret.group_address = unpack.ipv4_addr(raw_packet, offset + 4); // 4, 5, 6
+
+    switch (ret.type) {
+    case 0x11:
+        ret.version = ret.max_response_time > 0 ? 2 : 1;
+        ret.type_desc = "Membership Query"
+        break;
+    case 0x12:
+        ret.version = 1;
+        ret.type_desc = "Membership Report"
+        break;
+    case 0x16:
+        ret.version = 2;
+        ret.type_desc = "Membership Report"
+        break;
+    case 0x17:
+        ret.version = 2;
+        ret.type_desc = "Leave Group"
+        break;
+    case 0x22:
+        ret.version = 3;
+        ret.type_desc = "Membership Report"
+        // TODO: Decode v3 message
+        break;
+    default:
+        ret.type_desc = "type " + ret.type;
+        break;
+    }
+
+    return ret;
+}
 
 decode.udp = function (raw_packet, offset) {
     var ret = {};
@@ -714,6 +757,10 @@ print.ip = function (packet) {
     case "ICMP":
         ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " + 
             ip.icmp.sequence;
+        break;
+    case "IGMP":
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " IGMP " + ip.igmp.type_desc + " " + 
+            ip.igmp.group_address;
         break;
     default:
         ret += " proto " + ip.protocol_name;
