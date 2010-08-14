@@ -27,7 +27,7 @@ Pcap.prototype.open_live = function (device, filter) {
     var me = this;
 
     this.device_name = device || binding.default_device();
-    this.link_type = binding.open_live(this.device_name, filter);
+    this.link_type = binding.open_live(this.device_name, filter || "");
     this.fd = binding.fileno();
     this.opened = true;
     this.readWatcher = new process.IOWatcher();
