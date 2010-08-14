@@ -23,11 +23,17 @@ Pcap.prototype.findalldevs = function () {
     return binding.findalldevs();
 };
 
-Pcap.prototype.open_live = function (device, filter) {
+Pcap.prototype.open = function (live, device, filter) {
     var me = this;
 
-    this.device_name = device || binding.default_device();
-    this.link_type = binding.open_live(this.device_name, filter || "");
+    if (live) {
+        this.device_name = device || binding.default_device();
+        this.link_type = binding.open_live(this.device_name, filter || "");
+    } else {
+        this.device_name = device;
+        this.link_type = binding.open_offline(device, filter || "");
+    }
+
     this.fd = binding.fileno();
     this.opened = true;
     this.readWatcher = new process.IOWatcher();
@@ -68,7 +74,13 @@ exports.Pcap = Pcap;
 
 exports.createSession = function (device, filter) {
     var session = new Pcap();
-    session.open_live(device, filter);
+    session.open(true, device, filter);
+    return session;
+};
+
+exports.createOfflineSession = function (path, filter) {
+    var session = new Pcap();
+    session.open(false, path, filter);
     return session;
 };
 
