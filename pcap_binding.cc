@@ -105,8 +105,6 @@ OpenLive(const Arguments& args)
     String::Utf8Value device(args[0]->ToString());
     String::Utf8Value filter(args[1]->ToString());
 
-    // TODO - check for empty device string and look up default device
-
     if (pcap_lookupnet((char *) *device, &net, &mask, errbuf) == -1) {
         net = 0;
         mask = 0;
@@ -300,15 +298,37 @@ Handle<Value>
 DefaultDevice(const Arguments& args)
 {
     HandleScope scope;
+    char errbuf[PCAP_ERRBUF_SIZE];
     
-    char *dev, errbuf[PCAP_ERRBUF_SIZE];
+    // Look up the first device with an address, pcap_lookupdev() just returns
+    // the first non-loopback device.
+    Local<Value> ret;
+    pcap_if_t *alldevs, *dev;
+    pcap_addr_t *addr;
+    bool found = false;
 
-    dev = pcap_lookupdev(errbuf);
-    if (dev == NULL) {
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
         return ThrowException(Exception::Error(String::New(errbuf)));
     }
 
-    return scope.Close(String::New(dev));
+    for (dev = alldevs; dev != NULL; dev = dev->next) {
+        if (dev->addresses != NULL && !(dev->flags & PCAP_IF_LOOPBACK)) {
+            for (addr = dev->addresses; addr != NULL; addr = addr->next) {
+                if (addr->addr->sa_family == AF_INET || addr->addr->sa_family == AF_INET6) {
+                    ret = String::New(dev->name);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                break;
+            }
+        }
+    }
+
+    pcap_freealldevs(alldevs);
+    return scope.Close(ret);
 }
 
 Handle<Value>
