@@ -398,7 +398,7 @@ decode.igmp = function (raw_packet, offset) {
     ret.type = raw_packet[offset];
     ret.max_response_time = raw_packet[offset + 1];
     ret.checksum = unpack.uint16(raw_packet, offset + 2); // 2, 3
-    ret.group_address = unpack.ipv4_addr(raw_packet, offset + 4); // 4, 5, 6
+    ret.group_address = unpack.ipv4_addr(raw_packet, offset + 4); // 4, 5, 6, 7
 
     switch (ret.type) {
     case 0x11:
