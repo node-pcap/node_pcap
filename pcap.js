@@ -122,6 +122,18 @@ var unpack = {
             raw_packet[offset + 3]
         );
     },
+    uint64: function (raw_packet, offset) {
+        return (
+            (raw_packet[offset] * 72057594037927936) +
+            (raw_packet[offset + 1] * 281474976710656) +
+            (raw_packet[offset + 2] * 1099511627776) +
+            (raw_packet[offset + 3] * 4294967296) +
+            (raw_packet[offset + 4] * 16777216) +
+            (raw_packet[offset + 5] * 65536) +
+            (raw_packet[offset + 6] * 256) +
+            raw_packet[offset + 7]
+        );
+    },
     ipv4_addr: function (raw_packet, offset) {
         return [
             raw_packet[offset],
