@@ -134,7 +134,7 @@ decode.packet = function (raw_packet) {
         packet.link = decode.nulltype(raw_packet, 0);
         break;
     case "LINKTYPE_RAW":
-        console.log("LINKTYPE_RAW: " + sys.inspect(raw_packet));
+        packet.link = decode.rawtype(raw_packet, 0);
         break;
     default:
         console.log("pcap.js: decode.packet() - Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
@@ -795,6 +795,9 @@ print.packet = function (packet_to_print) {
         break;
     case "LINKTYPE_NULL":
         ret += print.nulltype(packet_to_print);
+        break;
+    case "LINKTYPE_RAW":
+        ret += print.rawtype(packet_to_print);
         break;
     default:
         console.log("Don't yet know how to print link_type " + packet_to_print.link_type);
