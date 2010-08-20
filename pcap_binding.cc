@@ -186,6 +186,9 @@ OpenLive(const Arguments& args)
     case DLT_IEEE802_11_RADIO: // 802.11 "monitor mode"
         ret = String::New("LINKTYPE_IEEE802_11_RADIO");
         break;
+    case DLT_RAW: // "raw IP"
+        ret = String::New("LINKTYPE_RAW");
+        break;
     default:
         snprintf(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
         ret = String::New(errbuf);
@@ -218,7 +221,7 @@ FindAllDevs(const Arguments& args)
         Local<Array> AddrArray = Array::New();
         int j = 0;
         for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
-            if (cur_addr->addr->sa_family == AF_INET) {
+            if (cur_addr->addr && cur_addr->addr->sa_family == AF_INET) {
                 Local<Object> Address = Object::New();
                 
                 struct sockaddr_in *sin = (struct sockaddr_in *) cur_addr->addr;

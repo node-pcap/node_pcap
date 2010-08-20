@@ -1,5 +1,5 @@
 "use strict";
-/*global process require exports */
+/*global process require exports console */
 
 var sys        = require('sys'),
     dns        = require('dns'),
@@ -133,6 +133,9 @@ decode.packet = function (raw_packet) {
     case "LINKTYPE_NULL":
         packet.link = decode.nulltype(raw_packet, 0);
         break;
+    case "LINKTYPE_RAW":
+        console.log("LINKTYPE_RAW: " + sys.inspect(raw_packet));
+        break;
     default:
         console.log("pcap.js: decode.packet() - Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
     }
@@ -142,11 +145,28 @@ decode.packet = function (raw_packet) {
     return packet;
 };
 
+decode.rawtype = function (raw_packet, offset) {
+    var ret = {};
+    
+    ret.ip = decode.ip(raw_packet, 0);
+
+    return ret;
+};
+
 decode.nulltype = function (raw_packet, offset) {
     var ret = {};
     
-    ret.pftype = raw_packet[0];  // this is a pretty big hack as the compiler is the only one that knows this for sure.
-    if (ret.pftype === 2) { // AF_INET, at least on my Linux and OSX machines right now
+    // an oddity about nulltype is that it starts with a 4 byte header, but I can't find a 
+    // way to tell which byte order is used.  The good news is that all address family
+    // values are 8 bits or less.
+
+    if (raw_packet[0] === 0 && raw_packet[1] === 0) { // must be one of the endians
+        ret.pftype = raw_packet[3];
+    } else {                                          // and this is the other one
+        ret.pftype = raw_packet[0];
+    }
+    
+    if (ret.pftype === 2) {         // AF_INET, at least on my Linux and OSX machines right now
         ret.ip = decode.ip(raw_packet, 4);
     } else if (ret.pftype === 30) { // AF_INET6, often
         console.log("pcap.js: decode.nulltype() - Don't know how to decode IPv6 packets.");
@@ -741,6 +761,14 @@ print.ethernet = function (packet) {
     default:
         console.log("Don't know how to print ethertype " + packet.link.ethertype);
     }
+
+    return ret;
+};
+
+print.rawtype = function (packet) {
+    var ret = "raw";
+
+    ret += print.ip(packet);
 
     return ret;
 };
