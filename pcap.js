@@ -23,11 +23,17 @@ Pcap.prototype.findalldevs = function () {
     return binding.findalldevs();
 };
 
-Pcap.prototype.open_live = function (device, filter) {
+Pcap.prototype.open = function (live, device, filter) {
     var me = this;
 
-    this.device_name = device || binding.default_device();
-    this.link_type = binding.open_live(this.device_name, filter);
+    if (live) {
+        this.device_name = device || binding.default_device();
+        this.link_type = binding.open_live(this.device_name, filter || "");
+    } else {
+        this.device_name = device;
+        this.link_type = binding.open_offline(device, filter || "");
+    }
+
     this.fd = binding.fileno();
     this.opened = true;
     this.readWatcher = new process.IOWatcher();
@@ -68,7 +74,13 @@ exports.Pcap = Pcap;
 
 exports.createSession = function (device, filter) {
     var session = new Pcap();
-    session.open_live(device, filter);
+    session.open(true, device, filter);
+    return session;
+};
+
+exports.createOfflineSession = function (path, filter) {
+    var session = new Pcap();
+    session.open(false, path, filter);
     return session;
 };
 
@@ -108,6 +120,18 @@ var unpack = {
             (raw_packet[offset + 1] * 65536) +
             (raw_packet[offset + 2] * 256) + 
             raw_packet[offset + 3]
+        );
+    },
+    uint64: function (raw_packet, offset) {
+        return (
+            (raw_packet[offset] * 72057594037927936) +
+            (raw_packet[offset + 1] * 281474976710656) +
+            (raw_packet[offset + 2] * 1099511627776) +
+            (raw_packet[offset + 3] * 4294967296) +
+            (raw_packet[offset + 4] * 16777216) +
+            (raw_packet[offset + 5] * 65536) +
+            (raw_packet[offset + 6] * 256) +
+            raw_packet[offset + 7]
         );
     },
     ipv4_addr: function (raw_packet, offset) {
@@ -256,6 +280,10 @@ decode.ip = function (raw_packet, offset) {
         ret.protocol_name = "ICMP";
         ret.icmp = decode.icmp(raw_packet, offset + (ret.header_length * 4));
         break;
+    case 2:
+        ret.protocol_name = "IGMP";
+        ret.igmp = decode.igmp(raw_packet, offset + (ret.header_length * 4));
+        break;
     case 6:
         ret.protocol_name = "TCP";
         ret.tcp = decode.tcp(raw_packet, offset + (ret.header_length * 4), ret);
@@ -394,6 +422,45 @@ decode.icmp = function (raw_packet, offset) {
     // There are usually more exciting things hiding in ICMP packets after the headers
     return ret;
 };
+
+decode.igmp = function (raw_packet, offset) {
+    var ret = {};
+
+    // http://en.wikipedia.org/wiki/Internet_Group_Management_Protocol
+    ret.type = raw_packet[offset];
+    ret.max_response_time = raw_packet[offset + 1];
+    ret.checksum = unpack.uint16(raw_packet, offset + 2); // 2, 3
+    ret.group_address = unpack.ipv4_addr(raw_packet, offset + 4); // 4, 5, 6, 7
+
+    switch (ret.type) {
+    case 0x11:
+        ret.version = ret.max_response_time > 0 ? 2 : 1;
+        ret.type_desc = "Membership Query"
+        break;
+    case 0x12:
+        ret.version = 1;
+        ret.type_desc = "Membership Report"
+        break;
+    case 0x16:
+        ret.version = 2;
+        ret.type_desc = "Membership Report"
+        break;
+    case 0x17:
+        ret.version = 2;
+        ret.type_desc = "Leave Group"
+        break;
+    case 0x22:
+        ret.version = 3;
+        ret.type_desc = "Membership Report"
+        // TODO: Decode v3 message
+        break;
+    default:
+        ret.type_desc = "type " + ret.type;
+        break;
+    }
+
+    return ret;
+}
 
 decode.udp = function (raw_packet, offset) {
     var ret = {};
@@ -722,6 +789,10 @@ print.ip = function (packet) {
     case "ICMP":
         ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " + 
             ip.icmp.sequence;
+        break;
+    case "IGMP":
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " IGMP " + ip.igmp.type_desc + " " + 
+            ip.igmp.group_address;
         break;
     default:
         ret += " proto " + ip.protocol_name;

@@ -94,7 +94,7 @@ Dispatch(const Arguments& args)
 }
 
 Handle<Value>
-OpenLive(const Arguments& args)
+Open(bool live, const Arguments& args)
 {
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -105,48 +105,54 @@ OpenLive(const Arguments& args)
     String::Utf8Value device(args[0]->ToString());
     String::Utf8Value filter(args[1]->ToString());
 
-    // TODO - check for empty device string and look up default device
+    if (live) {
+        if (pcap_lookupnet((char *) *device, &net, &mask, errbuf) == -1) {
+            net = 0;
+            mask = 0;
+            fprintf(stderr, "warning: %s - filtering may not work right\n", errbuf);
+        }
 
-    if (pcap_lookupnet((char *) *device, &net, &mask, errbuf) == -1) {
-        net = 0;
-        mask = 0;
-        fprintf(stderr, "warning: %s - filtering may not work right\n", errbuf);
-    }
+        pcap_handle = pcap_create((char *) *device, errbuf);
+        if (pcap_handle == NULL) {
+            return ThrowException(Exception::Error(String::New(errbuf)));
+        }
 
-    pcap_handle = pcap_create((char *) *device, errbuf);
-    if (pcap_handle == NULL) {
-        return ThrowException(Exception::Error(String::New(errbuf)));
-    }
+        // 64KB is the max IPv4 packet size
+        if (pcap_set_snaplen(pcap_handle, 65535) != 0) {
+            return ThrowException(Exception::Error(String::New("error setting snaplen")));
+        }
 
-    // 64KB is the max IPv4 packet size
-    if (pcap_set_snaplen(pcap_handle, 65535) != 0) {
-        return ThrowException(Exception::Error(String::New("error setting snaplen")));
-    }
+        // always use promiscuous mode
+        if (pcap_set_promisc(pcap_handle, 1) != 0) {
+            return ThrowException(Exception::Error(String::New("error setting promiscuous mode")));
+        }
 
-    // always use promiscuous mode
-    if (pcap_set_promisc(pcap_handle, 1) != 0) {
-        return ThrowException(Exception::Error(String::New("error setting promiscuous mode")));
-    }
+        // Try to set a 10MB buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
+        // TODO - make this settable at runtime
+        if (pcap_set_buffer_size(pcap_handle, 10 * 1024 * 1024) != 0) {
+            return ThrowException(Exception::Error(String::New("error setting buffer size")));
+        }
 
-    // Try to set a 10MB buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
-    // TODO - make this settable at runtime
-    if (pcap_set_buffer_size(pcap_handle, 10 * 1024 * 1024) != 0) {
-        return ThrowException(Exception::Error(String::New("error setting buffer size")));
-    }
+        // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
+        if (pcap_set_timeout(pcap_handle, 1000) != 0) {
+            return ThrowException(Exception::Error(String::New("error setting read timeout")));
+        }
 
-    // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
-    if (pcap_set_timeout(pcap_handle, 1000) != 0) {
-        return ThrowException(Exception::Error(String::New("error setting read timeout")));
-    }
+        // TODO - pass in an option to enable rfmon on supported interfaces.  Sadly, it can be a disruptive
+        // operation, so we can't just always try to turn it on.
+        // if (pcap_set_rfmon(pcap_handle, 1) != 0) {
+        //     return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
+        // }
 
-    // TODO - pass in an option to enable rfmon on supported interfaces.  Sadly, it can be a disruptive
-    // operation, so we can't just always try to turn it on.
-    // if (pcap_set_rfmon(pcap_handle, 1) != 0) {
-    //     return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
-    // }
-
-    if (pcap_activate(pcap_handle) != 0) {
-        return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
+        if (pcap_activate(pcap_handle) != 0) {
+            return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
+        }
+    } else {
+        // Device is the path to the savefile
+        pcap_handle = pcap_open_offline((char *) *device, errbuf);
+        if (pcap_handle == NULL) {
+            return ThrowException(Exception::Error(String::New(errbuf)));
+        }
     }
 
     if (pcap_setnonblock(pcap_handle, 1, errbuf) == -1) {
@@ -195,6 +201,18 @@ OpenLive(const Arguments& args)
         break;
     }
     return scope.Close(ret);
+}
+
+Handle<Value>
+OpenLive(const Arguments& args)
+{
+    return Open(true, args);
+}
+
+Handle<Value>
+OpenOffline(const Arguments& args)
+{
+    return Open(false, args);
 }
 
 Handle<Value>
@@ -303,15 +321,37 @@ Handle<Value>
 DefaultDevice(const Arguments& args)
 {
     HandleScope scope;
+    char errbuf[PCAP_ERRBUF_SIZE];
     
-    char *dev, errbuf[PCAP_ERRBUF_SIZE];
+    // Look up the first device with an address, pcap_lookupdev() just returns
+    // the first non-loopback device.
+    Local<Value> ret;
+    pcap_if_t *alldevs, *dev;
+    pcap_addr_t *addr;
+    bool found = false;
 
-    dev = pcap_lookupdev(errbuf);
-    if (dev == NULL) {
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
         return ThrowException(Exception::Error(String::New(errbuf)));
     }
 
-    return scope.Close(String::New(dev));
+    for (dev = alldevs; dev != NULL; dev = dev->next) {
+        if (dev->addresses != NULL && !(dev->flags & PCAP_IF_LOOPBACK)) {
+            for (addr = dev->addresses; addr != NULL; addr = addr->next) {
+                if (addr->addr->sa_family == AF_INET || addr->addr->sa_family == AF_INET6) {
+                    ret = String::New(dev->name);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                break;
+            }
+        }
+    }
+
+    pcap_freealldevs(alldevs);
+    return scope.Close(ret);
 }
 
 Handle<Value>
@@ -328,6 +368,7 @@ extern "C" void init (Handle<Object> target)
 
     target->Set(String::New("findalldevs"), FunctionTemplate::New(FindAllDevs)->GetFunction());
     target->Set(String::New("open_live"), FunctionTemplate::New(OpenLive)->GetFunction());
+    target->Set(String::New("open_offline"), FunctionTemplate::New(OpenOffline)->GetFunction());
     target->Set(String::New("dispatch"), FunctionTemplate::New(Dispatch)->GetFunction());
     target->Set(String::New("fileno"), FunctionTemplate::New(Fileno)->GetFunction());
     target->Set(String::New("close"), FunctionTemplate::New(Close)->GetFunction());
