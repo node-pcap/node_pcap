@@ -896,7 +896,7 @@ TCP_tracker.prototype.session_stats = function (session) {
         if (session.recv_packets[v]) {
             stats.recv_times[v] = session.send_acks[v] - session.recv_packets[v];
         } else {
-            console.log("send ACK with missing recv seqno: " + v);
+//            console.log("send ACK with missing recv seqno: " + v);
         }
     });
 
@@ -905,7 +905,7 @@ TCP_tracker.prototype.session_stats = function (session) {
         if (session.send_packets[v]) {
             stats.send_times[v] = session.recv_acks[v] - session.send_packets[v];
         } else {
-            console.log("recv ACK with missing send seqno: " + v);
+//            console.log("recv ACK with missing send seqno: " + v);
         }
     });
 
@@ -1091,10 +1091,11 @@ TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
         session.recv_window_scale = tcp.options.window_scale || 1; // multiplier, not bit shift value
         session.state = "SYN_RCVD";
     } else if (tcp.flags.rst) {
-        console.log("Connection reset by receiver -> CLOSED");
         session.state = "CLOSED";
+        delete this.sessions[session.key];
+        this.emit('reset', session);
     } else {
-        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(tcp, false, 4));
+//        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(tcp, false, 4));
     }
 };
 
@@ -1111,7 +1112,7 @@ TCP_tracker.prototype.track_states.SYN_RCVD = function (packet, session) {
         this.emit('start', session);
         session.state = "ESTAB";
     } else {
-        console.log("Didn't get ACK packet from src while handshaking: " + sys.inspect(tcp, false, 4));
+//        console.log("Didn't get ACK packet from src while handshaking: " + sys.inspect(tcp, false, 4));
     }
 };
 
@@ -1119,7 +1120,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
     var ip  = packet.link.ip,
         tcp = ip.tcp,
         src = ip.saddr + ":" + tcp.sport;
-        
+
+// TODO - actually implement SACK decoding and tracking
 // if (tcp.options.sack) {
 //     console.log("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
 //     console.log(sys.inspect(ip, false, 5));
@@ -1137,28 +1139,30 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
             }
             session.send_bytes_payload += tcp.data_bytes;
             if (session.send_packets[tcp.seqno + tcp.data_bytes]) {
+                this.emit('retransmit', session, "send", tcp.seqno + tcp.data_bytes);
                 console.log("Retransmission send of segment " + (tcp.seqno - session.send_isn + tcp.data_bytes));
             } else {
                 if (session.http_detect) {
                     try {
                         session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
                     } catch (request_err) {
-                        console.log("HTTP request parser exception: " + request_err.stack);
+                        this.emit('http_error', request_err);
                     }
                 } else if (session.websocket_detect) {
                     session.websocket_parser_send.execute(tcp.data);
+                    // TODO - check for WS parser errors
                 }
             }
             session.send_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
         }
         if (session.recv_packets[tcp.ackno]) {
             if (session.send_acks[tcp.ackno]) {
-                //                    console.log("Already sent this ACK, which I'm guessing is fine.");
+                // console.log("Already sent this ACK, which perhaps is fine.");
             } else {
                 session.send_acks[tcp.ackno] = packet.pcap_header.time_ms;
             }
         } else {
-            console.log("sending ACK for packet we didn't see received: " + tcp.ackno);
+            // console.log("sending ACK for packet we didn't see received: " + tcp.ackno);
         }
         if (tcp.flags.fin) {
             session.state = "FIN_WAIT";
@@ -1169,7 +1173,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
         if (tcp.data_bytes) {
             session.recv_bytes_payload += tcp.data_bytes;
             if (session.recv_packets[tcp.seqno + tcp.data_bytes]) {
-                console.log("Retransmission recv of segment " + (tcp.seqno - session.recv_isn + tcp.data_bytes));
+                this.emit('retransmit', session, "recv", tcp.seqno + tcp.data_bytes);
                 if (session.recv_retrans[tcp.seqno + tcp.data_bytes]) {
                     session.recv_retrans[tcp.seqno + tcp.data_bytes] += 1;
                 } else {
@@ -1180,10 +1184,11 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                     try {
                         session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
                     } catch (response_err) {
-                        console.log("HTTP response parser exception: " + response_err.stack);
+                        this.emit('http_error', response_err);
                     }
                 } else if (session.websocket_detect) {
                     session.websocket_parser_recv.execute(tcp.data);
+                    // TODO - check for WS parser errors
                 }
             }
             session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
@@ -1195,7 +1200,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                 session.recv_acks[tcp.ackno] = packet.pcap_header.time_ms;
             }
         } else {
-            console.log("receiving ACK for packet we didn't see sent: " + tcp.ackno);
+            // console.log("receiving ACK for packet we didn't see sent: " + tcp.ackno);
         }
         if (tcp.flags.fin) {
             session.state = "CLOSE_WAIT";
@@ -1333,7 +1338,7 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 }) + ":" + tcp.dport;
                 session.current_cap_time = packet.pcap_header.time_ms;
             } else { // SYN retry
-                console.log("SYN retry from " + src + " to " + dst);
+                this.emit('syn_retry', session);
             }
         } else { // not a SYN
             if (session) {

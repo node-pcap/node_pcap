@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-/*global process require exports setInterval */
+/*global process require exports setInterval console */
 
-var sys         = require("sys"),
-    node_http   = require('http'),
-    node_url    = require('url'),
-    pcap        = require("pcap"), pcap_session,
-    tcp_tracker = new pcap.TCP_tracker(),
-    ANSI;
+var sys       = require("sys"),
+    node_http = require('http'),
+    node_url  = require('url'),
+    pcap      = require("pcap"), pcap_session,
+    ANSI,
+    options   = {};
     
 ANSI = (function () {
     // http://en.wikipedia.org/wiki/ANSI_escape_code
@@ -32,9 +32,8 @@ ANSI = (function () {
         cyan: [36, 39],
         white: [37, 39],
         grey: [90, 39]
-    };
-
-    var CSI = String.fromCharCode(27) + '[';
+    },
+    CSI = String.fromCharCode(27) + '[';
 
     return function (str, format) {
         return CSI + formats[format][0] + 'm' + str + CSI + formats[format][1] + 'm';
@@ -74,12 +73,12 @@ function format_headers(headers) {
     return Object.keys(headers).map(function (val) {
         if (val === "Cookie") {
             var cookie_pairs = headers[val].split("; ").sort();
-            return("    " + ANSI(val, "white") + ": " + ANSI(cookie_pairs.map(function (pair) {
+            return ("    " + ANSI(val, "white") + ": " + ANSI(cookie_pairs.map(function (pair) {
                 var parts = pair.split('=');
                 return parts[0] + ": " + parts[1];
             }).join("\n            "), "grey"));
         } else {
-            return("    " + ANSI(val, "white") + ": " + ANSI(headers[val], "grey"));
+            return ("    " + ANSI(val, "white") + ": " + ANSI(headers[val], "grey"));
         }
     }).join("\n");
 }
@@ -90,7 +89,7 @@ function format_size(size) {
     } else if (size < 1024 * 1024 * 2) {
         return (size / 1024).toFixed(2) + "KB";
     } else {
-        return (size / 1024 / 1024).toFixed(2) + "MB"
+        return (size / 1024 / 1024).toFixed(2) + "MB";
     }
 }
 
@@ -106,101 +105,198 @@ function format_obj(obj) {
     }).join('\n');
 }
 
-if (process.argv.length !== 4) {
-    sys.error("usage: " + process.argv[1] + " interface filter");
-    sys.error("Examples: ");
-    sys.error('  sudo http_trace.js en0 "tcp port 80"');
-    sys.error('  sudo http_trace.js eth1 ""');
-    sys.error('  sudo http_trace.js lo0 "ip proto \\tcp and tcp port 80"');
+function usage_die(message) {
+    sys.error("");
+    sys.error(message);
+    sys.error("");
+    sys.error("usage: http_trace [options]");
+    sys.error("");
+    sys.error("Capture options:");
+    sys.error("    -i <interface>           interface name for capture (def: first with an addr)");
+    sys.error("    -f <pcap_filter>         packet filter in pcap-filter(7) syntax (def: all packets)");
+    sys.error("    -b <buffer>              size in MB to buffer between libpcap and app (def: 10)");
+    sys.error("");
+    sys.error("HTTP filtering:");
+    sys.error("    --method GET|POST|PUT... only show traffic using this method (def: all methods)");
+    sys.error("    --host <regex>           only show traffic whose Host request header matches (def: all)");
+    sys.error("    --url <regex>            only show traffic whose URL matches (def: all)");
+    sys.error("    --user-agent <regex>     only show traffic whose User-Agent request headers matches (def: all)");
+    sys.error();
+    sys.error("HTTP output:");
+    sys.error("    --headers                print headers of request and response (def: no headers)");
+    sys.error("    --bodies                 print request and response bodies, if any (def: no bodies)");
+    sys.error("    --group                  group all output for a request / response pair together before printing (def: progressive)");
+    sys.error("    --tcp-verbose            display TCP events (def: off)");
+    sys.error("");
+    sys.error("Examples:");
+    sys.error('  sudo http_trace en0 "tcp port 80"');
+    sys.error('  sudo http_trace eth1 ""');
+    sys.error('  sudo http_trace lo0 "ip proto \\tcp and tcp port 80"');
     process.exit(1);
 }
 
-pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
+function parse_options() {
+    var argv_slice = process.argv.slice(2), 
+        optnum = 0, opt, optname, optval,
+        state = "match optname", matches,
+        valid_options;
 
-console.log("Listening on " + pcap_session.device_name);
+    valid_options = {
+        "i": { multiple: false, has_value: true },
+        "f": { multiple: false, has_value: true },
+        "b": { multiple: false, has_value: true },
+        "method": { multiple: true, has_value: true },
+        "host": { multiple: true, has_value: true },
+        "url": { multiple: true, has_value: true },
+        "user-agent": { multiple: true, has_value: true },
+        "headers": { multiple: true, has_value: true },
+        "bodies": { multiple: true, has_value: true },
+        "group": { multiple: false, has_value: false },
+        "tcp-verbose": { multiple: false, has_value: false },
+        "help": { multiple: false, has_value: false }
+    };
 
-// Check for pcap dropped packets on an interval
-setInterval(function () {
-    var stats = pcap_session.stats();
-    if (stats.ps_drop > 0) {
-        sys.puts(ANSI("pcap dropped packets: " + sys.inspect(stats), bold));
+    while (optnum < argv_slice.length) {
+        opt = argv_slice[optnum];
+        console.log("Checking opt " + optnum + " of " + argv_slice.length + ": " + opt);
+        
+        if (state === "match optname") {
+            matches = opt.match(/^[\-]{1,2}([^\-].*)/);
+            if (matches !== null) {
+                optname = matches[1];
+                if (valid_options[optname]) { // if this is a known option
+                    if (valid_options[optname].has_value) {
+                        state = "match optval";
+                    } else {
+                        // try to set it
+                    }
+                } else {
+                    usage_die("Invalid option name: " + optname);
+                }
+                state = "match optval";
+            } else {
+                usage_die("bad option name: " + optname);
+            }
+        } else if (state === "match optval") {
+            if (opt[0] !== '-') {
+                optval = opt;
+                add_option(optname, optval);
+                state = "match optname";
+            } else {
+                usage_die("bad option value: " + optval);
+            }
+        } else {
+            throw new Error("Unknown state " + state + " in options parser");
+        }
+        
+        optnum += 1;
     }
-}, 2000);
-
-tcp_tracker.addListener('http_request', function (session, http) {
-    if (session.http_request_count) {
-        session.http_request_count += 1;
-    } else {
-        session.http_request_count = 1;
+    if (state !== "match optname") {
+        usage_die("Missing option value for " + optname);
     }
-    console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
-        " #" + session.http_request_count + " HTTP " + http.request.http_version + " request: " + 
-        ANSI(ANSI(http.request.method, "bold") + " " + http.request.url, "yellow"));
-    console.log(format_headers(http.request.headers));
-});
+}
 
-tcp_tracker.addListener('http_request_body', function (session, http, data) {
-    console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
-        " #" + session.http_request_count + " HTTP " + http.request.http_version + " request body: " + 
-        format_size(data.length));
-    if (/application\/x-www-form-urlencoded/.test(http.request.headers["Content-Type"])) {
-        console.log(ANSI(data.toString("utf8"), "green"));
-    }
-});
+function start_capture_session() {
+    pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 
-tcp_tracker.addListener('http_request_complete', function (session, http) {
-    console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
-        " #" + session.http_request_count + " HTTP " + http.request.http_version + " request complete " +
-        format_size(http.request.body_len));
-});
+    console.log("Listening on " + pcap_session.device_name);
+}
 
-tcp_tracker.addListener('http_response', function (session, http) {
-    console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
-        " #" + session.http_request_count + " HTTP " + http.response.http_version + " response: " +
-        ANSI(http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code], "yellow"));
-    console.log(format_headers(http.response.headers));
-});
+function start_drop_watcher() {
+    // Check for pcap dropped packets on an interval
+    setInterval(function () {
+        var stats = pcap_session.stats();
+        if (stats.ps_drop > 0) {
+            console.log(ANSI("pcap dropped packets, need larger buffer or less work to do: " + sys.inspect(stats), "bold"));
+        }
+    }, 2000);
+}
 
-tcp_tracker.addListener('http_response_body', function (session, http, data) {
-    console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
-        " #" + session.http_request_count + " HTTP " + http.response.http_version + " response body: " + 
-        format_size(data.length));
-    if (!http.response.headers["Content-Encoding"] && /^text/.test(http.response.headers["Content-Type"])) {
-        console.log(ANSI(data.toString("utf8"), "green"));
-    }
-});
+function setup_listeners() {
+    var tcp_tracker = new pcap.TCP_tracker();
 
-tcp_tracker.addListener('http_response_complete', function (session, http) {
-    console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
-        " #" + session.http_request_count + " HTTP " + http.response.http_version + " response complete " + 
-        format_size(http.response.body_len));
-});
+    // listen for packets, decode them, and feed TCP to the tracker
+    pcap_session.addListener('packet', function (raw_packet) {
+        var packet = pcap.decode.packet(raw_packet);
 
-tcp_tracker.on('websocket_upgrade', function (session, http) {
-    console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
-        " WebSocket upgrade " + ANSI(http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code], "yellow"));
-    console.log(format_headers(http.response.headers));
-});
+        tcp_tracker.track_packet(packet);
+    });
 
-tcp_tracker.on('websocket_message', function (session, dir, message) {
-    var line_start, obj;
-    if (dir === "send") {
-        line_start = format_line_start(session.current_cap_time, session.src_name, session.dst_name);
-    } else {
-        line_start = format_line_start(session.current_cap_time, session.dst_name, session.src_name);
-    }
-    console.log(line_start + " WebSocket message " + format_size(message.length));
-    try {
-        obj = JSON.parse(message);
-        console.log("JSON: " + ANSI(sys.inspect(obj), "green"));
-    } catch (err) {
-        console.log(ANSI(message, "green"));
-    }
-});
+    tcp_tracker.addListener('http_request', function (session, http) {
+        if (session.http_request_count) {
+            session.http_request_count += 1;
+        } else {
+            session.http_request_count = 1;
+        }
+        console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+            " #" + session.http_request_count + " HTTP " + http.request.http_version + " request: " + 
+            ANSI(ANSI(http.request.method, "bold") + " " + http.request.url, "yellow"));
+        console.log(format_headers(http.request.headers));
+    });
 
-// listen for packets, decode them, and feed TCP to the tracker
-pcap_session.addListener('packet', function (raw_packet) {
-    var packet = pcap.decode.packet(raw_packet);
+    tcp_tracker.addListener('http_request_body', function (session, http, data) {
+        console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+            " #" + session.http_request_count + " HTTP " + http.request.http_version + " request body: " + 
+            format_size(data.length));
+        if (/application\/x-www-form-urlencoded/.test(http.request.headers["Content-Type"])) {
+            console.log(ANSI(data.toString("utf8"), "green"));
+        }
+    });
 
-    tcp_tracker.track_packet(packet);
-});
+    tcp_tracker.addListener('http_request_complete', function (session, http) {
+        console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+            " #" + session.http_request_count + " HTTP " + http.request.http_version + " request complete " +
+            format_size(http.request.body_len));
+    });
+
+    tcp_tracker.addListener('http_response', function (session, http) {
+        console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
+            " #" + session.http_request_count + " HTTP " + http.response.http_version + " response: " +
+            ANSI(http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code], "yellow"));
+        console.log(format_headers(http.response.headers));
+    });
+
+    tcp_tracker.addListener('http_response_body', function (session, http, data) {
+        console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
+            " #" + session.http_request_count + " HTTP " + http.response.http_version + " response body: " + 
+            format_size(data.length));
+        if (!http.response.headers["Content-Encoding"] && /^text/.test(http.response.headers["Content-Type"])) {
+            console.log(ANSI(data.toString("utf8"), "green"));
+        }
+    });
+
+    tcp_tracker.addListener('http_response_complete', function (session, http) {
+        console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
+            " #" + session.http_request_count + " HTTP " + http.response.http_version + " response complete " + 
+            format_size(http.response.body_len));
+    });
+
+    tcp_tracker.on('websocket_upgrade', function (session, http) {
+        console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
+            " WebSocket upgrade " + ANSI(http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code], "yellow"));
+        console.log(format_headers(http.response.headers));
+    });
+
+    tcp_tracker.on('websocket_message', function (session, dir, message) {
+        var line_start, obj;
+        if (dir === "send") {
+            line_start = format_line_start(session.current_cap_time, session.src_name, session.dst_name);
+        } else {
+            line_start = format_line_start(session.current_cap_time, session.dst_name, session.src_name);
+        }
+        console.log(line_start + " WebSocket message " + format_size(message.length));
+        try {
+            obj = JSON.parse(message);
+            console.log("JSON: " + ANSI(sys.inspect(obj), "green"));
+        } catch (err) {
+            console.log(ANSI(message, "green"));
+        }
+    });
+}
+
+// Make it all go
+options = parse_options();
+start_capture_session();
+start_drop_watcher();
+setup_listeners();
+
