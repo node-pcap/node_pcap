@@ -106,8 +106,10 @@ function format_obj(obj) {
 }
 
 function usage_die(message) {
-    sys.error("");
-    sys.error(message);
+    if (message) {
+        sys.error("");
+        sys.error(message);
+    }
     sys.error("");
     sys.error("usage: http_trace [options]");
     sys.error("");
@@ -117,16 +119,18 @@ function usage_die(message) {
     sys.error("    -b <buffer>              size in MB to buffer between libpcap and app (def: 10)");
     sys.error("");
     sys.error("HTTP filtering:");
-    sys.error("    --method GET|POST|PUT... only show traffic using this method (def: all methods)");
-    sys.error("    --host <regex>           only show traffic whose Host request header matches (def: all)");
-    sys.error("    --url <regex>            only show traffic whose URL matches (def: all)");
-    sys.error("    --user-agent <regex>     only show traffic whose User-Agent request headers matches (def: all)");
-    sys.error();
+    sys.error("    Filters are OR-ed together and may be specified more than once.");
+    sys.error("    --method <regex>         filter on method");
+    sys.error("    --host <regex>           filter on Host request header");
+    sys.error("    --url <regex>            filter on URL");
+    sys.error("    --user-agent <regex>     filter on User-Agent request header");
+    sys.error("");
     sys.error("HTTP output:");
-    sys.error("    --headers                print headers of request and response (def: no headers)");
-    sys.error("    --bodies                 print request and response bodies, if any (def: no bodies)");
-    sys.error("    --group                  group all output for a request / response pair together before printing (def: progressive)");
+    sys.error("    --headers                print headers of request and response (def: off)");
+    sys.error("    --bodies                 print request and response bodies, if any (def: off)");
+    sys.error("    --group                  group all output for req/res (def: progressive)");
     sys.error("    --tcp-verbose            display TCP events (def: off)");
+    sys.error("    --no-color               disable ANSI colors (def: pretty colors on)");
     sys.error("");
     sys.error("Examples:");
     sys.error('  sudo http_trace en0 "tcp port 80"');
@@ -149,12 +153,29 @@ function parse_options() {
         "host": { multiple: true, has_value: true },
         "url": { multiple: true, has_value: true },
         "user-agent": { multiple: true, has_value: true },
-        "headers": { multiple: true, has_value: true },
-        "bodies": { multiple: true, has_value: true },
+        "headers": { multiple: false, has_value: false },
+        "bodies": { multiple: false, has_value: false },
         "group": { multiple: false, has_value: false },
         "tcp-verbose": { multiple: false, has_value: false },
+        "no-color": { multiple: false, has_value: false },
         "help": { multiple: false, has_value: false }
     };
+
+    function set_option(name, value) {
+        if (valid_options[name].multiple) {
+            if (options[name] === undefined) {
+                options[name] = [value];
+            } else {
+                options[name].push(value);
+            }
+        } else {
+            if (options[name] === undefined) {
+                options[name] = value;
+            } else {
+                usage_die("Option " + name + " may only be specified once.");
+            }
+        }
+    }
 
     while (optnum < argv_slice.length) {
         opt = argv_slice[optnum];
@@ -168,22 +189,20 @@ function parse_options() {
                     if (valid_options[optname].has_value) {
                         state = "match optval";
                     } else {
-                        // try to set it
+                        set_option(optname, true);
                     }
                 } else {
                     usage_die("Invalid option name: " + optname);
                 }
-                state = "match optval";
             } else {
-                usage_die("bad option name: " + optname);
+                usage_die("bad option name: " + opt);
             }
         } else if (state === "match optval") {
             if (opt[0] !== '-') {
-                optval = opt;
-                add_option(optname, optval);
+                set_option(optname, opt);
                 state = "match optname";
             } else {
-                usage_die("bad option value: " + optval);
+                usage_die("bad option value: " + opt);
             }
         } else {
             throw new Error("Unknown state " + state + " in options parser");
@@ -191,9 +210,11 @@ function parse_options() {
         
         optnum += 1;
     }
-    if (state !== "match optname") {
+    if (state === "match optval") {
         usage_die("Missing option value for " + optname);
     }
+    
+    console.log("Options: " + sys.inspect(options));
 }
 
 function start_capture_session() {
@@ -295,7 +316,10 @@ function setup_listeners() {
 }
 
 // Make it all go
-options = parse_options();
+parse_options();
+if (options.help) {
+    usage_die();
+}
 start_capture_session();
 start_drop_watcher();
 setup_listeners();
