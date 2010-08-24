@@ -4,12 +4,17 @@ OK, I hear you.  Capturing packets is hard and best left to kernel hackers, asse
 and black hat security researches.  If you want to make things for the web using node.js, why should you care?
 Pulling packets off the network can show you what your computers are saying to each other without disrupting
 the flow of the applications.  Packet capture is a fantastic debugging tool that will remove a lot of the 
-mystery from writing and running network programs.
+mystery from writing and running network programs.  The point of `node_pcap` is to provide a good HTTP
+debugging tool and a framework for doing your own network analysis.
 
 There are plenty of ways to do packet inspection these days, but none of them let you interact with them the
 way node lets you write network programs: by writing a few event handlers in JavaScript.  node_pcap not only
 let's you capture and process packets in JavaScript, but since it is built on node.js, data from the packets
 can be easily routed around to web browsers, databases, or whatever else you can think of.
+
+Here's an example of capturing packets and sending them back to a web browser using WebSocket:
+
+[http://pcap.ranney.com:81/](http://pcap.ranney.com:81/ "Packet Capture WebSocket demo")
 
 If you still aren't convinced, check out how easy it is to write a simple "network grep" type of program using
 node_pcap:
@@ -76,7 +81,78 @@ Opening the capture interface on most operating systems requires root access, so
 program using `node_pcap` you'll need to use sudo.
 
 
-## Understanding HTTP
+## http_trace
 
-The world is increasingly made out of HTTP.  
+`http_trace` is a tool that distills the packets involved in an HTTP session into higher level events.  There
+are command line options to adjust the output and select different requests.  Here's a simple example of looking
+for any requests that have "favicon" in the URL and showing request and response headers:
 
+![pcap screenshot](http://pcap.ranney.com/http_trace_1.jpg)
+
+To see the full list of options do:
+
+    http_trace --help
+    
+With no arguments, `http_trace` will listen on the default interface for any IPv4 TCP traffic on any port.
+If it finds HTTP on any TCP connection, it'll start decoding it.
+
+### Solving Problems
+
+Here's why you need all of this.  Let's say you have a node program that makes an outgoing connection, but
+the outgoing connection doesn't seem like it is working.  Let's say that the reason it isn't working is due
+to a firewall rule that filters the traffic.  Here's how to detect it:
+
+![pcap screenshot](http://pcap.ranney.com/http_trace_2.jpg)
+
+The `--tcp-verbose` option will expose events for TCP connection setup, close, and reset, as well as SYN retry and 
+retransmissions.  SYN retry happens when a new TCP connection is getting set up, but the other side isn't responding.
+Retransmissions occur when packets are dropped by the network and TCP on either end of the connection resends data
+it has already sent.  If data is moving slowly sometimes, but you don't appear to be out of CPU, turn on 
+`--tcp-verbose` and see if you are getting retransmissions or SYN retries.  Then you can blame the network and
+not your node program.
+
+Another common case is when the data going over the network isn't quite the data you were expecting.  Here's a 
+simple example using curl from the command line.  Let's say you wanted to send some JSON to your local CouchDB,
+but CouchDB keeps rejecting it.
+
+    mjr:~$ curl -X POST 'http://localhost:5984/test' -H "Content-Type: application/json" -d {"foo": "bar"}
+    {"error":"bad_request","reason":"invalid UTF-8 JSON"}
+
+That looks like pretty well-formed JSON, so what's going on here?  Run `http_trace` with the --bodies option
+to dump the request and response body.  Since this is a connection to `localhost`, we need to explicitly listen
+on the loopback interface.
+
+![pcap screenshot](http://pcap.ranney.com/http_trace_3.jpg)
+
+Here we can see that the request body was simply, "{foo:", which is clearly not valid JSON.  The problem in 
+this case is that the shell and curl couldn't figure out what part of the command line arguments to use for
+the POST body, and they got it wrong.  This works if quoted properly:
+
+    mjr:~$ curl -X POST 'http://localhost:5984/test' -H "Content-Type: application/json" -d '{"foo": "bar"}'
+    {"ok":true,"id":"b4385e0de2e74df4cdbf21cf6c0009d0","rev":"1-4c6114c65e295552ab1019e2b046b10e"}
+
+
+## Understanding Higher Level Protocols
+
+`node_pcap` can piece back together a TCP session from individual packets as long as it sees them all go by.
+It will emit events at TCP connection setup, teardown, and reset.
+
+On top of TCP, it can decode HTTP, and WebSocket messages, emitting events for request, response, data, etc.
+
+It looks sort of like this:
+
+![pcap architecture](http://pcap.ranney.com/pcap_boxes.png)
+
+You set up `node_pcap` to capture the packets you want, and then you can work with the captured data in
+JavaScript at whatever level is the most useful.
+
+## Work in Progress
+
+There are a lot of cases that `node_pcap` doesn't handle, and for these you'll need a more thorough packet decoder
+like Wireshark.  I'm trying to handle the common case of OSX/Linux, IPv4, TCP, HTTP, and WebSocket first, and then
+add support for other variants of the protocol stack.
+
+If you like this kind of stuff and want to help expand the protocols that `node_pcap` understands, patches are
+certainly welcome.
+
+I hope this software is useful and fun.  Thanks for reading.
