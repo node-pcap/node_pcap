@@ -5,12 +5,12 @@
 var sys = require("sys"),
     pcap = require("pcap"), pcap_session;
     
-if (process.argv.length !== 4) {
-    sys.error("usage: " + process.argv[1] + " interface filter");
+if (process.argv.length > 4) {
+    sys.error("usage: simple_capture interface filter");
     sys.error("Examples: ");
-    sys.error('  sudo node simple_capture.js en0 "tcp port 80"');
-    sys.error('  sudo node simple_capture.js eth1 ""');
-    sys.error('  sudo node simple_capture.js lo0 "ip proto \\tcp and tcp port 80"');
+    sys.error('  simple_capture "" "tcp port 80"');
+    sys.error('  simple_capture eth1 ""');
+    sys.error('  simple_capture lo0 "ip proto \\tcp and tcp port 80"');
     process.exit(1);
 }
 
@@ -35,8 +35,8 @@ pcap_session.findalldevs().forEach(function (dev) {
     }
 });
 
-// listen for packets, decode them, and feed the simple printer
-pcap_session.addListener('packet', function (raw_packet) {
+// Listen for packets, decode them, and feed the simple printer.  No tricks.
+pcap_session.on('packet', function (raw_packet) {
     var packet = pcap.decode.packet(raw_packet);
     sys.puts(pcap.print.packet(packet));
 });

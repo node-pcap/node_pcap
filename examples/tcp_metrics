@@ -7,12 +7,12 @@ var sys          = require("sys"),
     dns_cache    = pcap.dns_cache,
     tcp_tracker  = new pcap.TCP_tracker();
     
-if (process.argv.length !== 4) {
-    sys.error("usage: " + process.argv[1] + " interface filter");
+if (process.argv.length > 4) {
+    sys.error("usage: tcp_metrics interface filter");
     sys.error("Examples: ");
-    sys.error('  sudo tcp_metrics.js en0 "tcp port 80"');
-    sys.error('  sudo tcp_metrics.js eth1 ""');
-    sys.error('  sudo tcp_metrics.js lo0 "ip proto \\tcp and tcp port 80"');
+    sys.error('  tcp_metrics "" "tcp port 80"');
+    sys.error('  tcp_metrics eth1 ""');
+    sys.error('  tcp_metrics lo0 "ip proto \\tcp and tcp port 80"');
     process.exit(1);
 }
 
