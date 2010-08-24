@@ -60,7 +60,7 @@ tcp_tracker.on('start', function (session) {
     console.log("Start of TCP session between " + session.src + " and " + session.dst);
 });
 
-tcp_tracker.on('http_request', function (session, http) {
+tcp_tracker.on('http request', function (session, http) {
     var matches = /send_file\?id=(\d+)/.exec(http.request.url);
     if (matches && matches[1]) {
         session.track_id = matches[1];
