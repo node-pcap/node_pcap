@@ -99,17 +99,28 @@ Open(bool live, const Arguments& args)
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (args.Length() != 2 || !args[0]->IsString() || !args[1]->IsString()) {
-        return ThrowException(Exception::TypeError(String::New("Bad arguments")));
+    if (args.Length() == 3) { 
+        if (!args[0]->IsString()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Open: args[0] must be a String")));
+        }
+        if (!args[1]->IsString()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Open: args[1] must be a String")));
+        }
+        if (!args[2]->IsInt32()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Open: args[2] must be a Number")));
+        }
+    } else {
+        return ThrowException(Exception::TypeError(String::New("pcap Open: wrong number of arguments")));
     }
     String::Utf8Value device(args[0]->ToString());
     String::Utf8Value filter(args[1]->ToString());
+    int buffer_size = args[2]->Int32Value();
 
     if (live) {
         if (pcap_lookupnet((char *) *device, &net, &mask, errbuf) == -1) {
             net = 0;
             mask = 0;
-            fprintf(stderr, "warning: %s - filtering may not work right\n", errbuf);
+            fprintf(stderr, "warning: %s - this may not actually work\n", errbuf);
         }
 
         pcap_handle = pcap_create((char *) *device, errbuf);
@@ -127,9 +138,8 @@ Open(bool live, const Arguments& args)
             return ThrowException(Exception::Error(String::New("error setting promiscuous mode")));
         }
 
-        // Try to set a 10MB buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
-        // TODO - make this settable at runtime
-        if (pcap_set_buffer_size(pcap_handle, 10 * 1024 * 1024) != 0) {
+        // Try to set buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
+        if (pcap_set_buffer_size(pcap_handle, buffer_size) != 0) {
             return ThrowException(Exception::Error(String::New("error setting buffer size")));
         }
 
@@ -220,16 +230,16 @@ FindAllDevs(const Arguments& args)
 {
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *alldevsp, *cur_dev;
+    pcap_if_t *alldevs, *cur_dev;
     
-    if (pcap_findalldevs(&alldevsp, errbuf) == -1) {
+    if (pcap_findalldevs(&alldevs, errbuf) == -1 || alldevs == NULL) {
         return ThrowException(Exception::TypeError(String::New(errbuf)));
     }
 
     Local<Array> DevsArray = Array::New();
 
     int i = 0;
-    for (cur_dev = alldevsp ; cur_dev != NULL ; cur_dev = cur_dev->next, i++) {
+    for (cur_dev = alldevs ; cur_dev != NULL ; cur_dev = cur_dev->next, i++) {
         Local<Object> Dev = Object::New();
 
         Dev->Set(String::New("name"), String::New(cur_dev->name));
@@ -271,7 +281,7 @@ FindAllDevs(const Arguments& args)
         DevsArray->Set(Integer::New(i), Dev);
     }
 
-    pcap_freealldevs(alldevsp);
+    pcap_freealldevs(alldevs);
     return scope.Close(DevsArray);
 }
 
@@ -312,7 +322,7 @@ Stats(const Arguments& args)
     stats_obj->Set(String::New("ps_recv"), Integer::NewFromUnsigned(ps.ps_recv));
     stats_obj->Set(String::New("ps_drop"), Integer::NewFromUnsigned(ps.ps_drop));
     stats_obj->Set(String::New("ps_ifdrop"), Integer::NewFromUnsigned(ps.ps_ifdrop));
-    // ps_ifdrop may not be supported on this platform, but there's no good way to tell
+    // ps_ifdrop may not be supported on this platform, but there's no good way to tell, is there?
     
     return scope.Close(stats_obj);
 }
@@ -330,7 +340,7 @@ DefaultDevice(const Arguments& args)
     pcap_addr_t *addr;
     bool found = false;
 
-    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+    if (pcap_findalldevs(&alldevs, errbuf) == -1 || alldevs == NULL) {
         return ThrowException(Exception::Error(String::New(errbuf)));
     }
 
