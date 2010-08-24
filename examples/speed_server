@@ -17,11 +17,11 @@ var sys = require("sys"),
     bulk_data;
 
 if (process.argv.length !== 4) {
-    sys.error("usage: " + process.argv[1] + " interface filter");
+    sys.error("usage speed_server interface filter");
     sys.error("Examples: ");
-    sys.error('  sudo speed_server.js en0 "tcp port 80"');
-    sys.error('  sudo speed_server.js eth1 ""');
-    sys.error('  sudo speed_server.js lo0 "ip proto \\tcp and tcp port 80"');
+    sys.error('  speed_server "" "tcp port 80"');
+    sys.error('  speed_server eth1 ""');
+    sys.error('  speed_server lo0 "ip proto \\tcp and tcp port 80"');
     process.exit(1);
 }
 
