@@ -136,9 +136,12 @@ function usage_die(message) {
     sys.error("    --no-color               disable ANSI colors (def: pretty colors on)");
     sys.error("");
     sys.error("Examples:");
-    sys.error('  sudo http_trace en0 "tcp port 80"');
-    sys.error('  sudo http_trace eth1 ""');
-    sys.error('  sudo http_trace lo0 "ip proto \\tcp and tcp port 80"');
+    sys.error('    http_trace -f "tcp port 80"');
+    sys.error('       listen for TCP port 80 on the default device');
+    sys.error('    http_trace -i eth1 --method POST');
+    sys.error('       listen on eth1 for all traffic that has an HTTP POST');
+    sys.error('    http_trace --host ranney --headers');
+    sys.error('       matches ranney in Host header and prints req/res headers');
     process.exit(1);
 }
 
@@ -219,8 +222,6 @@ function parse_options() {
     if (state === "match optval") {
         usage_die("Missing option value for " + optname);
     }
-    
-    console.log("Options: " + sys.inspect(options));
 }
 
 function filter_match(http) {
