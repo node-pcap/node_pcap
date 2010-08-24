@@ -5,8 +5,8 @@ This is a set of bindings from `libpcap` to node as well as some useful librarie
 analyze packets.  `libpcap` is a packet capture library used by programs like `tcpdump` and `wireshark`.
 It has been tested on OSX and Linux.
 
-Sadly, `node_pcap` is _not done_ yet.  While it is incomplete, it is still already useful for capturing
-and manipulating packets in JavaScript.  The best example of this so far is `http_trace`, described below.
+`node_pcap` is useful for many things, but it does not yet understand all common protocols.  A popular reason
+to use this package is `examples/http_trace`, described below.
 
 ## Why?
 
