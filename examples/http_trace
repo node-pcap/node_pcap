@@ -118,7 +118,7 @@ function usage_die(message) {
     sys.error("");
     sys.error("Capture options:");
     sys.error("    -i <interface>           interface name for capture (def: first with an addr)");
-    sys.error("    -f <pcap_filter>         packet filter in pcap-filter(7) syntax (def: all packets)");
+    sys.error("    -f <pcap_filter>         packet filter in pcap-filter(7) syntax (def: all TCP packets)");
     sys.error("    -b <buffer>              size in MB to buffer between libpcap and app (def: 10)");
     sys.error("");
     sys.error("HTTP filtering:");
@@ -252,6 +252,10 @@ function filter_match(http) {
 }
 
 function start_capture_session() {
+    if (! options.f) {
+        // default filter is all IPv4 TCP, which is all we know how to decode right now anyway
+        options.f = "ip proto \\tcp";
+    }
     pcap_session = pcap.createSession(options.i, options.f, (options.b * 1024 * 1024));
 
     console.log("Listening on " + pcap_session.device_name);
