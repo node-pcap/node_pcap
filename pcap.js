@@ -23,15 +23,21 @@ Pcap.prototype.findalldevs = function () {
     return binding.findalldevs();
 };
 
-Pcap.prototype.open = function (live, device, filter) {
+Pcap.prototype.open = function (live, device, filter, buffer_size) {
     var me = this;
+
+    if (typeof buffer_size === 'number' && !isNaN(buffer_size)) {
+        this.buffer_size = Math.round(buffer_size);
+    } else {
+        this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
+    }
 
     if (live) {
         this.device_name = device || binding.default_device();
-        this.link_type = binding.open_live(this.device_name, filter || "");
+        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size);
     } else {
         this.device_name = device;
-        this.link_type = binding.open_offline(device, filter || "");
+        this.link_type = binding.open_offline(device, filter || "", this.buffer_size);
     }
 
     this.fd = binding.fileno();
@@ -72,15 +78,15 @@ Pcap.prototype.stats = function () {
 
 exports.Pcap = Pcap;
 
-exports.createSession = function (device, filter) {
+exports.createSession = function (device, filter, buffer_size) {
     var session = new Pcap();
-    session.open(true, device, filter);
+    session.open(true, device, filter, buffer_size);
     return session;
 };
 
 exports.createOfflineSession = function (path, filter) {
     var session = new Pcap();
-    session.open(false, path, filter);
+    session.open(false, path, filter, 0);
     return session;
 };
 
@@ -208,16 +214,27 @@ decode.ethernet = function (raw_packet, offset) {
     ret.shost = unpack.ethernet_addr(raw_packet, 6);
     ret.ethertype = unpack.uint16(raw_packet, 12);
 
-    // http://en.wikipedia.org/wiki/EtherType
-    switch (ret.ethertype) {
-    case 0x800: // IPv4
-        ret.ip = decode.ip(raw_packet, 14);
-        break;
-    case 0x806: // ARP
-        ret.arp = decode.arp(raw_packet, 14);
-        break;
-    default:
-        console.log("pcap.js: decode.ethernet() - Don't know how to decode ethertype " + ret.ethertype);
+    if (ret.ethertype < 1536) {
+        // this packet is actually some 802.3 type without an ethertype
+        ret.ethertype = 0;
+    } else {
+        // http://en.wikipedia.org/wiki/EtherType
+        switch (ret.ethertype) {
+        case 0x800: // IPv4
+            ret.ip = decode.ip(raw_packet, 14);
+            break;
+        case 0x806: // ARP
+            ret.arp = decode.arp(raw_packet, 14);
+            break;
+        case 0x86dd: // IPv6 - http://en.wikipedia.org/wiki/IPv6
+            ret.ipv6 = "need to implement IPv6";
+            break;
+        case 0x88cc: // LLDP - http://en.wikipedia.org/wiki/Link_Layer_Discovery_Protocol
+            ret.lldp = "need to implement LLDP";
+            break;
+        default:
+            console.log("pcap.js: decode.ethernet() - Don't know how to decode ethertype " + ret.ethertype);
+        }
     }
 
     return ret;
@@ -823,14 +840,23 @@ print.ethernet = function (packet) {
     var ret = packet.link.shost + " -> " + packet.link.dhost;
 
     switch (packet.link.ethertype) {
+    case 0x0:
+        ret += " 802.3 type ";
+        break;
     case 0x800:
         ret += print.ip(packet);
         break;
     case 0x806:
         ret += print.arp(packet);
         break;
+    case 0x86dd:
+        ret += " IPv6 ";
+        break;
+    case 0x88cc:
+        ret += " LLDP ";
+        break;
     default:
-        console.log("Don't know how to print ethertype " + packet.link.ethertype);
+        console.log("pcap.js: print.ethernet() - Don't know how to print ethertype " + packet.link.ethertype);
     }
 
     return ret;
@@ -924,7 +950,7 @@ WebSocketParser.prototype.execute = function (incoming_buf) {
                 pos += 1;
             } else {
                 this.frame.data = this.buffer.toString('utf8', 0, this.buffer.end);
-                this.emit("message", this.frame.data);
+                this.emit("message", this.frame.data); // this gets converted to "websocket message" in TCP_Tracker
                 this.state = "frame_type";
                 this.buffer.end = 0;
                 pos += 1;
@@ -1059,16 +1085,16 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
             http.request.http_version = info.versionMajor + "." + info.versionMinor;
 
             http.request.method = info.method;
-            self.emit("http_request", session, http);
+            self.emit("http request", session, http);
         };
 
         http.request_parser.onBody = function (buf, start, len) {
             http.request.body_len += len;
-            self.emit("http_request_body", session, http, buf.slice(start, start + len));
+            self.emit("http request body", session, http, buf.slice(start, start + len));
         };
 
         http.request_parser.onMessageComplete = function () {
-            self.emit("http_request_complete", session, http);
+            self.emit("http request complete", session, http);
         };
     };
 
@@ -1111,22 +1137,22 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
                 } else {
                     self.setup_websocket_tracking(session);
                 }
-                self.emit('websocket_upgrade', session, http);
+                self.emit('websocket upgrade', session, http);
                 session.http_detect = false;
                 session.websocket_detect = true;
                 delete http.response_parser.onMessageComplete;
             } else {
-                self.emit('http_response', session, http);
+                self.emit('http response', session, http);
             }
         };
 
         http.response_parser.onBody = function (buf, start, len) {
             http.response.body_len += len;
-            self.emit('http_response_body', session, http, buf.slice(start, start + len));
+            self.emit('http response body', session, http, buf.slice(start, start + len));
         };
         
         http.response_parser.onMessageComplete = function () {
-            self.emit('http_response_complete', session, http);
+            self.emit('http response complete', session, http);
         };
     };
 
@@ -1138,11 +1164,11 @@ TCP_tracker.prototype.setup_websocket_tracking = function (session, flag) {
 
     session.websocket_parser_send = new WebSocketParser();
     session.websocket_parser_send.on("message", function (message_string) {
-        self.emit("websocket_message", session, "send", message_string);
+        self.emit("websocket message", session, "send", message_string);
     });
     session.websocket_parser_recv = new WebSocketParser(flag);
     session.websocket_parser_recv.on("message", function (message_string) {
-        self.emit("websocket_message", session, "recv", message_string);
+        self.emit("websocket message", session, "recv", message_string);
     });
 };
 
@@ -1164,7 +1190,7 @@ TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
     } else if (tcp.flags.rst) {
         session.state = "CLOSED";
         delete this.sessions[session.key];
-        this.emit('reset', session);
+        this.emit('reset', session, "recv"); // TODO - check which direction did the reset, probably recv
     } else {
 //        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(tcp, false, 4));
     }
@@ -1198,6 +1224,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
 //     console.log(sys.inspect(ip, false, 5));
 // }
 
+    // TODO - check for tcp.flags.rst and emit reset event
+
     if (src === session.src) { // this packet came from the active opener / client
         session.send_bytes_ip += ip.header_bytes;
         session.send_bytes_tcp += tcp.header_bytes;
@@ -1211,13 +1239,12 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
             session.send_bytes_payload += tcp.data_bytes;
             if (session.send_packets[tcp.seqno + tcp.data_bytes]) {
                 this.emit('retransmit', session, "send", tcp.seqno + tcp.data_bytes);
-                console.log("Retransmission send of segment " + (tcp.seqno - session.send_isn + tcp.data_bytes));
             } else {
                 if (session.http_detect) {
                     try {
                         session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
                     } catch (request_err) {
-                        this.emit('http_error', request_err);
+                        this.emit('http error', session, "send", request_err);
                     }
                 } else if (session.websocket_detect) {
                     session.websocket_parser_send.execute(tcp.data);
@@ -1255,7 +1282,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                     try {
                         session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
                     } catch (response_err) {
-                        this.emit('http_error', response_err);
+                        this.emit('http error', session, "recv", response_err);
                     }
                 } else if (session.websocket_detect) {
                     session.websocket_parser_recv.execute(tcp.data);
@@ -1409,7 +1436,7 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 }) + ":" + tcp.dport;
                 session.current_cap_time = packet.pcap_header.time_ms;
             } else { // SYN retry
-                this.emit('syn_retry', session);
+                this.emit('syn retry', session);
             }
         } else { // not a SYN
             if (session) {
@@ -1420,6 +1447,7 @@ TCP_tracker.prototype.track_packet = function (packet) {
             }
         }
     } else {
-        throw new Error("tcp_tracker.track_packet fed a non-IPv4 TCP packet: " + sys.inspect(packet));
+        // silently ignore any non IPv4 TCP packets
+        // user should filter these out with their pcap filter, but oh well.
     }
 };
