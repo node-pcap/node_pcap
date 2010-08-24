@@ -1,14 +1,17 @@
 # Capturing Packets in JavaScript
 
 OK, I hear you.  Capturing packets is hard and best left to kernel hackers, assembly language programmers,
-and black hat security researches.  If you want to make things for the web using node.js, why should you care?
+and black hat security researches.  If you just want to make things for the web using node.js, why should you 
+care?
+
 Pulling packets off the network can show you what your computers are saying to each other without disrupting
-the flow of the applications.  Packet capture is a fantastic debugging tool that will remove a lot of the 
-mystery from writing and running network programs.  The point of `node_pcap` is to provide a good HTTP
+the flow of or changing any applications.  Packet capture is a fantastic debugging tool that will remove a lot
+of the mystery from writing and running network programs.  The point of `node_pcap` is to provide a good HTTP
 debugging tool and a framework for doing your own network analysis.
 
-There are plenty of ways to do packet inspection these days, but none of them let you interact with them the
-way node lets you write network programs: by writing a few event handlers in JavaScript.  node_pcap not only
+There are plenty of ways to do packet inspection these days, but none of them let you interact with your
+network traffic the way that node lets you write network programs: by writing a few event handlers in
+JavaScript.  `node_pcap` not only
 let's you capture and process packets in JavaScript, but since it is built on node.js, data from the packets
 can be easily routed around to web browsers, databases, or whatever else you can think of.
 
@@ -17,21 +20,22 @@ Here's an example of capturing packets and sending them back to a web browser us
 [http://pcap.ranney.com:81/](http://pcap.ranney.com:81/ "Packet Capture WebSocket demo")
 
 If you still aren't convinced, check out how easy it is to write a simple "network grep" type of program using
-node_pcap:
+`node_pcap`:
 
 <script src="http://gist.github.com/548175.js?file=network_grep.js"></script>
 
-This program will look at all TCP packets that flow past the default network interface, and run the regular
+This program will look at all TCP packets that flow past the default network interface and run the regular
 expression `matcher` against the data section of the packet.  If it matches, the data section will be printed.
 
-Still not convinced?  I understand.  This packet business is all astonishingly low level compared to the abstractions
+Still not convinced?  I understand.  This packet business can be astonishingly low level compared to the abstractions
 you are comfortable working with.  If this doesn't seem awesome yet, it probably won't until you actually need it.
 When you can't figure out what your program is doing by just adding log messages, come back and check out what
 packet capture can do for you.
 
-node_pcap exposes packets as JavaScript objects, but it also comes with a few examples that are useful on their
-own.  If you do nothing else, check out `examples/http_trace` and `examples/simple_capture`.  Look at the source
-code and see what they can do.
+`node_pcap` exposes packets as JavaScript objects, but it also comes with a few examples that are useful on their
+own.  If you do nothing else, check out `http_trace` and `simple_capture`.  Look at the source
+code and see how they work.  It's really easy.
+
 
 ## Installation
 
@@ -44,14 +48,13 @@ things, you can get it like this:
 If you are on some other kind of system, I don't know the exact command to install `libpcap-dev`,
 but it is a very common library that's widely available.
 
-Once you have `libpcap`, you'll obviously need `node`.  To install `node_pcap`, you need `npm`.
-Install `node_pcap` like this:
+Once you have `libpcap` and node, you just need `npm`.  Install `node_pcap` with `npm` like this:
 
     npm install pcap
     
 This will install the pcap libraries and three executable.
 
-If you want to hack on the code, and I encourage you to do so, use git to clone the repository on github:
+If you want to hack on the code, and I encourage you to do so, use `git` to clone the repository on github:
 
     git clone git://github.com/mranney/node_pcap.git
     
@@ -94,21 +97,24 @@ To see the full list of options do:
     http_trace --help
     
 With no arguments, `http_trace` will listen on the default interface for any IPv4 TCP traffic on any port.
-If it finds HTTP on any TCP connection, it'll start decoding it.
+If it finds HTTP on any TCP connection, it'll start decoding it.  You might be surprised by how many HTTP
+connections your computer is making that you didn't know about, especially if you run OSX.  Fire it up and
+see what you find.
 
 ### Solving Problems
 
 Here's why you need all of this.  Let's say you have a node program that makes an outgoing connection, but
-the outgoing connection doesn't seem like it is working.  Let's say that the reason it isn't working is due
-to a firewall rule that filters the traffic.  Here's how to detect it:
+the outgoing connection doesn't seem like it is working.  This reason in this case is that a
+firewall rule is filtering the traffic.  Here's how to detect it:
 
 ![pcap screenshot](http://pcap.ranney.com/http_trace_2.jpg)
 
-The `--tcp-verbose` option will expose events for TCP connection setup, close, and reset, as well as SYN retry and 
-retransmissions.  SYN retry happens when a new TCP connection is getting set up, but the other side isn't responding.
-Retransmissions occur when packets are dropped by the network and TCP on either end of the connection resends data
-it has already sent.  If data is moving slowly sometimes, but you don't appear to be out of CPU, turn on 
-`--tcp-verbose` and see if you are getting retransmissions or SYN retries.  Then you can blame the network and
+The `--tcp-verbose` option will expose events for TCP connection setup, close, and reset.  It'll also let you 
+know about SYN retries and packets retransmissions.  SYN retry happens when a new TCP connection is getting set
+up, but the other side isn't responding.
+Retransmissions occur when packets are dropped by the network, and TCP on either end of the connection resends data
+that has already sent.  If data is moving slowly, but you don't appear to be out of CPU, turn on 
+`--tcp-verbose` and see if you are getting retransmissions or SYN retries.  If so, you can blame the network and
 not your node program.
 
 Another common case is when the data going over the network isn't quite the data you were expecting.  Here's a 
@@ -137,7 +143,7 @@ the POST body, and they got it wrong.  This works if quoted properly:
 `node_pcap` can piece back together a TCP session from individual packets as long as it sees them all go by.
 It will emit events at TCP connection setup, teardown, and reset.
 
-On top of TCP, it can decode HTTP, and WebSocket messages, emitting events for request, response, data, etc.
+On top of TCP, it can decode HTTP and WebSocket messages, emitting events for request, response, upgrade, data, etc.
 
 It looks sort of like this:
 
@@ -148,7 +154,7 @@ JavaScript at whatever level is the most useful.
 
 ## Work in Progress
 
-There are a lot of cases that `node_pcap` doesn't handle, and for these you'll need a more thorough packet decoder
+There are a lot of cases that `node_pcap` doesn't handle, and for these you'll need a more complete packet decoder
 like Wireshark.  I'm trying to handle the common case of OSX/Linux, IPv4, TCP, HTTP, and WebSocket first, and then
 add support for other variants of the protocol stack.
 
