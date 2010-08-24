@@ -36,6 +36,9 @@ ANSI = (function () {
     CSI = String.fromCharCode(27) + '[';
 
     return function (str, format) {
+        if (options["no-color"]) {
+            return str;
+        }
         return CSI + formats[format][0] + 'm' + str + CSI + formats[format][1] + 'm';
     };
 }());
@@ -128,7 +131,7 @@ function usage_die(message) {
     sys.error("HTTP output:");
     sys.error("    --headers                print headers of request and response (def: off)");
     sys.error("    --bodies                 print request and response bodies, if any (def: off)");
-    sys.error("    --group                  group all output for req/res (def: progressive)");
+//    sys.error("    --group                  group all output for req/res (def: progressive)");
     sys.error("    --tcp-verbose            display TCP events (def: off)");
     sys.error("    --no-color               disable ANSI colors (def: pretty colors on)");
     sys.error("");
@@ -139,6 +142,7 @@ function usage_die(message) {
     process.exit(1);
 }
 
+// Someone else's options parsing library would parse options better, but I fear extra dependencies
 function parse_options() {
     var argv_slice = process.argv.slice(2), 
         optnum = 0, opt, optname, optval,
@@ -149,13 +153,13 @@ function parse_options() {
         "i": { multiple: false, has_value: true },
         "f": { multiple: false, has_value: true },
         "b": { multiple: false, has_value: true },
-        "method": { multiple: true, has_value: true },
-        "host": { multiple: true, has_value: true },
-        "url": { multiple: true, has_value: true },
-        "user-agent": { multiple: true, has_value: true },
+        "method": { multiple: true, has_value: true, regex: true },
+        "host": { multiple: true, has_value: true, regex: true },
+        "url": { multiple: true, has_value: true, regex: true },
+        "user-agent": { multiple: true, has_value: true, regex: true },
         "headers": { multiple: false, has_value: false },
         "bodies": { multiple: false, has_value: false },
-        "group": { multiple: false, has_value: false },
+//        "group": { multiple: false, has_value: false },
         "tcp-verbose": { multiple: false, has_value: false },
         "no-color": { multiple: false, has_value: false },
         "help": { multiple: false, has_value: false }
@@ -163,6 +167,9 @@ function parse_options() {
 
     function set_option(name, value) {
         if (valid_options[name].multiple) {
+            if (valid_options[name].regex) {
+                value = new RegExp(value);
+            }
             if (options[name] === undefined) {
                 options[name] = [value];
             } else {
@@ -179,7 +186,6 @@ function parse_options() {
 
     while (optnum < argv_slice.length) {
         opt = argv_slice[optnum];
-        console.log("Checking opt " + optnum + " of " + argv_slice.length + ": " + opt);
         
         if (state === "match optname") {
             matches = opt.match(/^[\-]{1,2}([^\-].*)/);
@@ -217,8 +223,35 @@ function parse_options() {
     console.log("Options: " + sys.inspect(options));
 }
 
+function filter_match(http) {
+    var filters = [
+        [http.request.method, options.method],
+        [http.request.url, options.url],
+        [http.request.headers.Host, options.host],
+        [http.request.headers["User-Agent"], options["user-agent"]],
+    ], filter_pair_num, filter_index;
+
+    if (options.method || options.host || options.url || options["user-agent"]) {
+        // Can't use elegant forEach here because we want early exit on match
+        for (filter_pair_num = 0 ; filter_pair_num < filters.length ; filter_pair_num += 1) {
+            filter_pair = filters[filter_pair_num];
+            if (typeof filter_pair[1] === 'object') {
+                for (filter_index = 0; filter_index < filter_pair[1].length ; filter_index += 1) {
+                    filter = filter_pair[1][filter_index];
+                    if (filter.test(filter_pair[0])) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    } else {
+        return true; // if no filters, then everything "matches"
+    }
+}
+
 function start_capture_session() {
-    pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
+    pcap_session = pcap.createSession(options.i, options.f, (options.b * 1024 * 1024));
 
     console.log("Listening on " + pcap_session.device_name);
 }
@@ -237,68 +270,150 @@ function setup_listeners() {
     var tcp_tracker = new pcap.TCP_tracker();
 
     // listen for packets, decode them, and feed TCP to the tracker
-    pcap_session.addListener('packet', function (raw_packet) {
+    pcap_session.on('packet', function (raw_packet) {
         var packet = pcap.decode.packet(raw_packet);
 
         tcp_tracker.track_packet(packet);
     });
 
-    tcp_tracker.addListener('http_request', function (session, http) {
+    if (options["tcp-verbose"]) {
+        tcp_tracker.on("start", function (session) {
+            console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+                " TCP start ");
+        });
+        tcp_tracker.on("retransmit", function (session, direction, seqno) {
+            var line_start;
+            if (direction === "send") {
+                line_start = format_line_start(session.current_cap_time, session.src_name, session.dst_name);
+            } else {
+                line_start = format_line_start(session.current_cap_time, session.dst_name, session.src_name);
+            }
+            console.log(line_start + "TCP retransmit at " + seqno);
+        });
+        tcp_tracker.on("end", function (session) {
+            console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+                " TCP end ");
+        });
+        tcp_tracker.on("reset", function (session) {
+            // eventually this event will have a direction.  Right now, it's only from dst.
+            console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
+                " TCP reset ");
+        });
+        tcp_tracker.on("syn retry", function (session) {
+            console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+                " SYN retry");
+        });
+    }
+
+    tcp_tracker.on('http error', function (session, direction, error) {
+        var line_start;
+        if (direction === "send") {
+            line_start = format_line_start(session.current_cap_time, session.src_name, session.dst_name);
+        } else {
+            line_start = format_line_start(session.current_cap_time, session.dst_name, session.src_name);
+        }
+
+        console.log(line_start + " HTTP parser error: " + error);
+        // TODO - probably need to force this request/response to be over at this point
+    });
+
+    tcp_tracker.on('http request', function (session, http) {
         if (session.http_request_count) {
             session.http_request_count += 1;
         } else {
             session.http_request_count = 1;
         }
+
+        if (! filter_match(http)) {
+            return;
+        }
+
         console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
             " #" + session.http_request_count + " HTTP " + http.request.http_version + " request: " + 
             ANSI(ANSI(http.request.method, "bold") + " " + http.request.url, "yellow"));
-        console.log(format_headers(http.request.headers));
+
+        if (options.headers) {
+            console.log(format_headers(http.request.headers));
+        }
     });
 
-    tcp_tracker.addListener('http_request_body', function (session, http, data) {
+    tcp_tracker.on('http request body', function (session, http, data) {
+        if (! filter_match(http)) {
+            return;
+        }
+
         console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
             " #" + session.http_request_count + " HTTP " + http.request.http_version + " request body: " + 
             format_size(data.length));
-        if (/application\/x-www-form-urlencoded/.test(http.request.headers["Content-Type"])) {
+
+        if (options.bodies) {
+            // TODO - this is not at all what you want for gzipped or binary data
             console.log(ANSI(data.toString("utf8"), "green"));
         }
     });
 
-    tcp_tracker.addListener('http_request_complete', function (session, http) {
-        console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
-            " #" + session.http_request_count + " HTTP " + http.request.http_version + " request complete " +
-            format_size(http.request.body_len));
+    tcp_tracker.on('http request complete', function (session, http) {
+        if (! filter_match(http)) {
+            return;
+        }
+
+        if (http.request.body_len > 0 || http.request.method !== "GET") {
+            console.log(format_line_start(session.current_cap_time, session.src_name, session.dst_name) +
+                " #" + session.http_request_count + " HTTP " + http.request.http_version + " request complete " +
+                format_size(http.request.body_len));
+        }
     });
 
-    tcp_tracker.addListener('http_response', function (session, http) {
+    tcp_tracker.on('http response', function (session, http) {
+        if (! filter_match(http)) {
+            return;
+        }
+
         console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
             " #" + session.http_request_count + " HTTP " + http.response.http_version + " response: " +
             ANSI(http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code], "yellow"));
-        console.log(format_headers(http.response.headers));
+
+        if (options.headers) {
+            console.log(format_headers(http.response.headers));
+        }
     });
 
-    tcp_tracker.addListener('http_response_body', function (session, http, data) {
+    tcp_tracker.on('http response body', function (session, http, data) {
+        if (! filter_match(http)) {
+            return;
+        }
+
         console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
             " #" + session.http_request_count + " HTTP " + http.response.http_version + " response body: " + 
             format_size(data.length));
-        if (!http.response.headers["Content-Encoding"] && /^text/.test(http.response.headers["Content-Type"])) {
+
+        if (options.bodies) {
+            // TODO - this is not at all what you want for gzipped or binary data
             console.log(ANSI(data.toString("utf8"), "green"));
         }
     });
 
-    tcp_tracker.addListener('http_response_complete', function (session, http) {
+    tcp_tracker.on('http response complete', function (session, http) {
+        if (! filter_match(http)) {
+            return;
+        }
+
         console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
             " #" + session.http_request_count + " HTTP " + http.response.http_version + " response complete " + 
             format_size(http.response.body_len));
     });
 
-    tcp_tracker.on('websocket_upgrade', function (session, http) {
+    tcp_tracker.on('websocket upgrade', function (session, http) {
+        // TODO - figure out how filters apply to WS
+        
         console.log(format_line_start(session.current_cap_time, session.dst_name, session.src_name) +
             " WebSocket upgrade " + ANSI(http.response.status_code + " " + node_http.STATUS_CODES[http.response.status_code], "yellow"));
         console.log(format_headers(http.response.headers));
     });
 
-    tcp_tracker.on('websocket_message', function (session, dir, message) {
+    tcp_tracker.on('websocket message', function (session, dir, message) {
+        // TODO - figure out how filters apply to WS
+
         var line_start, obj;
         if (dir === "send") {
             line_start = format_line_start(session.current_cap_time, session.src_name, session.dst_name);
@@ -323,4 +438,3 @@ if (options.help) {
 start_capture_session();
 start_drop_watcher();
 setup_listeners();
-
