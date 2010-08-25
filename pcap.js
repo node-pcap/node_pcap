@@ -1444,6 +1444,10 @@ TCP_tracker.prototype.track_packet = function (packet) {
                 this.track_next(key, packet);
             } else {
                 // silently ignore session in progress
+
+                // TODO - for sessions in progress, we should pretend that this is the first packet from
+                //        the sender, go into ESTAB, and run HTTP detector.  That way we might see HTTP
+                //        requests on keepalive connections
             }
         }
     } else {
