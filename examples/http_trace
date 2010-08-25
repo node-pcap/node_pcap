@@ -232,19 +232,14 @@ function filter_match(http) {
     ], filter_pair_num, filter_index;
 
     if (options.method || options.host || options.url || options["user-agent"]) {
-        // Can't use elegant forEach here because we want early exit on match
-        for (filter_pair_num = 0 ; filter_pair_num < filters.length ; filter_pair_num += 1) {
-            filter_pair = filters[filter_pair_num];
+        return filters.some(function (filter_pair) {
             if (typeof filter_pair[1] === 'object') {
-                for (filter_index = 0; filter_index < filter_pair[1].length ; filter_index += 1) {
-                    filter = filter_pair[1][filter_index];
-                    if (filter.test(filter_pair[0])) {
-                        return true;
-                    }
-                }
+                return filter_pair[1].some(function (filter) {
+                    return filter.test(filter_pair[0]);
+                });
             }
-        }
-        return false;
+            return false;
+        });
     } else {
         return true; // if no filters, then everything "matches"
     }
