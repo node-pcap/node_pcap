@@ -213,6 +213,18 @@ decode.ethernet = function (raw_packet, offset) {
     ret.dhost = unpack.ethernet_addr(raw_packet, 0);
     ret.shost = unpack.ethernet_addr(raw_packet, 6);
     ret.ethertype = unpack.uint16(raw_packet, 12);
+    offset = 14;
+
+    // Check for a tagged frame
+    switch (ret.ethertype) {
+    case 0x8100: // VLAN-tagged (802.1Q)
+        ret.vlan = decode.vlan(raw_packet, 14);
+
+        // Update the ethertype
+        ret.ethertype = unpack.uint16(raw_packet, 16);
+        offset = 18;
+        break;
+    }
 
     if (ret.ethertype < 1536) {
         // this packet is actually some 802.3 type without an ethertype
@@ -221,10 +233,10 @@ decode.ethernet = function (raw_packet, offset) {
         // http://en.wikipedia.org/wiki/EtherType
         switch (ret.ethertype) {
         case 0x800: // IPv4
-            ret.ip = decode.ip(raw_packet, 14);
+            ret.ip = decode.ip(raw_packet, offset);
             break;
         case 0x806: // ARP
-            ret.arp = decode.arp(raw_packet, 14);
+            ret.arp = decode.arp(raw_packet, offset);
             break;
         case 0x86dd: // IPv6 - http://en.wikipedia.org/wiki/IPv6
             ret.ipv6 = "need to implement IPv6";
@@ -236,6 +248,17 @@ decode.ethernet = function (raw_packet, offset) {
             console.log("pcap.js: decode.ethernet() - Don't know how to decode ethertype " + ret.ethertype);
         }
     }
+
+    return ret;
+};
+
+decode.vlan = function (raw_packet, offset) {
+    var ret = {};
+
+    http://en.wikipedia.org/wiki/IEEE_802.1Q
+    ret.priority = (raw_packet[offset] & 0xE0) >> 5;
+    ret.canonical_format = (raw_packet[offset] & 0x10) >> 4;
+    ret.id = ((raw_packet[offset] & 0x0F) << 8) | raw_packet[offset + 1];
 
     return ret;
 };
