@@ -23,7 +23,8 @@ struct bpf_program fp;
 bpf_u_int32 mask;
 bpf_u_int32 net;
 pcap_t *pcap_handle;
-Buffer *buffer;
+char *buffer_data;
+size_t buffer_length;
 
 // PacketReady is called from within pcap, still on the stack of Dispatch.  It should be called
 // only one time per Dispatch, but sometimes it gets called 0 times.  PacketReady invokes the
@@ -42,8 +43,11 @@ void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_c
 
     Local<Function> * callback = (Local<Function>*)callback_p;
 
-    // TODO - bounds checking
-    memcpy(buffer->data(), packet, pkthdr->caplen);
+    size_t copy_len = pkthdr->caplen;
+    if (copy_len > buffer_length) {
+        copy_len = buffer_length;
+    }
+    memcpy(buffer_data, packet, copy_len);
 
     TryCatch try_catch;
 
@@ -80,9 +84,12 @@ Dispatch(const Arguments& args)
         return ThrowException(Exception::TypeError(String::New("Second argument must be a function")));
     }
 
-    Local<Function> callback = Local<Function>::Cast(args[1]);
+    Local<Object> buffer_obj = args[0]->ToObject();
+    // stash these in global variables.  To support more than one pcap session, we'll need a class container.
+    buffer_data = Buffer::Data(buffer_obj);
+    buffer_length = Buffer::Length(buffer_obj);
 
-    buffer = ObjectWrap::Unwrap<Buffer>(args[0]->ToObject());
+    Local<Function> callback = Local<Function>::Cast(args[1]);
 
     int packet_count, total_packets = 0;
     do {
