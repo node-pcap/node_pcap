@@ -7,6 +7,7 @@ var sys        = require('sys'),
     events     = require('events'),
     binding    = require('./build/default/pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
+    IOWatcher  = process.binding('io_watcher').IOWatcher,
     url        = require('url');
 
 function Pcap() {
@@ -42,7 +43,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
     this.fd = binding.fileno();
     this.opened = true;
-    this.readWatcher = new process.IOWatcher();
+    this.readWatcher = new IOWatcher();
     this.empty_reads = 0;
     this.buf = new Buffer(65535);
 
