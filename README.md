@@ -8,10 +8,14 @@ It has been tested on OSX and Linux.
 `node_pcap` is useful for many things, but it does not yet understand all common protocols.  A popular reason
 to use this package is `examples/http_trace`, described below.
 
-## Why?
+Another great reason to use `node_pcap` is 
+[htracr](https://github.com/mnot/htracr), written by Mark Nottingham.
+
+## Why capture packets in JavaScript?
 
 There are already many tools for capturing, decoding, and analyzing packets.  Many of them are thoroughly
-tested and very fast.  Why would anybody want to capture and manipulate packets in JavaScript?  A few reasons:
+tested and very fast.  Why would anybody want to do such low level things like packet capture and analysis
+in JavaScript?  A few reasons:
 
 * JavaScript makes writing event-based programs very natural.  Each packet that is captured generates an
 event, and as higher level protocols are decoded, they might generate events as well.  Writing code to handle
