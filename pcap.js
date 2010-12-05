@@ -1,14 +1,20 @@
-"use strict";
 /*global process require exports console */
 
-var sys        = require('sys'),
+var util, IOWatcher,
     dns        = require('dns'),
     Buffer     = require('buffer').Buffer,
     events     = require('events'),
     binding    = require('./build/default/pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
-    IOWatcher  = process.binding('io_watcher').IOWatcher,
     url        = require('url');
+
+if (process.versions && process.versions.node && process.versions.node.split()[1] >= 3) {
+    util = require("util");
+    IOWatcher  = process.binding('io_watcher').IOWatcher;
+} else {
+    util = require("sys");
+    IOWatcher = process.IOWatcher;
+}
 
 function Pcap() {
     this.opened = false;
@@ -16,7 +22,7 @@ function Pcap() {
 
     events.EventEmitter.call(this);
 }
-sys.inherits(Pcap, events.EventEmitter);
+util.inherits(Pcap, events.EventEmitter);
 
 exports.lib_version = binding.lib_version();
 
@@ -854,7 +860,7 @@ print.arp = function (packet) {
         }
     } else {
         ret = " unknown arp type";
-        ret += sys.inspect(arp);
+        ret += util.inspect(arp);
     }
 
     return ret;
@@ -948,7 +954,7 @@ function WebSocketParser(flag) {
 
     events.EventEmitter.call(this);
 }
-sys.inherits(WebSocketParser, events.EventEmitter);
+util.inherits(WebSocketParser, events.EventEmitter);
 
 WebSocketParser.prototype.execute = function (incoming_buf) {
     var pos = 0;
@@ -990,7 +996,7 @@ function TCP_tracker() {
     this.sessions = {};
     events.EventEmitter.call(this);
 }
-sys.inherits(TCP_tracker, events.EventEmitter);
+util.inherits(TCP_tracker, events.EventEmitter);
 exports.TCP_tracker = TCP_tracker;
 
 TCP_tracker.prototype.make_session_key = function (src, dst) {
@@ -1216,7 +1222,7 @@ TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
         delete this.sessions[session.key];
         this.emit('reset', session, "recv"); // TODO - check which direction did the reset, probably recv
     } else {
-//        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + sys.inspect(tcp, false, 4));
+//        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + util.inspect(tcp, false, 4));
     }
 };
 
@@ -1233,7 +1239,7 @@ TCP_tracker.prototype.track_states.SYN_RCVD = function (packet, session) {
         this.emit('start', session);
         session.state = "ESTAB";
     } else {
-//        console.log("Didn't get ACK packet from src while handshaking: " + sys.inspect(tcp, false, 4));
+//        console.log("Didn't get ACK packet from src while handshaking: " + util.inspect(tcp, false, 4));
     }
 };
 
@@ -1244,8 +1250,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
 
 // TODO - actually implement SACK decoding and tracking
 // if (tcp.options.sack) {
-//     console.log("SACK magic, handle this: " + sys.inspect(tcp.options.sack));
-//     console.log(sys.inspect(ip, false, 5));
+//     console.log("SACK magic, handle this: " + util.inspect(tcp.options.sack));
+//     console.log(util.inspect(ip, false, 5));
 // }
 
     // TODO - check for tcp.flags.rst and emit reset event
@@ -1328,7 +1334,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
             session.state = "CLOSE_WAIT";
         }
     } else {
-        console.log("non-matching packet in session: " + sys.inspect(packet));
+        console.log("non-matching packet in session: " + util.inspect(packet));
     }
 };
 
@@ -1401,7 +1407,7 @@ TCP_tracker.prototype.track_next = function (key, packet) {
     if (typeof this.track_states[session.state] === 'function') {
         this.track_states[session.state].call(this, packet, session);
     } else {
-        console.log(sys.debug(session));
+        console.log(util.debug(session));
         throw new Error("Don't know how to handle session state " + session.state);
     }
 };

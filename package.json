@@ -1,5 +1,5 @@
 {   "name" : "pcap",
-    "version" : "0.2.1",
+    "version" : "0.2.2",
     "description" : "raw packet capture, decoding, and analysis",
     "author": "Matt Ranney <mjr@ranney.com>",
     "main": "./pcap",
@@ -7,8 +7,5 @@
         "type": "git",
         "url": "git://github.com/mranney/node_pcap.git"
     },
-    "bin": { "http_trace": "./examples/http_trace",
-        "simple_capture": "./examples/simple_capture",
-        "tcp_metrics": "./examples/tcp_metrics" },
     "scripts": { "install": "node-waf configure build" }
 }

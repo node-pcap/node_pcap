@@ -1,6 +1,7 @@
 #include <node.h>
 #include <node_events.h>
 #include <node_buffer.h>
+#include <node_version.h>
 #include <assert.h>
 #include <pcap/pcap.h>
 #include <v8.h>
@@ -23,6 +24,8 @@ struct bpf_program fp;
 bpf_u_int32 mask;
 bpf_u_int32 net;
 pcap_t *pcap_handle;
+
+// buffer data and length are global. To support more than one pcap session, we'll need a class container.
 char *buffer_data;
 size_t buffer_length;
 
@@ -58,7 +61,7 @@ void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_c
     packet_header->Set(String::New("caplen"), Integer::NewFromUnsigned(pkthdr->caplen));
     packet_header->Set(String::New("len"), Integer::NewFromUnsigned(pkthdr->len));
 
-    Local<Value> argv[1] = { packet_header };
+    Local<Value> argv[1] = packet_header;
 
     (*callback)->Call(Context::GetCurrent()->Global(), 1, argv);
 
@@ -84,10 +87,15 @@ Dispatch(const Arguments& args)
         return ThrowException(Exception::TypeError(String::New("Second argument must be a function")));
     }
 
+#if NODE_VERSION_AT_LEAST(0,3,0)
     Local<Object> buffer_obj = args[0]->ToObject();
-    // stash these in global variables.  To support more than one pcap session, we'll need a class container.
     buffer_data = Buffer::Data(buffer_obj);
     buffer_length = Buffer::Length(buffer_obj);
+#else
+    Buffer *buffer_obj = ObjectWrap::Unwrap<Buffer>(args[0]->ToObject());
+    buffer_data = buffer_obj->data();
+    buffer_length = buffer_obj->length();
+#endif
 
     Local<Function> callback = Local<Function>::Cast(args[1]);
 
