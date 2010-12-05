@@ -8,7 +8,8 @@ def set_options(opt):
 def configure(conf):
     conf.check_tool("compiler_cxx")
     conf.check_tool("node_addon")
-    conf.check(lib="pcap", mandantory=True)
+    if not conf.check(lib="pcap", mandantory=True):
+        conf.fatal("libpcap C library not found on this system.")
 
 def build(bld):
     obj = bld.new_task_gen("cxx", "shlib", "node_addon")
