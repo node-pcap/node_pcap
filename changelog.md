@@ -1,7 +1,7 @@
 Changelog
 =========
 
-## v0.2.2 - December 5, 2010
+## v0.2.3 - December 5, 2010
 
 Should now compile properly on node 0.2.x and 0.3.x.
 
