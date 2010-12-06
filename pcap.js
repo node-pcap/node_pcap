@@ -154,7 +154,19 @@ var unpack = {
             raw_packet[offset + 2],
             raw_packet[offset + 3]
         ].join('.');
-    }
+    },
+	ipv6_addr: function (raw_packet, offset) {
+		var ret = '';
+		for (var i=offset; i<offset+16; i+=2) {
+			if (i > offset) {
+				ret += ':';
+			}
+			ret += unpack.uint16(raw_packet, i).toString(16);
+		}
+		// TODO: do a better job to compress out largest run of zeros.
+		return ret.replace(/(0:)+/, ':');
+		return ret;
+	}
 };
 exports.unpack = unpack;
 
@@ -206,7 +218,7 @@ decode.nulltype = function (raw_packet, offset) {
     if (ret.pftype === 2) {         // AF_INET, at least on my Linux and OSX machines right now
         ret.ip = decode.ip(raw_packet, 4);
     } else if (ret.pftype === 30) { // AF_INET6, often
-        console.log("pcap.js: decode.nulltype() - Don't know how to decode IPv6 packets.");
+        ret.ip = decode.ip6(raw_packet, 4);
     } else {
         console.log("pcap.js: decode.nulltype() - Don't know how to decode protocol family " + ret.pftype);
     }
@@ -246,7 +258,7 @@ decode.ethernet = function (raw_packet, offset) {
             ret.arp = decode.arp(raw_packet, offset);
             break;
         case 0x86dd: // IPv6 - http://en.wikipedia.org/wiki/IPv6
-            ret.ipv6 = "need to implement IPv6";
+            ret.ipv6 = decode.ip6(raw_packet, offset);
             break;
         case 0x88cc: // LLDP - http://en.wikipedia.org/wiki/Link_Layer_Discovery_Protocol
             ret.lldp = "need to implement LLDP";
@@ -344,6 +356,51 @@ decode.ip = function (raw_packet, offset) {
     }
 
     return ret;
+};
+
+decode.ip6_header = function(raw_packet, next_header, ip, offset) {
+    switch (next_header) {
+    case 1:
+        ip.protocol_name = "ICMP";
+        ip.icmp = decode.icmp(raw_packet, offset);
+        break;
+    case 2:
+        ip.protocol_name = "IGMP";
+        ip.igmp = decode.igmp(raw_packet, offset);
+        break;
+    case 6:
+        ip.protocol_name = "TCP";
+        ip.tcp = decode.tcp(raw_packet, offset, ip);
+        break;
+    case 17:
+        ip.protocol_name = "UDP";
+        ip.udp = decode.udp(raw_packet, offset);
+        break;
+    default:
+		// TODO: capture the extensions
+		decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
+    }
+};
+
+decode.ip6 = function (raw_packet, offset) {
+    var ret = {};
+    
+    // http://en.wikipedia.org/wiki/IPv6
+    ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
+	ret.traffic_class = ((raw_packet[offset] & 15) << 4) + ((raw_packet[offset+1] & 240) >> 4);
+	ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) + 
+        (raw_packet[offset + 2] << 8) +
+        raw_packet[offset + 3];
+	ret.payload_length = unpack.uint16(raw_packet, offset+4);
+	ret.total_length = ret.payload_length + 40;
+	ret.next_header = raw_packet[offset+6];
+	ret.hop_limit = raw_packet[offset+7];
+	ret.saddr = unpack.ipv6_addr(raw_packet, offset+8);
+	ret.daddr = unpack.ipv6_addr(raw_packet, offset+24);
+	ret.header_bytes = 40;
+
+	decode.ip6_header(raw_packet, ret.next_header, ret, offset+40);
+	return ret;
 };
 
 decode.icmp = function (raw_packet, offset) {
