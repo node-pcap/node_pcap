@@ -125,7 +125,7 @@ Open(bool live, const Arguments& args)
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[2] must be a Number")));
         }
     } else {
-        return ThrowException(Exception::TypeError(String::New("pcap Open: wrong number of arguments")));
+        return ThrowException(Exception::TypeError(String::New("pcap Open: expecting 3 arguments")));
     }
     String::Utf8Value device(args[0]->ToString());
     String::Utf8Value filter(args[1]->ToString());

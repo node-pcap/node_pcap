@@ -8,7 +8,7 @@ var util, IOWatcher,
     HTTPParser = process.binding('http_parser').HTTPParser,
     url        = require('url');
 
-if (process.versions && process.versions.node && process.versions.node.split()[1] >= 3) {
+if (process.versions && process.versions.node && process.versions.node.split('.')[1] >= 3) {
     util = require("util");
     IOWatcher  = process.binding('io_watcher').IOWatcher;
 } else {
@@ -44,7 +44,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
         this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size);
     } else {
         this.device_name = device;
-        this.link_type = binding.open_offline(device, filter || "", this.buffer_size);
+        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size);
     }
 
     this.fd = binding.fileno();

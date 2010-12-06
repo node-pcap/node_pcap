@@ -5,11 +5,10 @@ This is a set of bindings from `libpcap` to node as well as some useful librarie
 analyze packets.  `libpcap` is a packet capture library used by programs like `tcpdump` and `wireshark`.
 It has been tested on OSX and Linux.
 
-`node_pcap` is useful for many things, but it does not yet understand all common protocols.  A popular reason
-to use this package is `examples/http_trace`, described below.
-
-Another great reason to use `node_pcap` is 
-[htracr](https://github.com/mnot/htracr), written by Mark Nottingham.
+`node_pcap` is useful for many things, but it does not yet understand all common protocols.  Common reasons
+to use this package are
+[http_trace](https://github.com/mranney/http_trace), and
+[htracr](https://github.com/mnot/htracr).
 
 ## Why capture packets in JavaScript?
 
@@ -169,7 +168,7 @@ new events will be emitted:
 
 * `http_response_complete`: function(session, http)
 
-See `examples/http_trace` for an example of how to use these events to decode HTTP.
+See `http_trace` for an example of how to use these events to decode HTTP.
 
 ### WebSocket Analysis
 
@@ -178,7 +177,7 @@ The `TCP_tracker` further detects and decodes WebSocket traffic on all streams i
 * `websocket_upgrade`: function(session, http)
 * `websocket_message`: function(session, dir, message)
 
-See `examples/http_trace` for an example of how to use these events to decode WebSocket.
+See `http_trace` for an example of how to use these events to decode WebSocket.
 
     
 ## Some Common Problems
@@ -225,19 +224,6 @@ The pcap filters are very efficient and run close to the kernel where they can p
 If the pcap filters are set correctly and `libpcap` still drops packets, it is possible to increase `libpcap`'s
 buffer size.  At the moment, this requires changing `pcap_binding.cc`.  Look for `pcap_set_buffer_size()` and
 set to a larger value.
-
-## examples/http_trace
-
-This is a handy standalone program that can help diagnose HTTP and WebSocket traffic.
-
-The TCP tracker looks for HTTP at the beginning of every TCP connection.  If found, all captured on this connection
-will be fed to node's HTTP parser and events will be generated.  `http_trace` has listeners for these events and will
-print out some helpful information.
-
-If a WebSocket upgrade is detected, `http_trace` will start looking for WebSocket messages on that connection.
-
-![http_trace screenshot](http://ranney.com/httptrace.jpg)
-
 
 ## examples/simple_capture
 
