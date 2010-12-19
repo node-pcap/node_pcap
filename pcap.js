@@ -355,7 +355,10 @@ decode.icmp = function (raw_packet, offset) {
     ret.checksum = unpack.uint16(raw_packet, offset + 2); // 2, 3
     ret.id = unpack.uint16(raw_packet, offset + 4); // 4, 5
     ret.sequence = unpack.uint16(raw_packet, offset + 6); // 6, 7
-
+    ret.data = [];
+    for (i=0; (offset+8+i) < raw_packet.pcap_header.caplen; i++) { // 8, 9, ... N
+        ret.data[i] = raw_packet[offset + 8 + i];
+    }
     switch (ret.type) {
     case 0:
         ret.type_desc = "Echo Reply";
