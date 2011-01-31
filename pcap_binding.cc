@@ -348,8 +348,7 @@ DefaultDevice(const Arguments& args)
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
     
-    // Look up the first device with an address, pcap_lookupdev() just returns
-    // the first non-loopback device.
+    // Look up the first device with an address, pcap_lookupdev() just returns the first non-loopback device.
     Local<Value> ret;
     pcap_if_t *alldevs, *dev;
     pcap_addr_t *addr;
@@ -362,7 +361,9 @@ DefaultDevice(const Arguments& args)
     for (dev = alldevs; dev != NULL; dev = dev->next) {
         if (dev->addresses != NULL && !(dev->flags & PCAP_IF_LOOPBACK)) {
             for (addr = dev->addresses; addr != NULL; addr = addr->next) {
-                if (addr->addr->sa_family == AF_INET || addr->addr->sa_family == AF_INET6) {
+                // TODO - include IPv6 addresses in DefaultDevice guess
+                // if (addr->addr->sa_family == AF_INET || addr->addr->sa_family == AF_INET6) {
+                if (addr->addr->sa_family == AF_INET) {
                     ret = String::New(dev->name);
                     found = true;
                     break;
