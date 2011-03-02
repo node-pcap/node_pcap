@@ -3,7 +3,7 @@ Changelog
 
 ## v0.2.8 - March 1, 2011
 
-Fix bug when TCP_Tracker encounters a pipelined response.
+Fix bug when TCP_Tracker encounters a pipelined response. - Mark Nottingham
 
 ## v0.2.7 - December 6, 2010
 
