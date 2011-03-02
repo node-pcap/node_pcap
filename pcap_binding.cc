@@ -99,9 +99,8 @@ Dispatch(const Arguments& args)
 
     Local<Function> callback = Local<Function>::Cast(args[1]);
 
-    int packet_count, total_packets = 0;
-    packet_count = pcap_dispatch(pcap_handle, 1, PacketReady, (u_char *)&callback);
-    total_packets += packet_count;
+    int total_packets = 0;
+    total_packets = pcap_dispatch(pcap_handle, 1, PacketReady, (u_char *)&callback);
 
     return scope.Close(Integer::NewFromUnsigned(total_packets));
 }
