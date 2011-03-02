@@ -1125,12 +1125,6 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
             body_len: 0,
             http_version: null
         };
-        http.response = {
-            headers: {},
-            status_code: null,
-            body_len: 0,
-            http_version: null
-        };
 
         http.request_parser.onURL = function (buf, start, len) {
             var url_string = buf.toString('ascii', start, start + len);
@@ -1187,6 +1181,12 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
 
     http.response_parser = new HTTPParser('response');
     http.response_parser.onMessageBegin = function () {
+        http.response = {
+            headers: {},
+            status_code: null,
+            body_len: 0,
+            http_version: null
+        };
         http.response_parser.onHeaderField = function (buf, start, len) {
             var field = buf.toString('ascii', start, start + len);
             if (http.response_parser.header_value) {
