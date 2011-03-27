@@ -570,11 +570,22 @@ decode.udp = function (raw_packet, offset) {
     var ret = {};
 
     // http://en.wikipedia.org/wiki/User_Datagram_Protocol
-    ret.sport = unpack.uint16(raw_packet, offset); // 0, 1
-    ret.dport = unpack.uint16(raw_packet, offset + 2); // 2, 3
-    ret.length = unpack.uint16(raw_packet, offset + 4); // 4, 5
-    ret.checksum = unpack.uint16(raw_packet, offset + 6); // 6, 7
-
+    ret.sport       = unpack.uint16(raw_packet, offset);        // 0, 1
+    ret.dport       = unpack.uint16(raw_packet, offset + 2);    // 2, 3
+    ret.length      = unpack.uint16(raw_packet, offset + 4);    // 4, 5
+    ret.checksum    = unpack.uint16(raw_packet, offset + 6);    // 6, 7
+    
+    ret.data_offset = offset + 8;
+    ret.data_end    = ret.length + ret.data_offset - 8;
+    ret.data_bytes  = ret.data_end - ret.data_offset;
+    
+    // Follow tcp pattern and don't make a copy of the data payload
+    // Therefore its only valid for this pass throught the capture loop
+    if (ret.data_bytes > 0) {
+        ret.data = raw_packet.slice(ret.data_offset, ret.data_end);
+        ret.data.length = ret.data_bytes;
+    }
+    
     if (ret.sport === 53 || ret.dport === 53) {
         ret.dns = decode.dns(raw_packet, offset + 8);
     }
