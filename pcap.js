@@ -19,6 +19,9 @@ if (process.versions && process.versions.node && process.versions.node.split('.'
 function Pcap() {
     this.opened = false;
     this.fd = null;
+    this.bytesRead = 0;
+    this.pcapHeaderLength = 24;
+    this.pcapPacketHeaderLength = 16;
 
     events.EventEmitter.call(this);
 }
@@ -45,6 +48,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
         this.device_name = device || binding.default_device();
         this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
     } else {
+        this.bytesRead = this.pcapHeaderLength;
         this.device_name = device;
         this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
     }
@@ -57,6 +61,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
 
     // called for each packet read by pcap
     function packet_ready(header) {
+        me.bytesRead += header.caplen + me.pcapPacketHeaderLength;
         header.link_type = me.link_type;
         header.time_ms = (header.tv_sec * 1000) + (header.tv_usec / 1000);
         me.buf.pcap_header = header;
