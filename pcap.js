@@ -1318,6 +1318,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
     var ip  = packet.link.ip,
         tcp = ip.tcp,
         src = ip.saddr + ":" + tcp.sport;
+    
+    tcp.timestamp = packet.pcap_header.time_ms;
 
 // TODO - actually implement SACK decoding and tracking
 // if (tcp.options.sack) {
