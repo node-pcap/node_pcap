@@ -1115,7 +1115,10 @@ TCP_tracker.prototype.session_stats = function (session) {
     stats.recv_payload = session.recv_bytes_payload;
     stats.recv_total = stats.recv_overhead + stats.recv_payload;
 
-    if (session.http.request) {
+    // theoretically, if we have incomplete HTTP request it will be recognized
+    // as 'http' and 'http' key will be created.
+    // However, complete request will not be parsed.
+    if (session.http && session.http.request) {
         stats.http_request = session.http.request;
     }
 
