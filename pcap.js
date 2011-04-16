@@ -1293,12 +1293,7 @@ TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
         session.recv_isn = tcp.seqno;
         session.recv_window_scale = tcp.options.window_scale || 1; // multiplier, not bit shift value
         session.state = "SYN_RCVD";
-    } else if (tcp.flags.rst) {
-        session.state = "CLOSED";
-        delete this.sessions[session.key];
-        this.emit('reset', session, "recv"); // TODO - check which direction did the reset, probably recv
-    } else {
-//        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + util.inspect(tcp, false, 4));
+    } else { //        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + util.inspect(tcp, false, 4));
     }
 };
 
@@ -1480,8 +1475,19 @@ TCP_tracker.prototype.track_states.CLOSED = function (packet, session) {
 TCP_tracker.prototype.track_next = function (key, packet) {
     var session = this.sessions[key];
 
+    var ip  = packet.link.ip,
+        tcp = ip.tcp;
+
     if (typeof session !== 'object') {
         throw new Error("track_next: couldn't find session for " + key);
+    }
+
+    /* Reset can arrive at any time */
+    if (tcp.flags.rst) {
+        session.close_time = packet.pcap_header.time_ms;
+        session.state = "CLOSED";
+        delete this.sessions[session.key];
+        this.emit('reset', session, "recv"); // TODO - check which direction did the reset, probably recv
     }
 
     if (typeof this.track_states[session.state] === 'function') {
