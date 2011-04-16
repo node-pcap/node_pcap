@@ -1345,6 +1345,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                 } else if (session.websocket_detect) {
                     session.websocket_parser_send.execute(tcp.data);
                     // TODO - check for WS parser errors
+                } else {
+                  this.emit('tcp request', session, tcp);
                 }
             }
             session.send_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
@@ -1383,6 +1385,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                 } else if (session.websocket_detect) {
                     session.websocket_parser_recv.execute(tcp.data);
                     // TODO - check for WS parser errors
+                } else {
+                  this.emit('tcp response', session, tcp);
                 }
             }
             session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
