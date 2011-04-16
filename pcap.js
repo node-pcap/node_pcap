@@ -44,14 +44,16 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
     if (live) {
         this.device_name = device || binding.default_device();
-        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size);
+        this.session_id = binding.open_live(this.device_name, filter || "", this.buffer_size);
     } else {
         this.bytesRead = this.pcapHeaderLength;
         this.device_name = device;
-        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size);
+        this.session_id = binding.open_offline(this.device_name, filter || "", this.buffer_size);
     }
 
-    this.fd = binding.fileno();
+    this.link_type = binding.link_type(this.session_id);
+
+    this.fd = binding.fileno(this.session_id);
     this.opened = true;
     this.readWatcher = new IOWatcher();
     this.empty_reads = 0;
@@ -68,7 +70,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
     // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
     this.readWatcher.callback = function pcap_read_callback() {
-        var packets_read = binding.dispatch(me.buf, packet_ready);
+        var packets_read = binding.dispatch(me.buf, packet_ready, me.session_id);
         if (packets_read < 1) {
             // TODO - figure out what is causing this, and if it is bad.
             me.empty_reads += 1;
@@ -89,7 +91,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
 Pcap.prototype.close = function () {
     this.opened = false;
-    binding.close();
+    binding.close(this.session_id);
     // TODO - remove listeners so program will exit I guess?
 };
 
