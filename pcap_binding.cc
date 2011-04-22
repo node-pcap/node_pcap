@@ -242,6 +242,27 @@ OpenOffline(const Arguments& args)
     return Open(false, args);
 }
 
+// Helper method, convert a sockaddr* (AF_INET or AF_INET6) to a string, and set it as the property
+// named 'key' in the Address object you pass in.
+void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address){
+  if(key && addr){
+    char dst_addr[INET6_ADDRSTRLEN + 1] = {0};
+    char* src = 0;
+    socklen_t size = 0;
+    if(addr->sa_family == AF_INET){
+      struct sockaddr_in* saddr = (struct sockaddr_in*) addr;
+      src = (char*) &(saddr->sin_addr);
+      size = INET_ADDRSTRLEN;
+    }else{
+      struct sockaddr_in6* saddr6 = (struct sockaddr_in6*) addr;
+      src = (char*) &(saddr6->sin6_addr);
+      size = INET6_ADDRSTRLEN;
+    }
+    const char* address = inet_ntop(addr->sa_family, src, dst_addr, size);
+    Address->Set(String::New(key), String::New(address));
+  }
+}
+
 Handle<Value>
 FindAllDevs(const Arguments& args)
 {
@@ -266,27 +287,17 @@ FindAllDevs(const Arguments& args)
         Local<Array> AddrArray = Array::New();
         int j = 0;
         for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
-            if (cur_addr->addr && cur_addr->addr->sa_family == AF_INET) {
-                Local<Object> Address = Object::New();
-                
-                struct sockaddr_in *sin = (struct sockaddr_in *) cur_addr->addr;
-                Address->Set(String::New("addr"), String::New(inet_ntoa(sin->sin_addr)));
-                
-                if (cur_addr->netmask != NULL) {
-                    sin = (struct sockaddr_in *) cur_addr->netmask;
-                    Address->Set(String::New("netmask"), String::New(inet_ntoa(sin->sin_addr)));
-                }
-                if (cur_addr->broadaddr != NULL) {
-                    sin = (struct sockaddr_in *) cur_addr->broadaddr;
-                    Address->Set(String::New("broadaddr"), String::New(inet_ntoa(sin->sin_addr)));
-                }
-                if (cur_addr->dstaddr != NULL) {
-                    sin = (struct sockaddr_in *) cur_addr->dstaddr;
-                    Address->Set(String::New("dstaddr"), String::New(inet_ntoa(sin->sin_addr)));
-                }
-                AddrArray->Set(Integer::New(j), Address);
+	  if (cur_addr->addr){
+		int af = cur_addr->addr->sa_family;
+		if(af == AF_INET || af == AF_INET6){
+		  Local<Object> Address = Object::New();
+		  SetAddrStringHelper("addr", cur_addr->addr, Address);
+		  SetAddrStringHelper("netmask", cur_addr->netmask, Address);
+		  SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
+		  SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
+		  AddrArray->Set(Integer::New(j), Address);
+		}
             }
-            // TODO - support AF_INET6
         }
         
         Dev->Set(String::New("addresses"), AddrArray);
