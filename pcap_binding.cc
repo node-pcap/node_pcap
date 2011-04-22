@@ -184,13 +184,15 @@ Open(bool live, const Arguments& args)
         return ThrowException(Exception::Error(String::New(errbuf)));
     }
 
-    // TODO - if filter is empty, don't bother with compile or set
-    if (pcap_compile(pcap_handle, &fp, (char *) *filter, 1, net) == -1) {
+    if(filter.length() != 0){
+      if (pcap_compile(pcap_handle, &fp, (char *) *filter, 1, net) == -1) {
         return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
-    }
-
-    if (pcap_setfilter(pcap_handle, &fp) == -1) {
+      }
+      
+      if (pcap_setfilter(pcap_handle, &fp) == -1) {
         return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
+      }
+      pcap_freecode(&fp);
     }
 
     // Work around buffering bug in BPF on OSX 10.6 as of May 19, 2010
