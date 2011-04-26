@@ -156,16 +156,37 @@ var unpack = {
         ].join('.');
     },
 	ipv6_addr: function (raw_packet, offset) {
-		var ret = '';
-		for (var i=offset; i<offset+16; i+=2) {
-			if (i > offset) {
-				ret += ':';
+	    var ret = '';
+	    var octets = [];
+	    for (var i=offset; i<offset+16; i+=2) {
+		octets.push(unpack.uint16(raw_packet,i).toString(16));
+	    }
+	    var curr_start, curr_len = undefined;
+	    var max_start, max_len = undefined;
+	    for(var i = 0; i < 8; i++){
+		if(octets[i] == "0"){
+		    if(curr_start === undefined){
+			curr_len = 1;
+			curr_start = i;
+		    }else{
+			curr_len++;
+			if(!max_start || curr_len > max_len){
+			    max_start = curr_start;
+			    max_len = curr_len;
 			}
-			ret += unpack.uint16(raw_packet, i).toString(16);
+		    }
+		}else{
+			curr_start = undefined;
 		}
-		// TODO: do a better job to compress out largest run of zeros.
-		return ret.replace(/(0:)+/, ':');
-		return ret;
+	    }
+
+	    if(max_start !== undefined){
+		var tosplice = max_start == 0 || (max_start + max_len > 7) ? ":" : "";
+		octets.splice(max_start, max_len,tosplice);
+		if(max_len == 8){octets.push("");}
+		ret = octets.join(":");
+	    }
+	    return ret;
 	}
 };
 exports.unpack = unpack;
