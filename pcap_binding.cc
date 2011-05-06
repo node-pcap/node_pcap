@@ -15,19 +15,32 @@
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
 
+#include <vector>
+
 using namespace v8;
 using namespace node;
 
-// These things need to be moved into a class, so each instance can have its own session.
-// Right now, there can only be one pcap session at a time.
-struct bpf_program fp;
-bpf_u_int32 mask;
-bpf_u_int32 net;
-pcap_t *pcap_handle;
+// this structure represents one pcap capturing session
+// both online and offline
+struct pcap_session_data {
+  bpf_u_int32 mask;
+  bpf_u_int32 net;
+  struct bpf_program fp;
+  pcap_t *pcap_handle;
+  Local<Function> callback;
+  char *buffer_data;
+  size_t buffer_length;
+};
 
-// buffer data and length are global. To support more than one pcap session, we'll need a class container.
-char *buffer_data;
-size_t buffer_length;
+// 1. we do not expect multithreaded calls currently
+// 2. it is NOT expected that library will be used
+//    with tons of open/closed pcap_sessions. This step from one-session
+//    just allows to run a few sessions (like,
+//    open several dumps from one app execution).
+//    That's because sessions vector is never cleaned. In future, we must handle
+//    close of the session and free the allocated memory.
+std::vector<pcap_session_data> sessions;
+
 
 // PacketReady is called from within pcap, still on the stack of Dispatch.  It should be called
 // only one time per Dispatch, but sometimes it gets called 0 times.  PacketReady invokes the
@@ -41,16 +54,18 @@ size_t buffer_length;
 // 5. PacketReady (binding.cc)
 // 6. binding.dispatch callback (pcap.js)
 //
-void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
+
+// instead of passing just callback, we'll pass pointer to the pcap_session_data
+void PacketReady(u_char *data_p, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
     HandleScope scope;
 
-    Local<Function> * callback = (Local<Function>*)callback_p;
+    pcap_session_data * data = (pcap_session_data*)data_p;
 
     size_t copy_len = pkthdr->caplen;
-    if (copy_len > buffer_length) {
-        copy_len = buffer_length;
+    if (copy_len > data->buffer_length) {
+        copy_len = data->buffer_length;
     }
-    memcpy(buffer_data, packet, copy_len);
+    memcpy(data->buffer_data, packet, copy_len);
 
     TryCatch try_catch;
 
@@ -63,7 +78,7 @@ void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_c
 
     Local<Value> argv[1] = packet_header;
 
-    (*callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+    (data->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
 
     if (try_catch.HasCaught())  {
         FatalException(try_catch);
@@ -75,8 +90,8 @@ Dispatch(const Arguments& args)
 {
     HandleScope scope;
 
-    if (args.Length() != 2) {
-        return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly two arguments")));
+    if (args.Length() != 3) {
+        return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly three arguments")));
     }
 
     if (!Buffer::HasInstance(args[0])) {
@@ -87,23 +102,30 @@ Dispatch(const Arguments& args)
         return ThrowException(Exception::TypeError(String::New("Second argument must be a function")));
     }
 
+    // this will be session id
+
+    if (!args[2]->IsInt32()) {
+        return ThrowException(Exception::TypeError(String::New("Third argument must be an unsingned int")));
+    }
+
+    int32_t session_id = args[2]->Int32Value();
+
+    pcap_session_data* data = &sessions[session_id];
+
 #if NODE_VERSION_AT_LEAST(0,3,0)
     Local<Object> buffer_obj = args[0]->ToObject();
-    buffer_data = Buffer::Data(buffer_obj);
-    buffer_length = Buffer::Length(buffer_obj);
+    data->buffer_data = Buffer::Data(buffer_obj);
+    data->buffer_length = Buffer::Length(buffer_obj);
 #else
     Buffer *buffer_obj = ObjectWrap::Unwrap<Buffer>(args[0]->ToObject());
-    buffer_data = buffer_obj->data();
-    buffer_length = buffer_obj->length();
+    data->buffer_data = buffer_obj->data();
+    data->buffer_length = buffer_obj->length();
 #endif
 
-    Local<Function> callback = Local<Function>::Cast(args[1]);
+    data->callback = Local<Function>::Cast(args[1]);
 
-    int packet_count, total_packets = 0;
-    do {
-        packet_count = pcap_dispatch(pcap_handle, 1, PacketReady, (u_char *)&callback);
-        total_packets += packet_count;
-    } while (packet_count > 0);
+    int total_packets = 0;
+    total_packets = pcap_dispatch(data->pcap_handle, 1, PacketReady, (u_char *)data);
 
     return scope.Close(Integer::NewFromUnsigned(total_packets));
 }
@@ -114,7 +136,7 @@ Open(bool live, const Arguments& args)
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (args.Length() == 3) { 
+    if (args.Length() == 3) {
         if (!args[0]->IsString()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[0] must be a String")));
         }
@@ -131,35 +153,37 @@ Open(bool live, const Arguments& args)
     String::Utf8Value filter(args[1]->ToString());
     int buffer_size = args[2]->Int32Value();
 
+    pcap_session_data data;
+
     if (live) {
-        if (pcap_lookupnet((char *) *device, &net, &mask, errbuf) == -1) {
-            net = 0;
-            mask = 0;
+        if (pcap_lookupnet((char *) *device, &data.net, &data.mask, errbuf) == -1) {
+            data.net = 0;
+            data.mask = 0;
             fprintf(stderr, "warning: %s - this may not actually work\n", errbuf);
         }
 
-        pcap_handle = pcap_create((char *) *device, errbuf);
-        if (pcap_handle == NULL) {
+        data.pcap_handle = pcap_create((char *) *device, errbuf);
+        if (data.pcap_handle == NULL) {
             return ThrowException(Exception::Error(String::New(errbuf)));
         }
 
         // 64KB is the max IPv4 packet size
-        if (pcap_set_snaplen(pcap_handle, 65535) != 0) {
+        if (pcap_set_snaplen(data.pcap_handle, 65535) != 0) {
             return ThrowException(Exception::Error(String::New("error setting snaplen")));
         }
 
         // always use promiscuous mode
-        if (pcap_set_promisc(pcap_handle, 1) != 0) {
+        if (pcap_set_promisc(data.pcap_handle, 1) != 0) {
             return ThrowException(Exception::Error(String::New("error setting promiscuous mode")));
         }
 
         // Try to set buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
-        if (pcap_set_buffer_size(pcap_handle, buffer_size) != 0) {
+        if (pcap_set_buffer_size(data.pcap_handle, buffer_size) != 0) {
             return ThrowException(Exception::Error(String::New("error setting buffer size")));
         }
 
         // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
-        if (pcap_set_timeout(pcap_handle, 1000) != 0) {
+        if (pcap_set_timeout(data.pcap_handle, 1000) != 0) {
             return ThrowException(Exception::Error(String::New("error setting read timeout")));
         }
 
@@ -169,28 +193,28 @@ Open(bool live, const Arguments& args)
         //     return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
         // }
 
-        if (pcap_activate(pcap_handle) != 0) {
-            return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
+        if (pcap_activate(data.pcap_handle) != 0) {
+            return ThrowException(Exception::Error(String::New(pcap_geterr(data.pcap_handle))));
         }
     } else {
         // Device is the path to the savefile
-        pcap_handle = pcap_open_offline((char *) *device, errbuf);
-        if (pcap_handle == NULL) {
+        data.pcap_handle = pcap_open_offline((char *) *device, errbuf);
+        if (data.pcap_handle == NULL) {
             return ThrowException(Exception::Error(String::New(errbuf)));
         }
     }
 
-    if (pcap_setnonblock(pcap_handle, 1, errbuf) == -1) {
+    if (pcap_setnonblock(data.pcap_handle, 1, errbuf) == -1) {
         return ThrowException(Exception::Error(String::New(errbuf)));
     }
 
     // TODO - if filter is empty, don't bother with compile or set
-    if (pcap_compile(pcap_handle, &fp, (char *) *filter, 1, net) == -1) {
-        return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
+    if (pcap_compile(data.pcap_handle, &data.fp, (char *) *filter, 1, data.net) == -1) {
+        return ThrowException(Exception::Error(String::New(pcap_geterr(data.pcap_handle))));
     }
 
-    if (pcap_setfilter(pcap_handle, &fp) == -1) {
-        return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
+    if (pcap_setfilter(data.pcap_handle, &data.fp) == -1) {
+        return ThrowException(Exception::Error(String::New(pcap_geterr(data.pcap_handle))));
     }
 
     // Work around buffering bug in BPF on OSX 10.6 as of May 19, 2010
@@ -198,13 +222,36 @@ Open(bool live, const Arguments& args)
     // http://seclists.org/tcpdump/2010/q1/110
 #if defined(__APPLE_CC__) || defined(__APPLE__)
     #include <net/bpf.h>
-    int fd = pcap_get_selectable_fd(pcap_handle);
+    int fd = pcap_get_selectable_fd(data.pcap_handle);
     int v = 1;
     ioctl(fd, BIOCIMMEDIATE, &v);
     // TODO - check return value
 #endif
 
-    int link_type = pcap_datalink(pcap_handle);
+    // Return new id of session
+    Local<Value> ret = Int32::New(sessions.size());
+
+    sessions.push_back(data);
+
+    return scope.Close(ret);
+}
+
+Handle<Value>
+LinkType(const Arguments& args)
+{
+    HandleScope scope;
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    if (args.Length() == 1) {
+        if (!args[0]->IsInt32()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Close: args[0] must be a Number")));
+        }
+    } else {
+        return ThrowException(Exception::TypeError(String::New("pcap Close: expecting 1 argument")));
+    }
+    int session_id = args[0]->Int32Value();
+
+    int link_type = pcap_datalink(sessions[session_id].pcap_handle);
 
     Local<Value> ret;
     switch (link_type) {
@@ -225,6 +272,7 @@ Open(bool live, const Arguments& args)
         ret = String::New(errbuf);
         break;
     }
+
     return scope.Close(ret);
 }
 
@@ -246,7 +294,7 @@ FindAllDevs(const Arguments& args)
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t *alldevs, *cur_dev;
-    
+
     if (pcap_findalldevs(&alldevs, errbuf) == -1 || alldevs == NULL) {
         return ThrowException(Exception::TypeError(String::New(errbuf)));
     }
@@ -266,10 +314,10 @@ FindAllDevs(const Arguments& args)
         for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
             if (cur_addr->addr && cur_addr->addr->sa_family == AF_INET) {
                 Local<Object> Address = Object::New();
-                
+
                 struct sockaddr_in *sin = (struct sockaddr_in *) cur_addr->addr;
                 Address->Set(String::New("addr"), String::New(inet_ntoa(sin->sin_addr)));
-                
+
                 if (cur_addr->netmask != NULL) {
                     sin = (struct sockaddr_in *) cur_addr->netmask;
                     Address->Set(String::New("netmask"), String::New(inet_ntoa(sin->sin_addr)));
@@ -286,7 +334,7 @@ FindAllDevs(const Arguments& args)
             }
             // TODO - support AF_INET6
         }
-        
+
         Dev->Set(String::New("addresses"), AddrArray);
 
         if (cur_dev->flags & PCAP_IF_LOOPBACK) {
@@ -303,9 +351,17 @@ FindAllDevs(const Arguments& args)
 Handle<Value>
 Close(const Arguments& args)
 {
+    if (args.Length() == 1) {
+        if (!args[0]->IsInt32()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Close: args[0] must be a Number")));
+        }
+    } else {
+        return ThrowException(Exception::TypeError(String::New("pcap Close: expecting 1 argument")));
+    }
+    int session_id = args[0]->Int32Value();
     HandleScope scope;
 
-    pcap_close(pcap_handle);
+    pcap_close(sessions[session_id].pcap_handle);
 
     return Undefined();
 }
@@ -313,9 +369,17 @@ Close(const Arguments& args)
 Handle<Value>
 Fileno(const Arguments& args)
 {
+    if (args.Length() == 1) {
+        if (!args[0]->IsInt32()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Fileno: args[0] must be a Number")));
+        }
+    } else {
+        return ThrowException(Exception::TypeError(String::New("pcap Fileno: expecting 1 argument")));
+    }
+    int session_id = args[0]->Int32Value();
     HandleScope scope;
 
-    int fd = pcap_get_selectable_fd(pcap_handle);
+    int fd = pcap_get_selectable_fd(sessions[session_id].pcap_handle);
 
     return scope.Close(Integer::NewFromUnsigned(fd));
 }
@@ -323,11 +387,20 @@ Fileno(const Arguments& args)
 Handle<Value>
 Stats(const Arguments& args)
 {
+    if (args.Length() == 1) {
+        if (!args[0]->IsInt32()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Stats: args[0] must be a Number")));
+        }
+    } else {
+        return ThrowException(Exception::TypeError(String::New("pcap Stats: expecting 1 argument")));
+    }
+    int session_id = args[0]->Int32Value();
+
     HandleScope scope;
 
     struct pcap_stat ps;
 
-    if (pcap_stats(pcap_handle, &ps) == -1) {
+    if (pcap_stats(sessions[session_id].pcap_handle, &ps) == -1) {
         return ThrowException(Exception::Error(String::New("Error in pcap_stats")));
         // TODO - use pcap_geterr to figure out what the error was
     }
@@ -338,7 +411,7 @@ Stats(const Arguments& args)
     stats_obj->Set(String::New("ps_drop"), Integer::NewFromUnsigned(ps.ps_drop));
     stats_obj->Set(String::New("ps_ifdrop"), Integer::NewFromUnsigned(ps.ps_ifdrop));
     // ps_ifdrop may not be supported on this platform, but there's no good way to tell, is there?
-    
+
     return scope.Close(stats_obj);
 }
 
@@ -347,7 +420,7 @@ DefaultDevice(const Arguments& args)
 {
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
-    
+
     // Look up the first device with an address, pcap_lookupdev() just returns the first non-loopback device.
     Local<Value> ret;
     pcap_if_t *alldevs, *dev;
@@ -401,4 +474,5 @@ extern "C" void init (Handle<Object> target)
     target->Set(String::New("stats"), FunctionTemplate::New(Stats)->GetFunction());
     target->Set(String::New("default_device"), FunctionTemplate::New(DefaultDevice)->GetFunction());
     target->Set(String::New("lib_version"), FunctionTemplate::New(LibVersion)->GetFunction());
+    target->Set(String::New("link_type"), FunctionTemplate::New(LinkType)->GetFunction());
 }

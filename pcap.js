@@ -19,6 +19,9 @@ if (process.versions && process.versions.node && process.versions.node.split('.'
 function Pcap() {
     this.opened = false;
     this.fd = null;
+    this.bytesRead = 0;
+    this.pcapHeaderLength = 24;
+    this.pcapPacketHeaderLength = 16;
 
     events.EventEmitter.call(this);
 }
@@ -41,13 +44,16 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
     if (live) {
         this.device_name = device || binding.default_device();
-        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size);
+        this.session_id = binding.open_live(this.device_name, filter || "", this.buffer_size);
     } else {
+        this.bytesRead = this.pcapHeaderLength;
         this.device_name = device;
-        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size);
+        this.session_id = binding.open_offline(this.device_name, filter || "", this.buffer_size);
     }
 
-    this.fd = binding.fileno();
+    this.link_type = binding.link_type(this.session_id);
+
+    this.fd = binding.fileno(this.session_id);
     this.opened = true;
     this.readWatcher = new IOWatcher();
     this.empty_reads = 0;
@@ -55,6 +61,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
     // called for each packet read by pcap
     function packet_ready(header) {
+        me.bytesRead += header.caplen + me.pcapPacketHeaderLength;
         header.link_type = me.link_type;
         header.time_ms = (header.tv_sec * 1000) + (header.tv_usec / 1000);
         me.buf.pcap_header = header;
@@ -63,19 +70,28 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
     // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
     this.readWatcher.callback = function pcap_read_callback() {
-        var packets_read = binding.dispatch(me.buf, packet_ready);
+        var packets_read = binding.dispatch(me.buf, packet_ready, me.session_id);
         if (packets_read < 1) {
             // TODO - figure out what is causing this, and if it is bad.
             me.empty_reads += 1;
+            if (!live) {
+              me.readWatcher.set(me.fd, false, false);
+              me.emit('eof');
+            }
         }
     };
-    this.readWatcher.set(this.fd, true, false);
+    if (live) {
+      this.readWatcher.set(this.fd, true, false);
+    } else {
+      // in opposite case the will be no callback on eof
+      this.readWatcher.set(this.fd, true, true);
+    }
     this.readWatcher.start();
 };
 
 Pcap.prototype.close = function () {
     this.opened = false;
-    binding.close();
+    binding.close(this.session_id);
     // TODO - remove listeners so program will exit I guess?
 };
 
@@ -99,7 +115,7 @@ exports.createOfflineSession = function (path, filter) {
 
 //
 // Decoding functions
-// 
+//
 function lpad(str, len) {
     while (str.length < len) {
         str = "0" + str;
@@ -129,9 +145,9 @@ var unpack = {
     },
     uint32: function (raw_packet, offset) {
         return (
-            (raw_packet[offset] * 16777216) + 
+            (raw_packet[offset] * 16777216) +
             (raw_packet[offset + 1] * 65536) +
-            (raw_packet[offset + 2] * 256) + 
+            (raw_packet[offset + 2] * 256) +
             raw_packet[offset + 3]
         );
     },
@@ -188,7 +204,7 @@ decode.packet = function (raw_packet) {
     default:
         console.log("pcap.js: decode.packet() - Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
     }
-    
+
     packet.pcap_header = raw_packet.pcap_header; // TODO - merge values here instead of putting ref on packet buffer
 
     return packet;
@@ -196,7 +212,7 @@ decode.packet = function (raw_packet) {
 
 decode.rawtype = function (raw_packet, offset) {
     var ret = {};
-    
+
     ret.ip = decode.ip(raw_packet, 0);
 
     return ret;
@@ -204,8 +220,8 @@ decode.rawtype = function (raw_packet, offset) {
 
 decode.nulltype = function (raw_packet, offset) {
     var ret = {};
-    
-    // an oddity about nulltype is that it starts with a 4 byte header, but I can't find a 
+
+    // an oddity about nulltype is that it starts with a 4 byte header, but I can't find a
     // way to tell which byte order is used.  The good news is that all address family
     // values are 8 bits or less.
 
@@ -214,7 +230,7 @@ decode.nulltype = function (raw_packet, offset) {
     } else {                                          // and this is the other one
         ret.pftype = raw_packet[0];
     }
-    
+
     if (ret.pftype === 2) {         // AF_INET, at least on my Linux and OSX machines right now
         ret.ip = decode.ip(raw_packet, 4);
     } else if (ret.pftype === 30) { // AF_INET6, often
@@ -228,7 +244,7 @@ decode.nulltype = function (raw_packet, offset) {
 
 decode.ethernet = function (raw_packet, offset) {
     var ret = {};
-    
+
     ret.dhost = unpack.ethernet_addr(raw_packet, 0);
     ret.shost = unpack.ethernet_addr(raw_packet, 6);
     ret.ethertype = unpack.uint16(raw_packet, 12);
@@ -313,7 +329,7 @@ decode.arp = function (raw_packet, offset) {
 
 decode.ip = function (raw_packet, offset) {
     var ret = {};
-    
+
     // http://en.wikipedia.org/wiki/IPv4
     ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
     ret.header_length = raw_packet[offset] & 15; // second 4 bits
@@ -384,11 +400,11 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
 
 decode.ip6 = function (raw_packet, offset) {
     var ret = {};
-    
+
     // http://en.wikipedia.org/wiki/IPv6
     ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
 	ret.traffic_class = ((raw_packet[offset] & 15) << 4) + ((raw_packet[offset+1] & 240) >> 4);
-	ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) + 
+	ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) +
         (raw_packet[offset + 2] << 8) +
         raw_packet[offset + 3];
 	ret.payload_length = unpack.uint16(raw_packet, offset+4);
@@ -578,7 +594,7 @@ decode.udp = function (raw_packet, offset) {
     if (ret.sport === 53 || ret.dport === 53) {
         ret.dns = decode.dns(raw_packet, offset + 8);
     }
-    
+
     return ret;
 };
 
@@ -841,7 +857,7 @@ var dns_cache = (function () {
             return ip;
         }
     }
-    
+
     return {
         ptr: function (ip, callback) {
             return lookup_ptr(ip, callback);
@@ -854,7 +870,7 @@ var print = {}; // simple printers for common types
 
 print.dns = function (packet) {
     var ret = " DNS", dns = packet.link.ip.udp.dns;
-    
+
     if (dns.header.qr === 0) {
         ret += " question";
     } else if (dns.header.qr === 1) {
@@ -864,7 +880,7 @@ print.dns = function (packet) {
     }
 
     ret += " " + dns.question[0].qname + " " + dns.question[0].qtype;
-    
+
     return ret;
 };
 
@@ -874,8 +890,8 @@ print.ip = function (packet) {
 
     switch (ip.protocol_name) {
     case "TCP":
-        ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport + 
-            " TCP len " + ip.total_length + " [" + 
+        ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport +
+            " TCP len " + ip.total_length + " [" +
             Object.keys(ip.tcp.flags).filter(function (v) {
                 if (ip.tcp.flags[v] === 1) {
                     return true;
@@ -891,11 +907,11 @@ print.ip = function (packet) {
         }
         break;
     case "ICMP":
-        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " + 
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " +
             ip.icmp.sequence;
         break;
     case "IGMP":
-        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " IGMP " + ip.igmp.type_desc + " " + 
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " IGMP " + ip.igmp.type_desc + " " +
             ip.igmp.group_address;
         break;
     default:
@@ -1062,7 +1078,7 @@ TCP_tracker.prototype.make_session_key = function (src, dst) {
 
 TCP_tracker.prototype.detect_http_request = function (buf) {
     var str = buf.toString('utf8', 0, buf.length);
-    
+
     return (/^(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|COPY|LOCK|MKCOL|MOVE|PROPFIND|PROPPATCH|UNLOCK) [^\s\r\n]+ HTTP\/\d\.\d\r\n/.test(str));
 };
 
@@ -1097,7 +1113,7 @@ TCP_tracker.prototype.session_stats = function (session) {
     Object.keys(session.recv_retrans).forEach(function (v) {
         stats.recv_retrans[v] = session.recv_retrans[v];
     });
-    
+
     stats.total_time = total_time;
     stats.send_overhead = session.send_bytes_ip + session.send_bytes_tcp;
     stats.send_payload = session.send_bytes_payload;
@@ -1106,7 +1122,10 @@ TCP_tracker.prototype.session_stats = function (session) {
     stats.recv_payload = session.recv_bytes_payload;
     stats.recv_total = stats.recv_overhead + stats.recv_payload;
 
-    if (session.http.request) {
+    // theoretically, if we have incomplete HTTP request it will be recognized
+    // as 'http' and 'http' key will be created.
+    // However, complete request will not be parsed.
+    if (session.http && session.http.request) {
         stats.http_request = session.http.request;
     }
 
@@ -1237,7 +1256,7 @@ TCP_tracker.prototype.setup_http_tracking = function (session) {
             http.response.body_len += len;
             self.emit('http response body', session, http, buf.slice(start, start + len));
         };
-        
+
         http.response_parser.onMessageComplete = function () {
             self.emit('http response complete', session, http);
         };
@@ -1274,12 +1293,7 @@ TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
         session.recv_isn = tcp.seqno;
         session.recv_window_scale = tcp.options.window_scale || 1; // multiplier, not bit shift value
         session.state = "SYN_RCVD";
-    } else if (tcp.flags.rst) {
-        session.state = "CLOSED";
-        delete this.sessions[session.key];
-        this.emit('reset', session, "recv"); // TODO - check which direction did the reset, probably recv
-    } else {
-//        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + util.inspect(tcp, false, 4));
+    } else { //        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + util.inspect(tcp, false, 4));
     }
 };
 
@@ -1304,6 +1318,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
     var ip  = packet.link.ip,
         tcp = ip.tcp,
         src = ip.saddr + ":" + tcp.sport;
+    
+    tcp.timestamp = packet.pcap_header.time_ms;
 
 // TODO - actually implement SACK decoding and tracking
 // if (tcp.options.sack) {
@@ -1336,6 +1352,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                 } else if (session.websocket_detect) {
                     session.websocket_parser_send.execute(tcp.data);
                     // TODO - check for WS parser errors
+                } else {
+                  this.emit('tcp request', session, tcp);
                 }
             }
             session.send_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
@@ -1374,6 +1392,8 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                 } else if (session.websocket_detect) {
                     session.websocket_parser_recv.execute(tcp.data);
                     // TODO - check for WS parser errors
+                } else {
+                  this.emit('tcp response', session, tcp);
                 }
             }
             session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
@@ -1457,8 +1477,19 @@ TCP_tracker.prototype.track_states.CLOSED = function (packet, session) {
 TCP_tracker.prototype.track_next = function (key, packet) {
     var session = this.sessions[key];
 
+    var ip  = packet.link.ip,
+        tcp = ip.tcp;
+
     if (typeof session !== 'object') {
         throw new Error("track_next: couldn't find session for " + key);
+    }
+
+    /* Reset can arrive at any time */
+    if (tcp.flags.rst) {
+        session.close_time = packet.pcap_header.time_ms;
+        session.state = "CLOSED";
+        delete this.sessions[session.key];
+        this.emit('reset', session, "recv"); // TODO - check which direction did the reset, probably recv
     }
 
     if (typeof this.track_states[session.state] === 'function') {
