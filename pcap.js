@@ -5,6 +5,7 @@ var util, IOWatcher,
     Buffer     = require('buffer').Buffer,
     events     = require('events'),
     binding    = require('./build/default/pcap_binding'),
+    Pcap       = binding.Pcap,
     HTTPParser = process.binding('http_parser').HTTPParser,
     url        = require('url');
 
@@ -16,19 +17,7 @@ if (process.versions && process.versions.node && process.versions.node.split('.'
     IOWatcher = process.IOWatcher;
 }
 
-function Pcap() {
-    this.opened = false;
-    this.fd = null;
-
-    events.EventEmitter.call(this);
-}
-util.inherits(Pcap, events.EventEmitter);
-
 exports.lib_version = binding.lib_version();
-
-Pcap.prototype.findalldevs = function () {
-    return binding.findalldevs();
-};
 
 Pcap.prototype.open = function (live, device, filter, buffer_size) {
     var me = this;
@@ -40,14 +29,16 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
     }
 
     if (live) {
-        this.device_name = device || binding.default_device();
-        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size);
+        this.device_name = device || this.default_device();
+        this.open_live(this.device_name, filter || "", this.buffer_size);
     } else {
         this.device_name = device;
-        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size);
+        this.open_offline(this.device_name, filter || "", this.buffer_size);
     }
 
-    this.fd = binding.fileno();
+    this.link_type = this.link_type();
+
+    this.fd = this.fileno();
     this.opened = true;
     this.readWatcher = new IOWatcher();
     this.empty_reads = 0;
@@ -63,7 +54,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
     // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
     this.readWatcher.callback = function pcap_read_callback() {
-        var packets_read = binding.dispatch(me.buf, packet_ready);
+        var packets_read = me.dispatch(me.buf, packet_ready);
         if (packets_read < 1) {
             // TODO - figure out what is causing this, and if it is bad.
             me.empty_reads += 1;
@@ -71,16 +62,6 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
     };
     this.readWatcher.set(this.fd, true, false);
     this.readWatcher.start();
-};
-
-Pcap.prototype.close = function () {
-    this.opened = false;
-    binding.close();
-    // TODO - remove listeners so program will exit I guess?
-};
-
-Pcap.prototype.stats = function () {
-    return binding.stats();
 };
 
 exports.Pcap = Pcap;
