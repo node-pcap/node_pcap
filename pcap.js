@@ -559,7 +559,17 @@ decode.udp = function (raw_packet, offset) {
     if (ret.sport === 53 || ret.dport === 53) {
         ret.dns = decode.dns(raw_packet, offset + 8);
     }
-    
+
+    ret.data_offset = offset + 8;
+    ret.data_end = offset + 8 + ret.length;
+    ret.data_bytes = ret.data_end - ret.data_offset;
+    if (ret.data_bytes > 0) {
+        // add a buffer slice pointing to the data area of this UDP packet.
+        // Note that this does not make a copy
+        ret.data = raw_packet.slice(ret.data_offset, ret.data_end);
+        ret.data.length = ret.data_bytes;
+    }
+
     return ret;
 };
 
