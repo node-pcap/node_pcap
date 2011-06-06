@@ -132,6 +132,9 @@ Dispatch(const Arguments& args)
     int packet_count, total_packets = 0;
     do {
         packet_count = pcap_dispatch(pcap->pcap_handle, 1, PacketReady, (u_char *)pcap);
+        if (packet_count < 0) {
+            return ThrowException(Exception::Error(String::New(pcap_geterr(pcap->pcap_handle))));
+        }
         total_packets += packet_count;
     } while (packet_count > 0 && pcap->opened);
 
