@@ -58,6 +58,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
         if (packets_read < 1) {
             // TODO - figure out what is causing this, and if it is bad.
             me.empty_reads += 1;
+            me.emit('empty_read', me.buf);
         }
     };
     this.readWatcher.set(this.fd, true, false);
