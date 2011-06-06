@@ -64,6 +64,12 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
     this.readWatcher.start();
 };
 
+Pcap.prototype.close = function () {
+    this._close();
+    this.readWatcher.stop();
+    // TODO - remove listeners so program will exit I guess?
+};
+
 exports.Pcap = Pcap;
 
 exports.createSession = function (device, filter, buffer_size) {

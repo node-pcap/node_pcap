@@ -344,7 +344,6 @@ Pcap::Close(const Arguments& args)
 
     pcap_close(pcap->pcap_handle);
     pcap->opened = false;
-    // TODO - remove listeners so program will exit I guess?
 
     return Undefined();
 }
@@ -472,7 +471,7 @@ void Pcap::Initialize(Handle<Object> target) {
     NODE_SET_PROTOTYPE_METHOD(t, "dispatch", Dispatch);
     NODE_SET_PROTOTYPE_METHOD(t, "fileno", FileNo);
     NODE_SET_PROTOTYPE_METHOD(t, "link_type", LinkType);
-    NODE_SET_PROTOTYPE_METHOD(t, "close", Close);
+    NODE_SET_PROTOTYPE_METHOD(t, "_close", Close);
     NODE_SET_PROTOTYPE_METHOD(t, "stats", Stats);
     NODE_SET_PROTOTYPE_METHOD(t, "default_device", DefaultDevice);
 
