@@ -181,11 +181,11 @@ var unpack = {
 	    }
 
 	    if(max_start !== undefined){
-		var tosplice = max_start == 0 || (max_start + max_len > 7) ? ":" : "";
-		octets.splice(max_start, max_len,tosplice);
-		if(max_len == 8){octets.push("");}
-		ret = octets.join(":");
+			var tosplice = max_start == 0 || (max_start + max_len > 7) ? ":" : "";
+			octets.splice(max_start, max_len,tosplice);
+			if(max_len == 8){octets.push("");}
 	    }
+		ret = octets.join(":");
 	    return ret;
 	}
 };
