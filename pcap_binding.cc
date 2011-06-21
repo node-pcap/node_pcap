@@ -299,7 +299,7 @@ Pcap::FindAllDevs(const Arguments& args)
         }
         Local<Array> AddrArray = Array::New();
         int j = 0;
-        for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
+        for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next) {
             if (cur_addr->addr && cur_addr->addr->sa_family == AF_INET) {
                 Local<Object> Address = Object::New();
                 
@@ -319,6 +319,7 @@ Pcap::FindAllDevs(const Arguments& args)
                     Address->Set(String::New("dstaddr"), String::New(inet_ntoa(sin->sin_addr)));
                 }
                 AddrArray->Set(Integer::New(j), Address);
+                j++;
             }
             // TODO - support AF_INET6
         }
