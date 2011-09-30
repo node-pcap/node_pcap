@@ -68,7 +68,7 @@ To start a capture session, call `pcap.createSession` with an interface name and
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
 will try to pick a "default" interface, which is often just the first one in some list and not what you want.
 
-`fitler` is a pcap filter expression, see `pcap-filter(7)` for more information.  An empty string will capture
+`filter` is a pcap filter expression, see `pcap-filter(7)` for more information.  An empty string will capture
 all packets visible on the interface.
 
 Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
