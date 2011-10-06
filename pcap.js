@@ -79,6 +79,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
 
 Pcap.prototype.close = function () {
     this.opened = false;
+    this.readWatcher.stop();
     binding.close();
     // TODO - remove listeners so program will exit I guess?
 };
