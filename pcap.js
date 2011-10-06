@@ -70,6 +70,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
             }
 
             // TODO - figure out what is causing this, and if it is bad.
+            me.emit('eof');
             me.empty_reads += 1;
         }
     };
