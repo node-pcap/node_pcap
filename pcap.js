@@ -4,9 +4,19 @@ var util, IOWatcher,
     dns        = require('dns'),
     Buffer     = require('buffer').Buffer,
     events     = require('events'),
-    binding    = require('./build/default/pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
     url        = require('url');
+
+/*
+ * Try catch here around multiple build paths to support  
+ * `node@0.4.x` and >= `node@0.5.x`.  
+ */
+try { 
+    binding = require('./build/default/pcap_binding');
+}
+catch (ex) { 
+    binding = require('./build/Release/pcap_binding');
+}
 
 if (process.versions && process.versions.node && process.versions.node.split('.')[1] >= 3) {
     util = require("util");
