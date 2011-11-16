@@ -1,5 +1,4 @@
 #include <node.h>
-#include <node_events.h>
 #include <node_buffer.h>
 #include <node_version.h>
 #include <assert.h>
@@ -9,7 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ev.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
