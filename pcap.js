@@ -815,7 +815,7 @@ var dns_util = {
         
         var data = dns_util.expandRRData(raw_packet, internal_offset, result);
         if(data) {
-            result.rddata = data;
+            result.data = data;
         }
         
         // skip rdata. TODO: store the rdata somewhere?
