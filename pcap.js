@@ -1114,136 +1114,90 @@ TCP_tracker.prototype.session_stats = function (session) {
 };
 
 TCP_tracker.prototype.setup_http_tracking = function (session) {
-    var self = this, http = {};
+  var self = this, http = {
+    request : {
+      headers : {},
+      url : "",
+      method : "",
+      body_len : 0,
+      http_version : null
+    },
+    response : {
+      headers : {},
+      status_code : null,
+      body_len : 0,
+      http_version : null
+    },
+    request_parser : new HTTPParser(HTTPParser.REQUEST),
+    response_parser : new HTTPParser(HTTPParser.RESPONSE)
+  };
 
-    http.request_parser = new HTTPParser('request');
-    http.request_parser.onMessageBegin = function () {
-        http.request = {
-            headers: {},
-            url: "",
-            method: "",
-            body_len: 0,
-            http_version: null
-        };
+  http.request_parser.url = '';
+  http.request_parser.onHeaders = function(headers, url) {
+    http.request_parser.headers = (http.request_parser.headers || []).concat(headers);
+    http.request_parser.url += url;
+  };
 
-        http.request_parser.onURL = function (buf, start, len) {
-            var url_string = buf.toString('ascii', start, start + len);
-            if (http.request.url) {
-                http.request.url += url_string;
-            } else {
-                http.request.url = url_string;
-            }
-        };
+  http.request_parser.onHeadersComplete = function(info) {
+    http.request.method = info.method;
+    http.request.url = info.url || http.request_parser.url;
+    http.request.http_version = info.versionMajor + "." + info.versionMinor;
 
-        http.request_parser.onHeaderField = function (buf, start, len) {
-            var field = buf.toString('ascii', start, start + len);
-            if (http.request_parser.header_value) {
-                http.request.headers[http.request_parser.header_field] = http.request_parser.header_value;
-                http.request_parser.header_field = null;
-                http.request_parser.header_value = null;
-            }
-            if (http.request_parser.header_field) {
-                http.request_parser.header_field += field;
-            } else {
-                http.request_parser.header_field = field;
-            }
-        };
+    var headers = info.headers || http.request_parser.headers;
+    for ( var i = 0; i < headers.length; i += 2) {
+      http.request.headers[headers[i]] = headers[i + 1];
+    }
 
-        http.request_parser.onHeaderValue = function (buf, start, len) {
-            var value = buf.toString('ascii', start, start + len);
-            if (http.request_parser.header_value) {
-                http.request_parser.header_value += value;
-            } else {
-                http.request_parser.header_value = value;
-            }
-        };
+    self.emit("http request", session, http);
+  };
 
-        http.request_parser.onHeadersComplete = function (info) {
-            if (http.request_parser.header_field && http.request_parser.header_value) {
-                http.request.headers[http.request_parser.header_field] = http.request_parser.header_value;
-            }
+  http.request_parser.onBody = function(buf, start, len) {
+    http.request.body_len += len;
+    self.emit("http request body", session, http, buf.slice(start, start + len));
+  };
 
-            http.request.http_version = info.versionMajor + "." + info.versionMinor;
+  http.request_parser.onMessageComplete = function() {
+    self.emit("http request complete", session, http);
+  };
 
-            http.request.method = info.method;
-            self.emit("http request", session, http);
-        };
+  http.response_parser.onHeaders = function(headers, url) {
+    http.response_parser.headers = (http.response_parser.headers || []).concat(headers);
+  };
 
-        http.request_parser.onBody = function (buf, start, len) {
-            http.request.body_len += len;
-            self.emit("http request body", session, http, buf.slice(start, start + len));
-        };
+  http.response_parser.onHeadersComplete = function(info) {
+    http.response.status_code = info.statusCode;
+    http.response.http_version = info.versionMajor + "." + info.versionMinor;
 
-        http.request_parser.onMessageComplete = function () {
-            self.emit("http request complete", session, http);
-        };
-    };
+    var headers = info.headers || http.response_parser.headers;
+    for ( var i = 0; i < headers.length; i += 2) {
+      http.response.headers[headers[i]] = headers[i + 1];
+    }
 
-    http.response_parser = new HTTPParser('response');
-    http.response_parser.onMessageBegin = function () {
-        http.response = {
-            headers: {},
-            status_code: null,
-            body_len: 0,
-            http_version: null
-        };
-        http.response_parser.onHeaderField = function (buf, start, len) {
-            var field = buf.toString('ascii', start, start + len);
-            if (http.response_parser.header_value) {
-                http.response.headers[http.response_parser.header_field] = http.response_parser.header_value;
-                http.response_parser.header_field = null;
-                http.response_parser.header_value = null;
-            }
-            if (http.response_parser.header_field) {
-                http.response_parser.header_field += field;
-            } else {
-                http.response_parser.header_field = field;
-            }
-        };
+    if (http.response.status_code === 101 && http.response.headers.Upgrade === "WebSocket") {
+      if (http.response.headers["Sec-WebSocket-Location"]) {
+        self.setup_websocket_tracking(session, "draft76");
+      } else {
+        self.setup_websocket_tracking(session);
+      }
+      self.emit('websocket upgrade', session, http);
+      session.http_detect = false;
+      session.websocket_detect = true;
+      delete http.response_parser.onMessageComplete;
+    } else {
+      self.emit('http response', session, http);
+    }
+  };
 
-        http.response_parser.onHeaderValue = function (buf, start, len) {
-            var value = buf.toString('ascii', start, start + len);
-            if (http.response_parser.header_value) {
-                http.response_parser.header_value += value;
-            } else {
-                http.response_parser.header_value = value;
-            }
-        };
+  http.response_parser.onBody = function(buf, start, len) {
+    http.response.body_len += len;
+    self.emit('http response body', session, http, buf.slice(start, start + len));
+  };
 
-        http.response_parser.onHeadersComplete = function (info) {
-            if (http.response_parser.header_field && http.response_parser.header_value) {
-                http.response.headers[http.response_parser.header_field] = http.response_parser.header_value;
-            }
+  http.response_parser.onMessageComplete = function() {
+    self.emit('http response complete', session, http);
+  };
 
-            http.response.http_version = info.versionMajor + "." + info.versionMinor;
-            http.response.status_code = info.statusCode;
-
-            if (http.response.status_code === 101 && http.response.headers.Upgrade === "WebSocket") {
-                if (http.response.headers["Sec-WebSocket-Location"]) {
-                    self.setup_websocket_tracking(session, "draft76");
-                } else {
-                    self.setup_websocket_tracking(session);
-                }
-                self.emit('websocket upgrade', session, http);
-                session.http_detect = false;
-                session.websocket_detect = true;
-                delete http.response_parser.onMessageComplete;
-            } else {
-                self.emit('http response', session, http);
-            }
-        };
-
-        http.response_parser.onBody = function (buf, start, len) {
-            http.response.body_len += len;
-            self.emit('http response body', session, http, buf.slice(start, start + len));
-        };
-        
-        http.response_parser.onMessageComplete = function () {
-            self.emit('http response complete', session, http);
-        };
-    };
-
-    session.http = http;
+  session.http = http;
 };
 
 TCP_tracker.prototype.setup_websocket_tracking = function (session, flag) {
