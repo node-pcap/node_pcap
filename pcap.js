@@ -758,6 +758,63 @@ var dns_util = {
         } else {
             return dns_util.class_to_string(qclass_num);
         }
+    },
+    readName: function(raw_packet, offset, internal_offset, result) {
+        var lenOrPtr = raw_packet[offset + internal_offset];
+        internal_offset++;
+        if(lenOrPtr == 0x00) {
+            return result;
+        }
+        
+        if((lenOrPtr & 0xC0) == 0xC0) {
+            var nameOffset = ((lenOrPtr & ~0xC0) << 8) | raw_packet[offset + internal_offset];
+            internal_offset++;
+            return dns_util.readName(raw_packet, offset, nameOffset, result);
+        }
+        
+        for(var i=0; i<lenOrPtr; i++) {
+            var ch = raw_packet[offset + internal_offset];
+            internal_offset++;
+            result += String.fromCharCode(ch);
+        }
+        result += '.';
+        return dns_util.readName(raw_packet, offset, internal_offset, result);
+    },
+    decodeRR: function(raw_packet, offset, internal_offset, result) {
+        var compressedName = raw_packet[internal_offset];
+        if((compressedName & 0xC0) == 0xC0) {
+            result.name = "";
+            result.name = dns_util.readName(raw_packet, offset, internal_offset - offset, result.name);
+            result.name = result.name.replace(/\.$/, '');
+            internal_offset += 2;
+        } else {
+            result.name = "";
+            var ch;
+            while((ch = raw_packet[internal_offset++]) != 0x00) {
+                result.name += String.fromCharCode(ch);
+            }
+        }
+
+        result.rrtype = dns_util.qtype_to_string(unpack.uint16(raw_packet, internal_offset));
+        internal_offset += 2;
+        result.rrclass = dns_util.qclass_to_string(unpack.uint16(raw_packet, internal_offset));
+        internal_offset += 2;
+        result.ttl = unpack.uint32(raw_packet, internal_offset);
+        internal_offset += 4;
+        result.rdlength = unpack.uint16(raw_packet, internal_offset);
+        internal_offset += 2;
+        
+        // skip rdata. TODO: store the rdata somewhere?
+        internal_offset += result.rdlength;
+        
+        return internal_offset;
+    },    
+    decodeRRs: function(raw_packet, offset, internal_offset, count, results) {
+        for (i = 0; i < count; i++) {
+            results[i] = {};
+            internal_offset = dns_util.decodeRR(raw_packet, offset, internal_offset, results[i]);
+        }
+        return internal_offset;
     }
 };
 
@@ -803,10 +860,14 @@ decode.dns = function (raw_packet, offset) {
         internal_offset += 2;
     }
 
-    // TODO - actual hard parts here, understand RR compression scheme, etc.
-    ret.answer = {};
-    ret.authority = {};
-    ret.additional = {};
+    ret.answer = [];
+    internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.ancount, ret.answer);
+
+    ret.authority = [];
+    internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.nscount, ret.authority);
+    
+    ret.additional = [];
+    internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.arcount, ret.additional);
 
     return ret;
 };
