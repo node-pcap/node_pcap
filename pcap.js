@@ -377,8 +377,8 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
         ip.udp = decode.udp(raw_packet, offset);
         break;
     default:
-		// TODO: capture the extensions
-		decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
+        // TODO: capture the extensions
+    		//decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
     }
 };
 
