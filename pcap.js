@@ -4,7 +4,7 @@ var util, IOWatcher,
     dns        = require('dns'),
     Buffer     = require('buffer').Buffer,
     events     = require('events'),
-    binding    = require('./build/default/pcap_binding'),
+    binding    = require('./build/Release/pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
     url        = require('url');
 
