@@ -759,6 +759,15 @@ var dns_util = {
             return dns_util.class_to_string(qclass_num);
         }
     },
+    expandRRData: function(raw_packet, offset, rrRecord) {
+        if(rrRecord.rrtype == 'A' && rrRecord.rrclass == 'IN' && rrRecord.rdlength == 4) {
+            var data = {};
+            data.ipAddress = raw_packet[offset] + '.' + raw_packet[offset+1] + '.' + raw_packet[offset+2] + '.' + raw_packet[offset+3];
+            return data;
+        }
+        
+        return null;
+    },
     readName: function(raw_packet, offset, internal_offset, result) {
         var lenOrPtr = raw_packet[offset + internal_offset];
         internal_offset++;
@@ -803,6 +812,11 @@ var dns_util = {
         internal_offset += 4;
         result.rdlength = unpack.uint16(raw_packet, internal_offset);
         internal_offset += 2;
+        
+        var data = dns_util.expandRRData(raw_packet, internal_offset, result);
+        if(data) {
+            result.rddata = data;
+        }
         
         // skip rdata. TODO: store the rdata somewhere?
         internal_offset += result.rdlength;
