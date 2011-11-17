@@ -30,7 +30,7 @@ Pcap.prototype.findalldevs = function () {
     return binding.findalldevs();
 };
 
-Pcap.prototype.open = function (live, device, filter, buffer_size) {
+Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_filename) {
     var me = this;
 
     if (typeof buffer_size === 'number' && !isNaN(buffer_size)) {
@@ -41,10 +41,10 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
 
     if (live) {
         this.device_name = device || binding.default_device();
-        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size);
+        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
     } else {
         this.device_name = device;
-        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size);
+        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
     }
 
     this.fd = binding.fileno();
