@@ -39,6 +39,8 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
         this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
     }
 
+    this.live = live;
+    
     if (live) {
         this.device_name = device || binding.default_device();
         this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
@@ -65,6 +67,15 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
     this.readWatcher.callback = function pcap_read_callback() {
         var packets_read = binding.dispatch(me.buf, packet_ready);
         if (packets_read < 1) {
+            // according to pcap_dispatch documentation if 0 is returned when reading
+            // from a savefile there will be no more packets left. this check ensures
+            // we stop reading. Under certain circumstances IOWatcher will get caught
+            // in a loop and continue to signal us causing the program to be flooded
+            // with events.
+            if(!me.live) {
+                me.readWatcher.stop();
+            }
+
             // TODO - figure out what is causing this, and if it is bad.
             me.empty_reads += 1;
         }
