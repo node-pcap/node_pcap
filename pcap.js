@@ -1510,13 +1510,15 @@ TCP_tracker.prototype.track_next = function (key, packet) {
 };
 
 TCP_tracker.prototype.track_packet = function (packet) {
-    var ip, tcp, src, dst, key, session, self = this;
+    var ip, tcp, src, src_mac, dst, dst_mac, key, session, self = this;
 
     if (packet.link && packet.link.ip && packet.link.ip.tcp) {
         ip  = packet.link.ip;
         tcp = ip.tcp;
         src = ip.saddr + ":" + tcp.sport;
+        src_mac = packet.link.shost;
         dst = ip.daddr + ":" + tcp.dport;
+        dst_mac = packet.link.dhost;
         key = this.make_session_key(src, dst);
         session = this.sessions[key];
 
@@ -1524,7 +1526,9 @@ TCP_tracker.prototype.track_packet = function (packet) {
             if (session === undefined) {
                 this.sessions[key] = {
                     src: src, // the side the sent the initial SYN
+                    src_mac: src_mac,
                     dst: dst, // the side that the initial SYN was sent to
+                    dst_mac: dst_mac,
                     syn_time: packet.pcap_header.time_ms,
                     state: "SYN_SENT",
                     key: key, // so we can easily remove ourselves
