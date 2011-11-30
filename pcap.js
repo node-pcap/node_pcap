@@ -40,7 +40,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
     }
 
     this.live = live;
-    
+
     if (live) {
         this.device_name = device || binding.default_device();
         this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
@@ -110,7 +110,7 @@ exports.createOfflineSession = function (path, filter) {
 
 //
 // Decoding functions
-// 
+//
 function lpad(str, len) {
     while (str.length < len) {
         str = "0" + str;
@@ -140,9 +140,9 @@ var unpack = {
     },
     uint32: function (raw_packet, offset) {
         return (
-            (raw_packet[offset] * 16777216) + 
+            (raw_packet[offset] * 16777216) +
             (raw_packet[offset + 1] * 65536) +
-            (raw_packet[offset + 2] * 256) + 
+            (raw_packet[offset + 2] * 256) +
             raw_packet[offset + 3]
         );
     },
@@ -199,7 +199,7 @@ decode.packet = function (raw_packet) {
     default:
         console.log("pcap.js: decode.packet() - Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
     }
-    
+
     packet.pcap_header = raw_packet.pcap_header; // TODO - merge values here instead of putting ref on packet buffer
 
     return packet;
@@ -207,7 +207,7 @@ decode.packet = function (raw_packet) {
 
 decode.rawtype = function (raw_packet, offset) {
     var ret = {};
-    
+
     ret.ip = decode.ip(raw_packet, 0);
 
     return ret;
@@ -215,8 +215,8 @@ decode.rawtype = function (raw_packet, offset) {
 
 decode.nulltype = function (raw_packet, offset) {
     var ret = {};
-    
-    // an oddity about nulltype is that it starts with a 4 byte header, but I can't find a 
+
+    // an oddity about nulltype is that it starts with a 4 byte header, but I can't find a
     // way to tell which byte order is used.  The good news is that all address family
     // values are 8 bits or less.
 
@@ -225,7 +225,7 @@ decode.nulltype = function (raw_packet, offset) {
     } else {                                          // and this is the other one
         ret.pftype = raw_packet[0];
     }
-    
+
     if (ret.pftype === 2) {         // AF_INET, at least on my Linux and OSX machines right now
         ret.ip = decode.ip(raw_packet, 4);
     } else if (ret.pftype === 30) { // AF_INET6, often
@@ -239,7 +239,7 @@ decode.nulltype = function (raw_packet, offset) {
 
 decode.ethernet = function (raw_packet, offset) {
     var ret = {};
-    
+
     ret.dhost = unpack.ethernet_addr(raw_packet, 0);
     ret.shost = unpack.ethernet_addr(raw_packet, 6);
     ret.ethertype = unpack.uint16(raw_packet, 12);
@@ -324,7 +324,7 @@ decode.arp = function (raw_packet, offset) {
 
 decode.ip = function (raw_packet, offset) {
     var ret = {};
-    
+
     // http://en.wikipedia.org/wiki/IPv4
     ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
     ret.header_length = raw_packet[offset] & 15; // second 4 bits
@@ -395,11 +395,11 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
 
 decode.ip6 = function (raw_packet, offset) {
     var ret = {};
-    
+
     // http://en.wikipedia.org/wiki/IPv6
     ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
 	ret.traffic_class = ((raw_packet[offset] & 15) << 4) + ((raw_packet[offset+1] & 240) >> 4);
-	ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) + 
+	ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) +
         (raw_packet[offset + 2] << 8) +
         raw_packet[offset + 3];
 	ret.payload_length = unpack.uint16(raw_packet, offset+4);
@@ -589,7 +589,7 @@ decode.udp = function (raw_packet, offset) {
     if (ret.sport === 53 || ret.dport === 53) {
         ret.dns = decode.dns(raw_packet, offset + 8);
     }
-    
+
     return ret;
 };
 
@@ -776,7 +776,7 @@ var dns_util = {
             data.ipAddress = raw_packet[offset] + '.' + raw_packet[offset+1] + '.' + raw_packet[offset+2] + '.' + raw_packet[offset+3];
             return data;
         }
-        
+
         return null;
     },
     readName: function(raw_packet, offset, internal_offset, result) {
@@ -785,13 +785,13 @@ var dns_util = {
         if(lenOrPtr == 0x00) {
             return result;
         }
-        
+
         if((lenOrPtr & 0xC0) == 0xC0) {
             var nameOffset = ((lenOrPtr & ~0xC0) << 8) | raw_packet[offset + internal_offset];
             internal_offset++;
             return dns_util.readName(raw_packet, offset, nameOffset, result);
         }
-        
+
         for(var i=0; i<lenOrPtr; i++) {
             var ch = raw_packet[offset + internal_offset];
             internal_offset++;
@@ -823,17 +823,17 @@ var dns_util = {
         internal_offset += 4;
         result.rdlength = unpack.uint16(raw_packet, internal_offset);
         internal_offset += 2;
-        
+
         var data = dns_util.expandRRData(raw_packet, internal_offset, result);
         if(data) {
             result.data = data;
         }
-        
+
         // skip rdata. TODO: store the rdata somewhere?
         internal_offset += result.rdlength;
-        
+
         return internal_offset;
-    },    
+    },
     decodeRRs: function(raw_packet, offset, internal_offset, count, results) {
         for (i = 0; i < count; i++) {
             results[i] = {};
@@ -890,7 +890,7 @@ decode.dns = function (raw_packet, offset) {
 
     ret.authority = [];
     internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.nscount, ret.authority);
-    
+
     ret.additional = [];
     internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.arcount, ret.additional);
 
@@ -927,7 +927,7 @@ var dns_cache = (function () {
             return ip;
         }
     }
-    
+
     return {
         ptr: function (ip, callback) {
             return lookup_ptr(ip, callback);
@@ -940,7 +940,7 @@ var print = {}; // simple printers for common types
 
 print.dns = function (packet) {
     var ret = " DNS", dns = packet.link.ip.udp.dns;
-    
+
     if (dns.header.qr === 0) {
         ret += " question";
     } else if (dns.header.qr === 1) {
@@ -950,7 +950,7 @@ print.dns = function (packet) {
     }
 
     ret += " " + dns.question[0].qname + " " + dns.question[0].qtype;
-    
+
     return ret;
 };
 
@@ -960,12 +960,13 @@ print.ip = function (packet) {
 
     switch (ip.protocol_name) {
     case "TCP":
-        ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport + 
-            " TCP len " + ip.total_length + " [" + 
+        ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport +
+            " TCP len " + ip.total_length + " [" +
             Object.keys(ip.tcp.flags).filter(function (v) {
                 if (ip.tcp.flags[v] === 1) {
                     return true;
                 }
+                return false;
             }).join(",") + "]";
         break;
     case "UDP":
@@ -977,11 +978,11 @@ print.ip = function (packet) {
         }
         break;
     case "ICMP":
-        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " + 
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " +
             ip.icmp.sequence;
         break;
     case "IGMP":
-        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " IGMP " + ip.igmp.type_desc + " " + 
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " IGMP " + ip.igmp.type_desc + " " +
             ip.igmp.group_address;
         break;
     default:
@@ -1148,7 +1149,7 @@ TCP_tracker.prototype.make_session_key = function (src, dst) {
 
 TCP_tracker.prototype.detect_http_request = function (buf) {
     var str = buf.toString('utf8', 0, buf.length);
-    
+
     return (/^(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|COPY|LOCK|MKCOL|MOVE|PROPFIND|PROPPATCH|UNLOCK) [^\s\r\n]+ HTTP\/\d\.\d\r\n/.test(str));
 };
 
@@ -1183,7 +1184,7 @@ TCP_tracker.prototype.session_stats = function (session) {
     Object.keys(session.recv_retrans).forEach(function (v) {
         stats.recv_retrans[v] = session.recv_retrans[v];
     });
-    
+
     stats.total_time = total_time;
     stats.send_overhead = session.send_bytes_ip + session.send_bytes_tcp;
     stats.send_payload = session.send_bytes_payload;
