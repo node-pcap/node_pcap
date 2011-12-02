@@ -74,6 +74,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
             // with events.
             if(!me.live) {
                 me.readWatcher.stop();
+                me.emit('complete');
             }
 
             // TODO - figure out what is causing this, and if it is bad.
