@@ -1586,4 +1586,6 @@ TCP_tracker.prototype.track_packet = function (packet) {
         // silently ignore any non IPv4 TCP packets
         // user should filter these out with their pcap filter, but oh well.
     }
+
+    return session;
 };
