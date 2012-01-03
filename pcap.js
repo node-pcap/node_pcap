@@ -139,6 +139,9 @@ var unpack = {
     uint16: function (raw_packet, offset) {
         return ((raw_packet[offset] * 256) + raw_packet[offset + 1]);
     },
+    uint16_be: function (raw_packet, offset) {
+        return ((raw_packet[offset+1] * 256) + raw_packet[offset]);
+    },
     uint32: function (raw_packet, offset) {
         return (
             (raw_packet[offset] * 16777216) +
@@ -196,6 +199,9 @@ decode.packet = function (raw_packet) {
         break;
     case "LINKTYPE_RAW":
         packet.link = decode.rawtype(raw_packet, 0);
+        break;
+    case "LINKTYPE_IEEE802_11_RADIO":
+        packet.link = decode.ieee802_11_radio(raw_packet, 0);
         break;
     default:
         console.log("pcap.js: decode.packet() - Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
@@ -283,10 +289,77 @@ decode.ethernet = function (raw_packet, offset) {
     return ret;
 };
 
+decode.ieee802_11_radio = function (raw_packet, offset) {
+    var ret = {};
+    var original_offset = offset;
+
+    ret.headerRevision = raw_packet[offset++];
+    ret.headerPad = raw_packet[offset++];
+    ret.headerLength = unpack.uint16_be(raw_packet, offset); offset += 2;
+
+    offset = original_offset + ret.headerLength;
+
+    ret.ieee802_11Frame = decode.ieee802_11_frame(raw_packet, offset);
+
+    if(ret.ieee802_11Frame && ret.ieee802_11Frame.llc && ret.ieee802_11Frame.llc.ip) {
+        ret.ip = ret.ieee802_11Frame.llc.ip;
+        delete ret.ieee802_11Frame.llc.ip;
+    }
+
+    return ret;
+};
+
+decode.ieee802_11_frame = function (raw_packet, offset) {
+    var ret = {};
+
+    ret.frameControl = unpack.uint16_be(raw_packet, offset); offset += 2;
+    ret.type = (ret.frameControl >> 2) & 0x0003;
+    ret.subType = (ret.frameControl >> 4) & 0x000f;
+    ret.flags = (ret.frameControl >> 8) & 0xff;
+    ret.duration = unpack.uint16_be(raw_packet, offset); offset += 2;
+    ret.bssid = unpack.ethernet_addr(raw_packet, offset); offset += 6;
+    ret.shost = unpack.ethernet_addr(raw_packet, offset); offset += 6;
+    ret.dhost = unpack.ethernet_addr(raw_packet, offset); offset += 6;
+    ret.fragSeq = unpack.uint16_be(raw_packet, offset); offset += 2;
+
+    switch(ret.subType) {
+        case 8: // QoS Data
+            ret.qosPriority = raw_packet[offset++];
+            ret.txop = raw_packet[offset++];
+            break;
+    }
+
+    ret.llc = decode.logicalLinkControl(raw_packet, offset);
+
+    return ret;
+};
+
+decode.logicalLinkControl = function (raw_packet, offset) {
+    var ret = {};
+
+    ret.dsap = raw_packet[offset++];
+    ret.ssap = raw_packet[offset++];
+    ret.controlField = raw_packet[offset++];
+    ret.orgCode = [
+        raw_packet[offset++],
+        raw_packet[offset++],
+        raw_packet[offset++]
+    ];
+    ret.type = unpack.uint16(raw_packet, offset); offset += 2;
+
+    switch(ret.type) {
+        case 0x0800: // ip
+            ret.ip = decode.ip(raw_packet, offset);
+            break;
+    }
+
+    return ret;
+}
+
 decode.vlan = function (raw_packet, offset) {
     var ret = {};
 
-    http://en.wikipedia.org/wiki/IEEE_802.1Q
+    // http://en.wikipedia.org/wiki/IEEE_802.1Q
     ret.priority = (raw_packet[offset] & 0xE0) >> 5;
     ret.canonical_format = (raw_packet[offset] & 0x10) >> 4;
     ret.id = ((raw_packet[offset] & 0x0F) << 8) | raw_packet[offset + 1];
@@ -887,12 +960,21 @@ decode.dns = function (raw_packet, offset) {
     }
 
     ret.answer = [];
+    if(ret.header.ancount > 100) {
+        throw new Error("Malformed DNS record. Too many answers.");
+    }
     internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.ancount, ret.answer);
 
     ret.authority = [];
+    if(ret.header.ancount > 100) {
+        throw new Error("Malformed DNS record. Too many authorities.");
+    }
     internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.nscount, ret.authority);
 
     ret.additional = [];
+    if(ret.header.ancount > 100) {
+        throw new Error("Malformed DNS record. Too many additional.");
+    }
     internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.arcount, ret.additional);
 
     return ret;
