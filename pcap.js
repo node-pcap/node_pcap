@@ -339,7 +339,6 @@ decode.logicalLinkControl = function (raw_packet, offset) {
 
     ret.dsap = raw_packet[offset++];
     ret.ssap = raw_packet[offset++];
-
     ret.controlField = raw_packet[offset++];
     ret.orgCode = [
         raw_packet[offset++],
@@ -419,7 +418,6 @@ decode.ip = function (raw_packet, offset) {
     ret.daddr = unpack.ipv4_addr(raw_packet, offset + 16); // 16, 17, 18, 19
 
     // TODO - parse IP "options" if header_length > 5
-
     switch (ret.protocol) {
     case 1:
         ret.protocol_name = "ICMP";
@@ -440,7 +438,6 @@ decode.ip = function (raw_packet, offset) {
     default:
         ret.protocol_name = "Unknown";
     }
-
     return ret;
 };
 
@@ -855,6 +852,10 @@ var dns_util = {
         return null;
     },
     readName: function(raw_packet, offset, internal_offset, result) {
+        if(offset + internal_offset > raw_packet.pcap_header.len) {
+            throw new Error("Malformed DNS RR. Offset is larger than the size of the packet (readName).");
+        }
+
         var lenOrPtr = raw_packet[offset + internal_offset];
         internal_offset++;
         if(lenOrPtr == 0x00) {
@@ -876,8 +877,8 @@ var dns_util = {
         return dns_util.readName(raw_packet, offset, internal_offset, result);
     },
     decodeRR: function(raw_packet, offset, internal_offset, result) {
-        if(internal_offset > raw_packet.length) {
-            throw new Error("Malformed DNS RR. Offset is larger than the size of the packet.");
+        if(internal_offset > raw_packet.pcap_header.len) {
+            throw new Error("Malformed DNS RR. Offset is larger than the size of the packet (decodeRR). offset: " + offset + ", internal_offset: " + internal_offset + ", packet length: " + raw_packet.pcap_header.len);
         }
         var compressedName = raw_packet[internal_offset];
         if((compressedName & 0xC0) == 0xC0) {
@@ -909,7 +910,6 @@ var dns_util = {
 
         // skip rdata. TODO: store the rdata somewhere?
         internal_offset += result.rdlength;
-
         return internal_offset;
     },
     decodeRRs: function(raw_packet, offset, internal_offset, count, results) {
