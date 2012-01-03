@@ -329,7 +329,21 @@ decode.ieee802_11_frame = function (raw_packet, offset) {
             break;
     }
 
-    ret.llc = decode.logicalLinkControl(raw_packet, offset);
+    if(ret.type == 2 && ret.subType == 4) {
+        // skip this is Null function (No data)
+    }
+    else if(ret.type == 2 && ret.subType == 12) {
+        // skip this is QoS Null function (No data)
+    }
+    else if(ret.type == 2 && ret.subType == 7) {
+        // skip this is CF-Ack/Poll
+    }
+    else if(ret.type == 2 && ret.subType == 6) {
+        // skip this is CF-Poll (No data)
+    }
+    else if(ret.type == 2) { // data
+        ret.llc = decode.logicalLinkControl(raw_packet, offset);
+    }
 
     return ret;
 };
@@ -339,18 +353,23 @@ decode.logicalLinkControl = function (raw_packet, offset) {
 
     ret.dsap = raw_packet[offset++];
     ret.ssap = raw_packet[offset++];
-    ret.controlField = raw_packet[offset++];
-    ret.orgCode = [
-        raw_packet[offset++],
-        raw_packet[offset++],
-        raw_packet[offset++]
-    ];
-    ret.type = unpack.uint16(raw_packet, offset); offset += 2;
+    if(((ret.dsap == 0xaa) && (ret.ssap == 0xaa))
+       || ((ret.dsap == 0x00) && (ret.ssap == 0x00))) {
+        ret.controlField = raw_packet[offset++];
+        ret.orgCode = [
+            raw_packet[offset++],
+            raw_packet[offset++],
+            raw_packet[offset++]
+        ];
+        ret.type = unpack.uint16(raw_packet, offset); offset += 2;
 
-    switch(ret.type) {
-        case 0x0800: // ip
-            ret.ip = decode.ip(raw_packet, offset);
-            break;
+        switch(ret.type) {
+            case 0x0800: // ip
+                ret.ip = decode.ip(raw_packet, offset);
+                break;
+        }
+    } else {
+        throw new Error("Unknown LLC types: DSAP: " + ret.dsap + ", SSAP: " + ret.ssap);
     }
 
     return ret;
