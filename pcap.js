@@ -304,6 +304,10 @@ decode.ieee802_11_radio = function (raw_packet, offset) {
     if(ret.ieee802_11Frame && ret.ieee802_11Frame.llc && ret.ieee802_11Frame.llc.ip) {
         ret.ip = ret.ieee802_11Frame.llc.ip;
         delete ret.ieee802_11Frame.llc.ip;
+        ret.shost = ret.ieee802_11Frame.shost;
+        delete ret.ieee802_11Frame.shost;
+        ret.dhost = ret.ieee802_11Frame.dhost;
+        delete ret.ieee802_11Frame.dhost
     }
 
     return ret;
