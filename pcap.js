@@ -339,6 +339,7 @@ decode.logicalLinkControl = function (raw_packet, offset) {
 
     ret.dsap = raw_packet[offset++];
     ret.ssap = raw_packet[offset++];
+
     ret.controlField = raw_packet[offset++];
     ret.orgCode = [
         raw_packet[offset++],
@@ -875,6 +876,9 @@ var dns_util = {
         return dns_util.readName(raw_packet, offset, internal_offset, result);
     },
     decodeRR: function(raw_packet, offset, internal_offset, result) {
+        if(internal_offset > raw_packet.length) {
+            throw new Error("Malformed DNS RR. Offset is larger than the size of the packet.");
+        }
         var compressedName = raw_packet[internal_offset];
         if((compressedName & 0xC0) == 0xC0) {
             result.name = "";
