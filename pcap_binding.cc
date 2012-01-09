@@ -1,5 +1,4 @@
 #include <node.h>
-#include <node_events.h>
 #include <node_buffer.h>
 #include <node_version.h>
 #include <assert.h>
@@ -9,7 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ev.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
@@ -24,6 +22,7 @@ struct bpf_program fp;
 bpf_u_int32 mask;
 bpf_u_int32 net;
 pcap_t *pcap_handle;
+pcap_dumper_t *pcap_dump_handle;
 
 // buffer data and length are global. To support more than one pcap session, we'll need a class container.
 char *buffer_data;
@@ -43,6 +42,10 @@ size_t buffer_length;
 //
 void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
     HandleScope scope;
+
+    if (pcap_dump_handle != NULL) {
+        pcap_dump((u_char *) pcap_dump_handle, pkthdr, packet);
+    }
 
     Local<Function> * callback = (Local<Function>*)callback_p;
 
@@ -105,7 +108,7 @@ Dispatch(const Arguments& args)
         total_packets += packet_count;
     } while (packet_count > 0);
 
-    return scope.Close(Integer::NewFromUnsigned(total_packets));
+    return scope.Close(Integer::NewFromUnsigned(packet_count));
 }
 
 Handle<Value>
@@ -114,7 +117,7 @@ Open(bool live, const Arguments& args)
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (args.Length() == 3) { 
+    if (args.Length() == 4) { 
         if (!args[0]->IsString()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[0] must be a String")));
         }
@@ -124,12 +127,16 @@ Open(bool live, const Arguments& args)
         if (!args[2]->IsInt32()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[2] must be a Number")));
         }
+        if (!args[3]->IsString()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Open: args[3] must be a String")));
+        }
     } else {
-        return ThrowException(Exception::TypeError(String::New("pcap Open: expecting 3 arguments")));
+        return ThrowException(Exception::TypeError(String::New("pcap Open: expecting 4 arguments")));
     }
     String::Utf8Value device(args[0]->ToString());
     String::Utf8Value filter(args[1]->ToString());
     int buffer_size = args[2]->Int32Value();
+    String::Utf8Value pcap_output_filename(args[3]->ToString());
 
     if (live) {
         if (pcap_lookupnet((char *) *device, &net, &mask, errbuf) == -1) {
@@ -172,6 +179,15 @@ Open(bool live, const Arguments& args)
         if (pcap_activate(pcap_handle) != 0) {
             return ThrowException(Exception::Error(String::New(pcap_geterr(pcap_handle))));
         }
+
+        pcap_dump_handle = NULL;
+        if (strlen((char *) *pcap_output_filename) > 0) {
+            pcap_dump_handle = pcap_dump_open(pcap_handle, (char *) *pcap_output_filename);
+            if (pcap_dump_handle == NULL) {
+                return ThrowException(Exception::Error(String::New("error opening dump")));    
+            }
+        }
+
     } else {
         // Device is the path to the savefile
         pcap_handle = pcap_open_offline((char *) *device, errbuf);
@@ -304,6 +320,11 @@ Handle<Value>
 Close(const Arguments& args)
 {
     HandleScope scope;
+
+    if (pcap_dump_handle != NULL) {
+        pcap_dump_close(pcap_dump_handle);
+        pcap_dump_handle = NULL;
+    }
 
     pcap_close(pcap_handle);
 

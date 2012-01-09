@@ -4,7 +4,7 @@ var util, IOWatcher,
     dns        = require('dns'),
     Buffer     = require('buffer').Buffer,
     events     = require('events'),
-    binding    = require('./build/default/pcap_binding'),
+    binding    = require('./build/Release/pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
     url        = require('url');
 
@@ -30,7 +30,7 @@ Pcap.prototype.findalldevs = function () {
     return binding.findalldevs();
 };
 
-Pcap.prototype.open = function (live, device, filter, buffer_size) {
+Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_filename) {
     var me = this;
 
     if (typeof buffer_size === 'number' && !isNaN(buffer_size)) {
@@ -39,12 +39,14 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
         this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
     }
 
+    this.live = live;
+
     if (live) {
         this.device_name = device || binding.default_device();
-        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size);
+        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
     } else {
         this.device_name = device;
-        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size);
+        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
     }
 
     this.fd = binding.fileno();
@@ -65,6 +67,16 @@ Pcap.prototype.open = function (live, device, filter, buffer_size) {
     this.readWatcher.callback = function pcap_read_callback() {
         var packets_read = binding.dispatch(me.buf, packet_ready);
         if (packets_read < 1) {
+            // according to pcap_dispatch documentation if 0 is returned when reading
+            // from a savefile there will be no more packets left. this check ensures
+            // we stop reading. Under certain circumstances IOWatcher will get caught
+            // in a loop and continue to signal us causing the program to be flooded
+            // with events.
+            if(!me.live) {
+                me.readWatcher.stop();
+                me.emit('complete');
+            }
+
             // TODO - figure out what is causing this, and if it is bad.
             me.empty_reads += 1;
         }
@@ -99,7 +111,7 @@ exports.createOfflineSession = function (path, filter) {
 
 //
 // Decoding functions
-// 
+//
 function lpad(str, len) {
     while (str.length < len) {
         str = "0" + str;
@@ -127,11 +139,14 @@ var unpack = {
     uint16: function (raw_packet, offset) {
         return ((raw_packet[offset] * 256) + raw_packet[offset + 1]);
     },
+    uint16_be: function (raw_packet, offset) {
+        return ((raw_packet[offset+1] * 256) + raw_packet[offset]);
+    },
     uint32: function (raw_packet, offset) {
         return (
-            (raw_packet[offset] * 16777216) + 
+            (raw_packet[offset] * 16777216) +
             (raw_packet[offset + 1] * 65536) +
-            (raw_packet[offset + 2] * 256) + 
+            (raw_packet[offset + 2] * 256) +
             raw_packet[offset + 3]
         );
     },
@@ -185,10 +200,13 @@ decode.packet = function (raw_packet) {
     case "LINKTYPE_RAW":
         packet.link = decode.rawtype(raw_packet, 0);
         break;
+    case "LINKTYPE_IEEE802_11_RADIO":
+        packet.link = decode.ieee802_11_radio(raw_packet, 0);
+        break;
     default:
         console.log("pcap.js: decode.packet() - Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
     }
-    
+
     packet.pcap_header = raw_packet.pcap_header; // TODO - merge values here instead of putting ref on packet buffer
 
     return packet;
@@ -196,7 +214,7 @@ decode.packet = function (raw_packet) {
 
 decode.rawtype = function (raw_packet, offset) {
     var ret = {};
-    
+
     ret.ip = decode.ip(raw_packet, 0);
 
     return ret;
@@ -204,8 +222,8 @@ decode.rawtype = function (raw_packet, offset) {
 
 decode.nulltype = function (raw_packet, offset) {
     var ret = {};
-    
-    // an oddity about nulltype is that it starts with a 4 byte header, but I can't find a 
+
+    // an oddity about nulltype is that it starts with a 4 byte header, but I can't find a
     // way to tell which byte order is used.  The good news is that all address family
     // values are 8 bits or less.
 
@@ -214,7 +232,7 @@ decode.nulltype = function (raw_packet, offset) {
     } else {                                          // and this is the other one
         ret.pftype = raw_packet[0];
     }
-    
+
     if (ret.pftype === 2) {         // AF_INET, at least on my Linux and OSX machines right now
         ret.ip = decode.ip(raw_packet, 4);
     } else if (ret.pftype === 30) { // AF_INET6, often
@@ -228,7 +246,7 @@ decode.nulltype = function (raw_packet, offset) {
 
 decode.ethernet = function (raw_packet, offset) {
     var ret = {};
-    
+
     ret.dhost = unpack.ethernet_addr(raw_packet, 0);
     ret.shost = unpack.ethernet_addr(raw_packet, 6);
     ret.ethertype = unpack.uint16(raw_packet, 12);
@@ -271,10 +289,100 @@ decode.ethernet = function (raw_packet, offset) {
     return ret;
 };
 
+decode.ieee802_11_radio = function (raw_packet, offset) {
+    var ret = {};
+    var original_offset = offset;
+
+    ret.headerRevision = raw_packet[offset++];
+    ret.headerPad = raw_packet[offset++];
+    ret.headerLength = unpack.uint16_be(raw_packet, offset); offset += 2;
+
+    offset = original_offset + ret.headerLength;
+
+    ret.ieee802_11Frame = decode.ieee802_11_frame(raw_packet, offset);
+
+    if(ret.ieee802_11Frame && ret.ieee802_11Frame.llc && ret.ieee802_11Frame.llc.ip) {
+        ret.ip = ret.ieee802_11Frame.llc.ip;
+        delete ret.ieee802_11Frame.llc.ip;
+        ret.shost = ret.ieee802_11Frame.shost;
+        delete ret.ieee802_11Frame.shost;
+        ret.dhost = ret.ieee802_11Frame.dhost;
+        delete ret.ieee802_11Frame.dhost
+    }
+
+    return ret;
+};
+
+decode.ieee802_11_frame = function (raw_packet, offset) {
+    var ret = {};
+
+    ret.frameControl = unpack.uint16_be(raw_packet, offset); offset += 2;
+    ret.type = (ret.frameControl >> 2) & 0x0003;
+    ret.subType = (ret.frameControl >> 4) & 0x000f;
+    ret.flags = (ret.frameControl >> 8) & 0xff;
+    ret.duration = unpack.uint16_be(raw_packet, offset); offset += 2;
+    ret.bssid = unpack.ethernet_addr(raw_packet, offset); offset += 6;
+    ret.shost = unpack.ethernet_addr(raw_packet, offset); offset += 6;
+    ret.dhost = unpack.ethernet_addr(raw_packet, offset); offset += 6;
+    ret.fragSeq = unpack.uint16_be(raw_packet, offset); offset += 2;
+
+    switch(ret.subType) {
+        case 8: // QoS Data
+            ret.qosPriority = raw_packet[offset++];
+            ret.txop = raw_packet[offset++];
+            break;
+    }
+
+    if(ret.type == 2 && ret.subType == 4) {
+        // skip this is Null function (No data)
+    }
+    else if(ret.type == 2 && ret.subType == 12) {
+        // skip this is QoS Null function (No data)
+    }
+    else if(ret.type == 2 && ret.subType == 7) {
+        // skip this is CF-Ack/Poll
+    }
+    else if(ret.type == 2 && ret.subType == 6) {
+        // skip this is CF-Poll (No data)
+    }
+    else if(ret.type == 2) { // data
+        ret.llc = decode.logicalLinkControl(raw_packet, offset);
+    }
+
+    return ret;
+};
+
+decode.logicalLinkControl = function (raw_packet, offset) {
+    var ret = {};
+
+    ret.dsap = raw_packet[offset++];
+    ret.ssap = raw_packet[offset++];
+    if(((ret.dsap == 0xaa) && (ret.ssap == 0xaa))
+       || ((ret.dsap == 0x00) && (ret.ssap == 0x00))) {
+        ret.controlField = raw_packet[offset++];
+        ret.orgCode = [
+            raw_packet[offset++],
+            raw_packet[offset++],
+            raw_packet[offset++]
+        ];
+        ret.type = unpack.uint16(raw_packet, offset); offset += 2;
+
+        switch(ret.type) {
+            case 0x0800: // ip
+                ret.ip = decode.ip(raw_packet, offset);
+                break;
+        }
+    } else {
+        throw new Error("Unknown LLC types: DSAP: " + ret.dsap + ", SSAP: " + ret.ssap);
+    }
+
+    return ret;
+}
+
 decode.vlan = function (raw_packet, offset) {
     var ret = {};
 
-    http://en.wikipedia.org/wiki/IEEE_802.1Q
+    // http://en.wikipedia.org/wiki/IEEE_802.1Q
     ret.priority = (raw_packet[offset] & 0xE0) >> 5;
     ret.canonical_format = (raw_packet[offset] & 0x10) >> 4;
     ret.id = ((raw_packet[offset] & 0x0F) << 8) | raw_packet[offset + 1];
@@ -313,7 +421,7 @@ decode.arp = function (raw_packet, offset) {
 
 decode.ip = function (raw_packet, offset) {
     var ret = {};
-    
+
     // http://en.wikipedia.org/wiki/IPv4
     ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
     ret.header_length = raw_packet[offset] & 15; // second 4 bits
@@ -333,7 +441,6 @@ decode.ip = function (raw_packet, offset) {
     ret.daddr = unpack.ipv4_addr(raw_packet, offset + 16); // 16, 17, 18, 19
 
     // TODO - parse IP "options" if header_length > 5
-
     switch (ret.protocol) {
     case 1:
         ret.protocol_name = "ICMP";
@@ -354,7 +461,6 @@ decode.ip = function (raw_packet, offset) {
     default:
         ret.protocol_name = "Unknown";
     }
-
     return ret;
 };
 
@@ -377,18 +483,18 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
         ip.udp = decode.udp(raw_packet, offset);
         break;
     default:
-		// TODO: capture the extensions
-		decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
+        // TODO: capture the extensions
+    		//decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
     }
 };
 
 decode.ip6 = function (raw_packet, offset) {
     var ret = {};
-    
+
     // http://en.wikipedia.org/wiki/IPv6
     ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
 	ret.traffic_class = ((raw_packet[offset] & 15) << 4) + ((raw_packet[offset+1] & 240) >> 4);
-	ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) + 
+	ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) +
         (raw_packet[offset + 2] << 8) +
         raw_packet[offset + 3];
 	ret.payload_length = unpack.uint16(raw_packet, offset+4);
@@ -578,7 +684,7 @@ decode.udp = function (raw_packet, offset) {
     if (ret.sport === 53 || ret.dport === 53) {
         ret.dns = decode.dns(raw_packet, offset + 8);
     }
-    
+
     return ret;
 };
 
@@ -758,6 +864,83 @@ var dns_util = {
         } else {
             return dns_util.class_to_string(qclass_num);
         }
+    },
+    expandRRData: function(raw_packet, offset, rrRecord) {
+        if(rrRecord.rrtype == 'A' && rrRecord.rrclass == 'IN' && rrRecord.rdlength == 4) {
+            var data = {};
+            data.ipAddress = raw_packet[offset] + '.' + raw_packet[offset+1] + '.' + raw_packet[offset+2] + '.' + raw_packet[offset+3];
+            return data;
+        }
+
+        return null;
+    },
+    readName: function(raw_packet, offset, internal_offset, result) {
+        if(offset + internal_offset > raw_packet.pcap_header.len) {
+            throw new Error("Malformed DNS RR. Offset is larger than the size of the packet (readName).");
+        }
+
+        var lenOrPtr = raw_packet[offset + internal_offset];
+        internal_offset++;
+        if(lenOrPtr == 0x00) {
+            return result;
+        }
+
+        if((lenOrPtr & 0xC0) == 0xC0) {
+            var nameOffset = ((lenOrPtr & ~0xC0) << 8) | raw_packet[offset + internal_offset];
+            internal_offset++;
+            return dns_util.readName(raw_packet, offset, nameOffset, result);
+        }
+
+        for(var i=0; i<lenOrPtr; i++) {
+            var ch = raw_packet[offset + internal_offset];
+            internal_offset++;
+            result += String.fromCharCode(ch);
+        }
+        result += '.';
+        return dns_util.readName(raw_packet, offset, internal_offset, result);
+    },
+    decodeRR: function(raw_packet, offset, internal_offset, result) {
+        if(internal_offset > raw_packet.pcap_header.len) {
+            throw new Error("Malformed DNS RR. Offset is larger than the size of the packet (decodeRR). offset: " + offset + ", internal_offset: " + internal_offset + ", packet length: " + raw_packet.pcap_header.len);
+        }
+        var compressedName = raw_packet[internal_offset];
+        if((compressedName & 0xC0) == 0xC0) {
+            result.name = "";
+            result.name = dns_util.readName(raw_packet, offset, internal_offset - offset, result.name);
+            result.name = result.name.replace(/\.$/, '');
+            internal_offset += 2;
+        } else {
+            result.name = "";
+            var ch;
+            while((ch = raw_packet[internal_offset++]) != 0x00) {
+                result.name += String.fromCharCode(ch);
+            }
+        }
+
+        result.rrtype = dns_util.qtype_to_string(unpack.uint16(raw_packet, internal_offset));
+        internal_offset += 2;
+        result.rrclass = dns_util.qclass_to_string(unpack.uint16(raw_packet, internal_offset));
+        internal_offset += 2;
+        result.ttl = unpack.uint32(raw_packet, internal_offset);
+        internal_offset += 4;
+        result.rdlength = unpack.uint16(raw_packet, internal_offset);
+        internal_offset += 2;
+
+        var data = dns_util.expandRRData(raw_packet, internal_offset, result);
+        if(data) {
+            result.data = data;
+        }
+
+        // skip rdata. TODO: store the rdata somewhere?
+        internal_offset += result.rdlength;
+        return internal_offset;
+    },
+    decodeRRs: function(raw_packet, offset, internal_offset, count, results) {
+        for (i = 0; i < count; i++) {
+            results[i] = {};
+            internal_offset = dns_util.decodeRR(raw_packet, offset, internal_offset, results[i]);
+        }
+        return internal_offset;
     }
 };
 
@@ -803,10 +986,23 @@ decode.dns = function (raw_packet, offset) {
         internal_offset += 2;
     }
 
-    // TODO - actual hard parts here, understand RR compression scheme, etc.
-    ret.answer = {};
-    ret.authority = {};
-    ret.additional = {};
+    ret.answer = [];
+    if(ret.header.ancount > 100) {
+        throw new Error("Malformed DNS record. Too many answers.");
+    }
+    internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.ancount, ret.answer);
+
+    ret.authority = [];
+    if(ret.header.ancount > 100) {
+        throw new Error("Malformed DNS record. Too many authorities.");
+    }
+    internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.nscount, ret.authority);
+
+    ret.additional = [];
+    if(ret.header.ancount > 100) {
+        throw new Error("Malformed DNS record. Too many additional.");
+    }
+    internal_offset = dns_util.decodeRRs(raw_packet, offset, internal_offset, ret.header.arcount, ret.additional);
 
     return ret;
 };
@@ -841,7 +1037,7 @@ var dns_cache = (function () {
             return ip;
         }
     }
-    
+
     return {
         ptr: function (ip, callback) {
             return lookup_ptr(ip, callback);
@@ -854,7 +1050,7 @@ var print = {}; // simple printers for common types
 
 print.dns = function (packet) {
     var ret = " DNS", dns = packet.link.ip.udp.dns;
-    
+
     if (dns.header.qr === 0) {
         ret += " question";
     } else if (dns.header.qr === 1) {
@@ -864,7 +1060,7 @@ print.dns = function (packet) {
     }
 
     ret += " " + dns.question[0].qname + " " + dns.question[0].qtype;
-    
+
     return ret;
 };
 
@@ -874,12 +1070,13 @@ print.ip = function (packet) {
 
     switch (ip.protocol_name) {
     case "TCP":
-        ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport + 
-            " TCP len " + ip.total_length + " [" + 
+        ret += " " + dns_cache.ptr(ip.saddr) + ":" + ip.tcp.sport + " -> " + dns_cache.ptr(ip.daddr) + ":" + ip.tcp.dport +
+            " TCP len " + ip.total_length + " [" +
             Object.keys(ip.tcp.flags).filter(function (v) {
                 if (ip.tcp.flags[v] === 1) {
                     return true;
                 }
+                return false;
             }).join(",") + "]";
         break;
     case "UDP":
@@ -891,11 +1088,11 @@ print.ip = function (packet) {
         }
         break;
     case "ICMP":
-        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " + 
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " ICMP " + ip.icmp.type_desc + " " +
             ip.icmp.sequence;
         break;
     case "IGMP":
-        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " IGMP " + ip.igmp.type_desc + " " + 
+        ret += " " + dns_cache.ptr(ip.saddr) + " -> " + dns_cache.ptr(ip.daddr) + " IGMP " + ip.igmp.type_desc + " " +
             ip.igmp.group_address;
         break;
     default:
@@ -1062,7 +1259,7 @@ TCP_tracker.prototype.make_session_key = function (src, dst) {
 
 TCP_tracker.prototype.detect_http_request = function (buf) {
     var str = buf.toString('utf8', 0, buf.length);
-    
+
     return (/^(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|COPY|LOCK|MKCOL|MOVE|PROPFIND|PROPPATCH|UNLOCK) [^\s\r\n]+ HTTP\/\d\.\d\r\n/.test(str));
 };
 
@@ -1097,7 +1294,7 @@ TCP_tracker.prototype.session_stats = function (session) {
     Object.keys(session.recv_retrans).forEach(function (v) {
         stats.recv_retrans[v] = session.recv_retrans[v];
     });
-    
+
     stats.total_time = total_time;
     stats.send_overhead = session.send_bytes_ip + session.send_bytes_tcp;
     stats.send_payload = session.send_bytes_payload;
@@ -1114,136 +1311,90 @@ TCP_tracker.prototype.session_stats = function (session) {
 };
 
 TCP_tracker.prototype.setup_http_tracking = function (session) {
-    var self = this, http = {};
+  var self = this, http = {
+    request : {
+      headers : {},
+      url : "",
+      method : "",
+      body_len : 0,
+      http_version : null
+    },
+    response : {
+      headers : {},
+      status_code : null,
+      body_len : 0,
+      http_version : null
+    },
+    request_parser : new HTTPParser(HTTPParser.REQUEST),
+    response_parser : new HTTPParser(HTTPParser.RESPONSE)
+  };
 
-    http.request_parser = new HTTPParser('request');
-    http.request_parser.onMessageBegin = function () {
-        http.request = {
-            headers: {},
-            url: "",
-            method: "",
-            body_len: 0,
-            http_version: null
-        };
+  http.request_parser.url = '';
+  http.request_parser.onHeaders = function(headers, url) {
+    http.request_parser.headers = (http.request_parser.headers || []).concat(headers);
+    http.request_parser.url += url;
+  };
 
-        http.request_parser.onURL = function (buf, start, len) {
-            var url_string = buf.toString('ascii', start, start + len);
-            if (http.request.url) {
-                http.request.url += url_string;
-            } else {
-                http.request.url = url_string;
-            }
-        };
+  http.request_parser.onHeadersComplete = function(info) {
+    http.request.method = info.method;
+    http.request.url = info.url || http.request_parser.url;
+    http.request.http_version = info.versionMajor + "." + info.versionMinor;
 
-        http.request_parser.onHeaderField = function (buf, start, len) {
-            var field = buf.toString('ascii', start, start + len);
-            if (http.request_parser.header_value) {
-                http.request.headers[http.request_parser.header_field] = http.request_parser.header_value;
-                http.request_parser.header_field = null;
-                http.request_parser.header_value = null;
-            }
-            if (http.request_parser.header_field) {
-                http.request_parser.header_field += field;
-            } else {
-                http.request_parser.header_field = field;
-            }
-        };
+    var headers = info.headers || http.request_parser.headers;
+    for ( var i = 0; i < headers.length; i += 2) {
+      http.request.headers[headers[i]] = headers[i + 1];
+    }
 
-        http.request_parser.onHeaderValue = function (buf, start, len) {
-            var value = buf.toString('ascii', start, start + len);
-            if (http.request_parser.header_value) {
-                http.request_parser.header_value += value;
-            } else {
-                http.request_parser.header_value = value;
-            }
-        };
+    self.emit("http request", session, http);
+  };
 
-        http.request_parser.onHeadersComplete = function (info) {
-            if (http.request_parser.header_field && http.request_parser.header_value) {
-                http.request.headers[http.request_parser.header_field] = http.request_parser.header_value;
-            }
+  http.request_parser.onBody = function(buf, start, len) {
+    http.request.body_len += len;
+    self.emit("http request body", session, http, buf.slice(start, start + len));
+  };
 
-            http.request.http_version = info.versionMajor + "." + info.versionMinor;
+  http.request_parser.onMessageComplete = function() {
+    self.emit("http request complete", session, http);
+  };
 
-            http.request.method = info.method;
-            self.emit("http request", session, http);
-        };
+  http.response_parser.onHeaders = function(headers, url) {
+    http.response_parser.headers = (http.response_parser.headers || []).concat(headers);
+  };
 
-        http.request_parser.onBody = function (buf, start, len) {
-            http.request.body_len += len;
-            self.emit("http request body", session, http, buf.slice(start, start + len));
-        };
+  http.response_parser.onHeadersComplete = function(info) {
+    http.response.status_code = info.statusCode;
+    http.response.http_version = info.versionMajor + "." + info.versionMinor;
 
-        http.request_parser.onMessageComplete = function () {
-            self.emit("http request complete", session, http);
-        };
-    };
+    var headers = info.headers || http.response_parser.headers;
+    for ( var i = 0; i < headers.length; i += 2) {
+      http.response.headers[headers[i]] = headers[i + 1];
+    }
 
-    http.response_parser = new HTTPParser('response');
-    http.response_parser.onMessageBegin = function () {
-        http.response = {
-            headers: {},
-            status_code: null,
-            body_len: 0,
-            http_version: null
-        };
-        http.response_parser.onHeaderField = function (buf, start, len) {
-            var field = buf.toString('ascii', start, start + len);
-            if (http.response_parser.header_value) {
-                http.response.headers[http.response_parser.header_field] = http.response_parser.header_value;
-                http.response_parser.header_field = null;
-                http.response_parser.header_value = null;
-            }
-            if (http.response_parser.header_field) {
-                http.response_parser.header_field += field;
-            } else {
-                http.response_parser.header_field = field;
-            }
-        };
+    if (http.response.status_code === 101 && http.response.headers.Upgrade === "WebSocket") {
+      if (http.response.headers["Sec-WebSocket-Location"]) {
+        self.setup_websocket_tracking(session, "draft76");
+      } else {
+        self.setup_websocket_tracking(session);
+      }
+      self.emit('websocket upgrade', session, http);
+      session.http_detect = false;
+      session.websocket_detect = true;
+      delete http.response_parser.onMessageComplete;
+    } else {
+      self.emit('http response', session, http);
+    }
+  };
 
-        http.response_parser.onHeaderValue = function (buf, start, len) {
-            var value = buf.toString('ascii', start, start + len);
-            if (http.response_parser.header_value) {
-                http.response_parser.header_value += value;
-            } else {
-                http.response_parser.header_value = value;
-            }
-        };
+  http.response_parser.onBody = function(buf, start, len) {
+    http.response.body_len += len;
+    self.emit('http response body', session, http, buf.slice(start, start + len));
+  };
 
-        http.response_parser.onHeadersComplete = function (info) {
-            if (http.response_parser.header_field && http.response_parser.header_value) {
-                http.response.headers[http.response_parser.header_field] = http.response_parser.header_value;
-            }
+  http.response_parser.onMessageComplete = function() {
+    self.emit('http response complete', session, http);
+  };
 
-            http.response.http_version = info.versionMajor + "." + info.versionMinor;
-            http.response.status_code = info.statusCode;
-
-            if (http.response.status_code === 101 && http.response.headers.Upgrade === "WebSocket") {
-                if (http.response.headers["Sec-WebSocket-Location"]) {
-                    self.setup_websocket_tracking(session, "draft76");
-                } else {
-                    self.setup_websocket_tracking(session);
-                }
-                self.emit('websocket upgrade', session, http);
-                session.http_detect = false;
-                session.websocket_detect = true;
-                delete http.response_parser.onMessageComplete;
-            } else {
-                self.emit('http response', session, http);
-            }
-        };
-
-        http.response_parser.onBody = function (buf, start, len) {
-            http.response.body_len += len;
-            self.emit('http response body', session, http, buf.slice(start, start + len));
-        };
-        
-        http.response_parser.onMessageComplete = function () {
-            self.emit('http response complete', session, http);
-        };
-    };
-
-    session.http = http;
+  session.http = http;
 };
 
 TCP_tracker.prototype.setup_websocket_tracking = function (session, flag) {
@@ -1470,13 +1621,15 @@ TCP_tracker.prototype.track_next = function (key, packet) {
 };
 
 TCP_tracker.prototype.track_packet = function (packet) {
-    var ip, tcp, src, dst, key, session, self = this;
+    var ip, tcp, src, src_mac, dst, dst_mac, key, session, self = this;
 
     if (packet.link && packet.link.ip && packet.link.ip.tcp) {
         ip  = packet.link.ip;
         tcp = ip.tcp;
         src = ip.saddr + ":" + tcp.sport;
+        src_mac = packet.link.shost;
         dst = ip.daddr + ":" + tcp.dport;
+        dst_mac = packet.link.dhost;
         key = this.make_session_key(src, dst);
         session = this.sessions[key];
 
@@ -1484,7 +1637,9 @@ TCP_tracker.prototype.track_packet = function (packet) {
             if (session === undefined) {
                 this.sessions[key] = {
                     src: src, // the side the sent the initial SYN
+                    src_mac: src_mac,
                     dst: dst, // the side that the initial SYN was sent to
+                    dst_mac: dst_mac,
                     syn_time: packet.pcap_header.time_ms,
                     state: "SYN_SENT",
                     key: key, // so we can easily remove ourselves
@@ -1541,4 +1696,6 @@ TCP_tracker.prototype.track_packet = function (packet) {
         // silently ignore any non IPv4 TCP packets
         // user should filter these out with their pcap filter, but oh well.
     }
+
+    return session;
 };
