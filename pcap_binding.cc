@@ -108,7 +108,7 @@ Dispatch(const Arguments& args)
         total_packets += packet_count;
     } while (packet_count > 0);
 
-    return scope.Close(Integer::NewFromUnsigned(total_packets));
+    return scope.Close(Integer::NewFromUnsigned(packet_count));
 }
 
 Handle<Value>
