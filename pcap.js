@@ -530,6 +530,10 @@ decode.ip = function (raw_packet, offset) {
         ret.protocol_name = "UDP";
         ret.udp = decode.udp(raw_packet, offset + (ret.header_length * 4));
         break;
+    case 47:
+        ret.protocol_name = "GRE";
+        ret.gre = decode.gre(raw_packet, offset + (ret.header_length * 4), ret);
+        break;
     default:
         ret.protocol_name = "Unknown";
     }
@@ -770,6 +774,54 @@ decode.udp = function (raw_packet, offset) {
 
     return ret;
 };
+
+
+decode.gre = function (raw_packet, offset, ip) {
+    var ret = {}, option_offset, options_end;
+
+    var off = offset;
+
+    var header = unpack.uint16(raw_packet, off);
+    off += 2;
+    ret.C = header & 0;
+    ret.R = (header & 2) >> 1;
+    ret.K = (header & 4) >> 2;
+    ret.S = (header & 8) >> 3;
+    ret.s = (header & 16) >> 4;
+    ret.recur = (header & 0xE0) >> 5;
+
+    ret.flags = (header & 0x1f00) >> 8;
+    ret.vesion = (header & 0xE000) >> 13;
+
+    ret.type = unpack.uint16(raw_packet, off);
+    off += 2;
+
+    if (ret.C === 1 || ret.R === 1) {
+        ret.checksum = unpack.uint16(raw_packet, off);
+        off += 2;
+
+        ret.offset = unpack.uint16(raw_packet, off);
+        off += 2;
+    }
+
+    if (ret.K === 1) {
+        ret.key = unpack.uint32(raw_packet, off)
+        off += 4;
+    }
+
+    if (ret.S === 1) {
+        ret.sequence_number = unpack.uint32(raw_packet, off)
+        off += 4;
+    }
+
+    if (ret.R === 1) {
+        ret.routing = raw_packet.slice(off, off + ret.offset);
+        off += ret.offset;
+    }
+
+    ret.payload_packet = raw_packet.slice(off)
+    return ret;
+}
 
 decode.tcp = function (raw_packet, offset, ip) {
     var ret = {}, option_offset, options_end;
