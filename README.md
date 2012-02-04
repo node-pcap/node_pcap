@@ -102,7 +102,7 @@ TCP can be analyzed by feeding the packets into a `TCP_tracker` and then listeni
 
     var pcap = require('pcap'),
         tcp_tracker = new pcap.TCP_tracker(),
-        pcap_session = pcap.createSession(interface, "ip proto \tcp");
+        pcap_session = pcap.createSession(interface, "ip proto \\tcp");
 
     tcp_tracker.on('start', function (session) {
         console.log("Start of TCP session between " + session.src_name + " and " + session.dst_name);
