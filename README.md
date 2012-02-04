@@ -154,19 +154,19 @@ see the wonderful things it can do for you.  Hopefully the names of the properti
 The `TCP_tracker` also detects and decodes HTTP on all streams it receives.  If HTTP is detected, several
 new events will be emitted: 
 
-* `http_request`: function(session, http)
-* `http_request_body`: function(session, http, data)
+* `http request`: function(session, http)
+* `http request body`: function(session, http, data)
 
     Note that `data` is a node Buffer object sliced from the original packet.  If you want to use it past the
     current tick, you'll need to make a copy somehow.
 
-* `http_request_complete`: function(session, http)
-* `http_response`: function(session, http)
-* `http_response_body`: function(session, http, data)
+* `http request complete`: function(session, http)
+* `http response`: function(session, http)
+* `http response body`: function(session, http, data)
 
     `data` is a Buffer slice.  See above.
 
-* `http_response_complete`: function(session, http)
+* `http response complete`: function(session, http)
 
 See `http_trace` for an example of how to use these events to decode HTTP.
 
@@ -174,8 +174,8 @@ See `http_trace` for an example of how to use these events to decode HTTP.
 
 The `TCP_tracker` further detects and decodes WebSocket traffic on all streams it receives.
 
-* `websocket_upgrade`: function(session, http)
-* `websocket_message`: function(session, dir, message)
+* `websocket upgrade`: function(session, http)
+* `websocket message`: function(session, dir, message)
 
 See `http_trace` for an example of how to use these events to decode WebSocket.
 
