@@ -136,6 +136,14 @@ var unpack = {
             lpad(raw_packet[offset + 5].toString(16), 2)
         ].join(":");
     },
+    sll_addr: function (raw_packet, offset, len) {
+	var res = []
+	for (i=0; i<len; i++){
+		res.push(lpad(raw_packet[offset+i].toString(16), 2));
+	}
+
+        return res.join(":");
+    },
     uint16: function (raw_packet, offset) {
         return ((raw_packet[offset] * 256) + raw_packet[offset + 1]);
     },
@@ -224,6 +232,9 @@ decode.packet = function (raw_packet) {
     case "LINKTYPE_IEEE802_11_RADIO":
         packet.link = decode.ieee802_11_radio(raw_packet, 0);
         break;
+    case "LINKTYPE_LINUX_SLL":
+        packet.link = decode.linux_sll(raw_packet, 0);
+        break;
     default:
         console.log("pcap.js: decode.packet() - Don't yet know how to decode link type " + raw_packet.pcap_header.link_type);
     }
@@ -307,8 +318,45 @@ decode.ethernet = function (raw_packet, offset) {
         }
     }
 
+    
+
     return ret;
 };
+
+
+decode.linux_sll = function (raw_packet, offset) {
+    var ret = {};
+    var types = {0:"HOST", 1:"BROADCAST", 2:"MULTICAST", 3:"OTHERHOST", 4:"OUTGOING"};
+    
+    ret.sllPacketType = unpack.uint16(raw_packet, offset); offset+=2;
+    ret.sllAddressType = types[unpack.uint16(raw_packet, offset)]; offset+=2;
+    var sllAddressLength = unpack.uint16(raw_packet, offset); offset+=2;
+
+    ret.sllSource = unpack.sll_addr(raw_packet, offset, sllAddressLength); 
+    offset+=8; //address field is fixed to 8 bytes from witch addresslength bytes are used
+    
+    ret.sllProtocol = unpack.uint16(raw_packet, offset); offset+=2;
+    
+    switch (ret.sllProtocol) {
+    case 0x800: // IPv4
+        ret.ip = decode.ip(raw_packet, offset);
+        break;
+    case 0x806: // ARP
+        ret.arp = decode.arp(raw_packet, offset);
+        break;
+    case 0x86dd: // IPv6 - http://en.wikipedia.org/wiki/IPv6
+        ret.ipv6 = decode.ip6(raw_packet, offset);
+        break;
+    case 0x88cc: // LLDP - http://en.wikipedia.org/wiki/Link_Layer_Discovery_Protocol
+        ret.lldp = "need to implement LLDP";
+        break;
+    default:
+        console.log("pcap.js: decode.linux_sll() - Don't know how to decode ethertype " + ret.sllProtocol);
+    }
+
+    return ret;
+};
+
 
 decode.ieee802_11_radio = function (raw_packet, offset) {
     var ret = {};
@@ -1152,6 +1200,32 @@ print.arp = function (packet) {
     return ret;
 };
 
+print.slltype = function (packet) {
+    var ret = ""
+
+    switch (packet.link.ethertype) {
+    case 0x0:
+        ret += " 802.3 type ";
+        break;
+    case 0x800:
+        ret += print.ip(packet);
+        break;
+    case 0x806:
+        ret += print.arp(packet);
+        break;
+    case 0x86dd:
+        ret += " IPv6 ";
+        break;
+    case 0x88cc:
+        ret += " LLDP ";
+        break;
+    default:
+        console.log("pcap.js: print.linuxsll() - Don't know how to print type " + packet.link.ethertype);
+    }
+
+    return ret;
+};
+
 print.ethernet = function (packet) {
     var ret = packet.link.shost + " -> " + packet.link.dhost;
 
@@ -1211,6 +1285,9 @@ print.packet = function (packet_to_print) {
         break;
     case "LINKTYPE_RAW":
         ret += print.rawtype(packet_to_print);
+        break;
+    case "LINKTYPE_LINUX_SSL":
+        ret += print.slltype(packet_to_print);
         break;
     default:
         console.log("Don't yet know how to print link_type " + packet_to_print.link_type);
