@@ -780,6 +780,13 @@ decode.gre = function (raw_packet, offset, ip) {
     var ret = {}, option_offset, options_end;
 
     var off = offset;
+    var data_offset = off + ret.header_bytes;
+    var data_end = off + ip.total_length - ip.header_bytes;
+
+    if (ip.fragment_offset > 0) {
+        ret.payload_packet = raw_packet.slice(data_offset, data_end);
+        return ret;
+    }
 
     var header = unpack.uint16(raw_packet, off);
     off += 2;
@@ -805,12 +812,12 @@ decode.gre = function (raw_packet, offset, ip) {
     }
 
     if (ret.K === 1) {
-        ret.key = unpack.uint32(raw_packet, off)
+        ret.key = unpack.uint32(raw_packet, off);
         off += 4;
     }
 
     if (ret.S === 1) {
-        ret.sequence_number = unpack.uint32(raw_packet, off)
+        ret.sequence_number = unpack.uint32(raw_packet, off);
         off += 4;
     }
 
@@ -819,9 +826,9 @@ decode.gre = function (raw_packet, offset, ip) {
         off += ret.offset;
     }
 
-    ret.payload_packet = raw_packet.slice(off)
+    ret.payload_packet = raw_packet.slice(off, data_end);
     return ret;
-}
+};
 
 decode.tcp = function (raw_packet, offset, ip) {
     var ret = {}, option_offset, options_end;
