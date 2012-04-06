@@ -913,7 +913,8 @@ decode.tcp = function (raw_packet, offset, ip) {
             option_offset += 10;
             break;
         default:
-            throw new Error("Don't know how to process TCP option " + raw_packet[option_offset]);
+            console.log("Don't know how to process TCP option " + raw_packet[option_offset]);
+            option_offset += unpack.uint32(raw_packet, option_offset + 1);
         }
     }
 
