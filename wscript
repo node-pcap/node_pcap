@@ -8,11 +8,13 @@ def set_options(opt):
 def configure(conf):
     conf.check_tool("compiler_cxx")
     conf.check_tool("node_addon")
-    if not conf.check(lib="pcap", mandantory=True):
-        conf.fatal("libpcap C library not found on this system.")
 
 def build(bld):
     obj = bld.new_task_gen("cxx", "shlib", "node_addon")
     obj.target = "pcap_binding"
     obj.source = "pcap_binding.cc"
     obj.linkflags = ['-lpcap']
+    # Determine node architecture
+    out, err = Popen(['node', '-p', '-e', 'process.arch'], stdout=PIPE, stderr=PIPE).communicate()
+    if '32' in out:
+        obj.cxxflags = ['-m32']
