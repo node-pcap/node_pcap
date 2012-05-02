@@ -1486,7 +1486,13 @@ TCP_tracker.prototype.track_states.SYN_RCVD = function (packet, session) {
 TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
     var ip  = packet.link.ip,
         tcp = ip.tcp,
-        src = ip.saddr + ":" + tcp.sport;
+        src = ip.saddr + ":" + tcp.sport,
+        data;
+
+    if (tcp.data){
+        data = new Buffer(tcp.data.length);
+        tcp.data.copy(data);
+    };
 
 // TODO - actually implement SACK decoding and tracking
 // if (tcp.options.sack) {
@@ -1501,7 +1507,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
         session.send_bytes_tcp += tcp.header_bytes;
         if (tcp.data_bytes) {
             if (session.send_bytes_payload === 0) {
-                session.http_detect = this.detect_http_request(tcp.data);
+                session.http_detect = this.detect_http_request(data);
                 if (session.http_detect) {
                     this.setup_http_tracking(session);
                 }
@@ -1512,12 +1518,12 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
             } else {
                 if (session.http_detect) {
                     try {
-                        session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
+                        session.http.request_parser.execute(data, 0, data.length);
                     } catch (request_err) {
                         this.emit('http error', session, "send", request_err);
                     }
                 } else if (session.websocket_detect) {
-                    session.websocket_parser_send.execute(tcp.data);
+                    session.websocket_parser_send.execute(data);
                     // TODO - check for WS parser errors
                 }
             }
@@ -1550,12 +1556,12 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
             } else {
                 if (session.http_detect) {
                     try {
-                        session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
+                        session.http.response_parser.execute(data, 0, data.length);
                     } catch (response_err) {
                         this.emit('http error', session, "recv", response_err);
                     }
                 } else if (session.websocket_detect) {
-                    session.websocket_parser_recv.execute(tcp.data);
+                    session.websocket_parser_recv.execute(data);
                     // TODO - check for WS parser errors
                 }
             }
