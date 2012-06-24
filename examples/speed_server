@@ -2,7 +2,7 @@
 
 /*global process require exports setInterval __dirname */
 
-var sys = require("sys"),
+var util = require('util'),
     Buffer = require("buffer").Buffer,
     pcap = require("pcap"), pcap_session,
     count = 0,
@@ -17,11 +17,11 @@ var sys = require("sys"),
     bulk_data;
 
 if (process.argv.length !== 4) {
-    sys.error("usage speed_server interface filter");
-    sys.error("Examples: ");
-    sys.error('  speed_server "" "tcp port 80"');
-    sys.error('  speed_server eth1 ""');
-    sys.error('  speed_server lo0 "ip proto \\tcp and tcp port 80"');
+    util.error("usage speed_server interface filter");
+    util.error("Examples: ");
+    util.error('  speed_server "" "tcp port 80"');
+    util.error('  speed_server eth1 ""');
+    util.error('  speed_server lo0 "ip proto \\tcp and tcp port 80"');
     process.exit(1);
 }
 
@@ -36,23 +36,23 @@ pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 console.log("All devices:");
 pcap_session.findalldevs().forEach(function (dev) {
     if (pcap_session.device_name === dev.name) {
-        sys.print("* ");
+        util.print("* ");
     }
-    sys.print(dev.name + " ");
+    util.print(dev.name + " ");
     if (dev.addresses.length > 0) {
         dev.addresses.forEach(function (address) {
-            sys.print(address.addr + "/" + address.netmask);
+            util.print(address.addr + "/" + address.netmask);
         });
-        sys.print("\n");
+        util.print("\n");
     } else {
-        sys.print("no address\n");
+        util.print("no address\n");
     }
 });
 
 setInterval(function () {
     var stats = pcap_session.stats();
     if (stats.ps_drop > 0) {
-        console.log("pcap dropped packets: " + sys.inspect(stats));
+        console.log("pcap dropped packets: " + util.inspect(stats));
     }
 }, 5000);
 
