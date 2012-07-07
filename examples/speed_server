@@ -124,7 +124,7 @@ function handle_file(file_name, in_request, in_response) {
         local_name += "index.html";
     }
 
-    path.exists(local_name, function (exists) {
+    fs.exists(local_name, function (exists) {
         if (exists) {
             file = fs.readFile(local_name, function (err, data) {
                 var out_headers = {
