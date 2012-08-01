@@ -780,11 +780,10 @@ decode.gre = function (raw_packet, offset, ip) {
     var ret = {}, option_offset, options_end;
 
     var off = offset;
-    var data_offset = off + ret.header_bytes;
     var data_end = off + ip.total_length - ip.header_bytes;
 
     if (ip.fragment_offset > 0) {
-        ret.payload_packet = raw_packet.slice(data_offset, data_end);
+        ret.payload_packet = raw_packet.slice(off, data_end);
         return ret;
     }
 
