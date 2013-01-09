@@ -6,6 +6,5 @@
     "repository": {
         "type": "git",
         "url": "git://github.com/mranney/node_pcap.git"
-    },
-    "scripts": { "install": "node-waf configure clean build" }
+    }
 }

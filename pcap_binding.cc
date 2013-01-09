@@ -64,7 +64,7 @@ void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_c
     packet_header->Set(String::New("caplen"), Integer::NewFromUnsigned(pkthdr->caplen));
     packet_header->Set(String::New("len"), Integer::NewFromUnsigned(pkthdr->len));
 
-    Local<Value> argv[1] = packet_header;
+  Local<Value> argv[1] = { packet_header };
 
     (*callback)->Call(Context::GetCurrent()->Global(), 1, argv);
 
