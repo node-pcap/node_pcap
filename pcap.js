@@ -12,7 +12,7 @@ if (process.versions && process.versions.node && process.versions.node.split('.'
     util = require("util");
     IOWatcher  = process.binding('io_watcher').IOWatcher;
 } else {
-    util = require("sys");
+    util = require('util');
     IOWatcher = process.IOWatcher;
 }
 
