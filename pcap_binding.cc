@@ -238,6 +238,9 @@ Open(bool live, const Arguments& args)
     case DLT_RAW: // "raw IP"
         ret = String::New("LINKTYPE_RAW");
         break;
+    case DLT_LINUX_SLL: // "Linux cooked capture"
+        ret = String::New("LINKTYPE_LINUX_SLL");
+        break;
     default:
         snprintf(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
         ret = String::New(errbuf);
