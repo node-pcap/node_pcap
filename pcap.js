@@ -19,6 +19,9 @@ if (process.versions && process.versions.node && process.versions.node.split('.'
 function Pcap() {
     this.opened = false;
     this.fd = null;
+    this.bytesRead = 0;
+    this.pcapHeaderLength = 24;
+    this.pcapPacketHeaderLength = 16;
 
     events.EventEmitter.call(this);
 }
@@ -45,6 +48,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
         this.device_name = device || binding.default_device();
         this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
     } else {
+        this.bytesRead = this.pcapHeaderLength;
         this.device_name = device;
         this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
     }
@@ -57,6 +61,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
 
     // called for each packet read by pcap
     function packet_ready(header) {
+        me.bytesRead += header.caplen + me.pcapPacketHeaderLength;
         header.link_type = me.link_type;
         header.time_ms = (header.tv_sec * 1000) + (header.tv_usec / 1000);
         me.buf.pcap_header = header;
@@ -851,7 +856,8 @@ decode.tcp = function (raw_packet, offset, ip) {
             option_offset += 10;
             break;
         default:
-            throw new Error("Don't know how to process TCP option " + raw_packet[option_offset]);
+            console.log("Don't know how to process TCP option " + raw_packet[option_offset]);
+            option_offset += unpack.uint32(raw_packet, option_offset + 1);
         }
     }
 
@@ -1355,12 +1361,36 @@ WebSocketParser.prototype.execute = function (incoming_buf) {
     }
 };
 
-function TCP_tracker() {
+function TCP_tracker(args) {
+    args = args || {};
     this.sessions = {};
     events.EventEmitter.call(this);
+    this.num_sessions = 0;
+    this.last_cleanup_time = 0;
+    // time (in ms) in which sessions expire with no activity
+    this.session_expire_time = args.session_expire_time || 600000;
+    // time (in ms) between cleanups
+    this.session_cleanup_time = args.session_cleanup_time || 600000;
 }
 util.inherits(TCP_tracker, events.EventEmitter);
 exports.TCP_tracker = TCP_tracker;
+
+TCP_tracker.prototype.cleanup_sessions = function(cur_time){
+    //console.log("running cleanup...");
+    var self = this,
+        num_cleaned = 0;
+
+    this.last_cleanup_time = cur_time;
+    //*
+    for(var key in self.sessions){
+        if(cur_time - self.sessions[key].current_cap_time > self.session_expire_time){
+            num_cleaned++;
+            this.num_sessions--;
+            delete self.sessions[key];
+        }
+    }
+    //console.log('cleaned up: ' + num_cleaned);
+}
 
 TCP_tracker.prototype.make_session_key = function (src, dst) {
     return [ src, dst ].sort().join("-");
@@ -1534,10 +1564,6 @@ TCP_tracker.prototype.track_states.SYN_SENT = function (packet, session) {
         session.recv_isn = tcp.seqno;
         session.recv_window_scale = tcp.options.window_scale || 1; // multiplier, not bit shift value
         session.state = "SYN_RCVD";
-    } else if (tcp.flags.rst) {
-        session.state = "CLOSED";
-        delete this.sessions[session.key];
-        this.emit('reset', session, "recv"); // TODO - check which direction did the reset, probably recv
     } else {
 //        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + util.inspect(tcp, false, 4));
     }
@@ -1563,7 +1589,15 @@ TCP_tracker.prototype.track_states.SYN_RCVD = function (packet, session) {
 TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
     var ip  = packet.link.ip,
         tcp = ip.tcp,
-        src = ip.saddr + ":" + tcp.sport;
+        src = ip.saddr + ":" + tcp.sport,
+        data;
+
+    if (tcp.data){
+        data = new Buffer(tcp.data.length);
+        tcp.data.copy(data);
+    };
+    
+    tcp.timestamp = packet.pcap_header.time_ms;
 
 // TODO - actually implement SACK decoding and tracking
 // if (tcp.options.sack) {
@@ -1578,7 +1612,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
         session.send_bytes_tcp += tcp.header_bytes;
         if (tcp.data_bytes) {
             if (session.send_bytes_payload === 0) {
-                session.http_detect = this.detect_http_request(tcp.data);
+                session.http_detect = this.detect_http_request(data);
                 if (session.http_detect) {
                     this.setup_http_tracking(session);
                 }
@@ -1589,12 +1623,12 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
             } else {
                 if (session.http_detect) {
                     try {
-                        session.http.request_parser.execute(tcp.data, 0, tcp.data.length);
+                        session.http.request_parser.execute(data, 0, data.length);
                     } catch (request_err) {
                         this.emit('http error', session, "send", request_err);
                     }
                 } else if (session.websocket_detect) {
-                    session.websocket_parser_send.execute(tcp.data);
+                    session.websocket_parser_send.execute(data);
                     // TODO - check for WS parser errors
                 }
             }
@@ -1627,12 +1661,12 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
             } else {
                 if (session.http_detect) {
                     try {
-                        session.http.response_parser.execute(tcp.data, 0, tcp.data.length);
+                        session.http.response_parser.execute(data, 0, data.length);
                     } catch (response_err) {
                         this.emit('http error', session, "recv", response_err);
                     }
                 } else if (session.websocket_detect) {
-                    session.websocket_parser_recv.execute(tcp.data);
+                    session.websocket_parser_recv.execute(data);
                     // TODO - check for WS parser errors
                 }
             }
@@ -1686,6 +1720,7 @@ TCP_tracker.prototype.track_states.LAST_ACK = function (packet, session) {
     if (src === session.dst) {
         session.close_time = packet.pcap_header.time_ms;
         session.state = "CLOSED";
+        this.num_sessions--;
         delete this.sessions[session.key];
         this.emit('end', session);
     }
@@ -1700,6 +1735,7 @@ TCP_tracker.prototype.track_states.CLOSING = function (packet, session) {
     if (src === session.src) {
         session.close_time = packet.pcap_header.time_ms;
         session.state = "CLOSED";
+        this.num_sessions--;
         delete this.sessions[session.key];
         this.emit('end', session);
     }
@@ -1717,11 +1753,26 @@ TCP_tracker.prototype.track_states.CLOSED = function (packet, session) {
 TCP_tracker.prototype.track_next = function (key, packet) {
     var session = this.sessions[key];
 
+    var ip  = packet.link.ip,
+        tcp = ip.tcp;
+
     if (typeof session !== 'object') {
         throw new Error("track_next: couldn't find session for " + key);
     }
 
+    /* Reset can arrive at any time */
+    if (tcp.flags.rst) {
+        session.close_time = packet.pcap_header.time_ms;
+        session.state = "CLOSED";
+        this.num_sessions--;
+        delete this.sessions[session.key];
+        this.emit('reset', session, "recv"); // TODO - check which direction did the reset, probably recv
+    }
+
     if (typeof this.track_states[session.state] === 'function') {
+        if(packet.pcap_header.time_ms > this.last_cleanup_time + this.session_cleanup_time){
+            this.cleanup_sessions(packet.pcap_header.time_ms);
+        }
         this.track_states[session.state].call(this, packet, session);
     } else {
         console.log(util.debug(session));
@@ -1731,6 +1782,8 @@ TCP_tracker.prototype.track_next = function (key, packet) {
 
 TCP_tracker.prototype.track_packet = function (packet) {
     var ip, tcp, src, src_mac, dst, dst_mac, key, session, self = this;
+    self.packets_since_cleanup++;
+    if(self.last_cleanup_time == 0) self.last_cleanup_time = packet.pcap_header.time_ms;
 
     if (packet.link && packet.link.ip && packet.link.ip.tcp) {
         ip  = packet.link.ip;
@@ -1744,6 +1797,7 @@ TCP_tracker.prototype.track_packet = function (packet) {
 
         if (tcp.flags.syn && !tcp.flags.ack) {
             if (session === undefined) {
+                this.num_sessions++;
                 this.sessions[key] = {
                     src: src, // the side the sent the initial SYN
                     src_mac: src_mac,
