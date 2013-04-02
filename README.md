@@ -44,7 +44,7 @@ If you want to hack on the source code, you can get it from github.  Clone the r
 To compile the native code bindings, do this:
 
     cd node_pcap
-    node-waf configure build
+    node-gyp configure build
 
 Assuming it built without errors, you should be able to run the examples and then write your own packet
 capture programs.
