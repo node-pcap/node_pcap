@@ -1,6 +1,6 @@
 {
    "name" : "pcap",
-    "version" : "0.3.1",
+    "version" : "0.3.2",
     "description" : "raw packet capture, decoding, and analysis",
     "author": "Matt Ranney <mjr@ranney.com>",
     "maintainers": [
