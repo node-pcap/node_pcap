@@ -1,6 +1,9 @@
 Changelog
 =========
 
+## v0.3.2 - April 9, 2012
+Bumped version to test npm install
+
 ## v0.3.0 - January 14, 2012
 
 After nearly a year of neglect, finally getting back to node_pcap.
