@@ -439,3 +439,5 @@ extern "C" void init (Handle<Object> target)
     target->Set(String::New("default_device"), FunctionTemplate::New(DefaultDevice)->GetFunction());
     target->Set(String::New("lib_version"), FunctionTemplate::New(LibVersion)->GetFunction());
 }
+
+NODE_MODULE(pcap_binding, init)
