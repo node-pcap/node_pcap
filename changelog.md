@@ -1,6 +1,9 @@
 Changelog
 =========
 
+## v0.3.3 - April 21, 2012
+Resolved "Symbol pcap_binding_module not found" by adding NODE_MODULE directive.
+
 ## v0.3.2 - April 9, 2012
 Bumped version to test npm install
 
