@@ -1,12 +1,12 @@
 /*global process require exports console */
 
-var util, IOWatcher,
+var util       = require('util'),
     dns        = require('dns'),
-    Buffer     = require('buffer').Buffer,
     events     = require('events'),
     binding    = require('./build/Release/pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
-    url        = require('url');
+    url        = require('url'),
+    IOWatcher;
 
 if (process.versions && process.versions.node && process.versions.node.split('.')[1] >= 3) {
     util = require("util");

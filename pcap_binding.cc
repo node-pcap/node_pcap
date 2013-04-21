@@ -425,7 +425,7 @@ LibVersion(const Arguments &args)
     return scope.Close(String::New(pcap_lib_version()));
 }
 
-extern "C" void init (Handle<Object> target)
+void Initialize (Handle<Object> target)
 {
     HandleScope scope;
 
@@ -440,4 +440,4 @@ extern "C" void init (Handle<Object> target)
     target->Set(String::New("lib_version"), FunctionTemplate::New(LibVersion)->GetFunction());
 }
 
-NODE_MODULE(pcap_binding, init)
+NODE_MODULE(pcap_binding, Initialize)
