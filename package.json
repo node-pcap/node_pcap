@@ -10,5 +10,8 @@
     "repository": {
         "type": "git",
         "url": "git://github.com/mranney/node_pcap.git"
+    },
+    "dependencies": {
+      "socketwatcher": "~0.1.0"
     }
 }

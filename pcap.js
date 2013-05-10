@@ -6,15 +6,7 @@ var util       = require('util'),
     binding    = require('./build/Release/pcap_binding'),
     HTTPParser = process.binding('http_parser').HTTPParser,
     url        = require('url'),
-    IOWatcher;
-
-if (process.versions && process.versions.node && process.versions.node.split('.')[1] >= 3) {
-    util = require("util");
-    IOWatcher  = process.binding('io_watcher').IOWatcher;
-} else {
-    util = require('util');
-    IOWatcher = process.IOWatcher;
-}
+    IOWatcher  = require("socketwatcher");
 
 function Pcap() {
     this.opened = false;
