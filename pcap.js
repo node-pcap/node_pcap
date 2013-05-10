@@ -137,10 +137,10 @@ var unpack = {
         ].join(":");
     },
     sll_addr: function (raw_packet, offset, len) {
-	var res = []
-	for (i=0; i<len; i++){
-		res.push(lpad(raw_packet[offset+i].toString(16), 2));
-	}
+        var res = [], i;
+        for (i=0; i<len; i++){
+            res.push(lpad(raw_packet[offset+i].toString(16), 2));
+        }
 
         return res.join(":");
     },
@@ -178,39 +178,40 @@ var unpack = {
             raw_packet[offset + 3]
         ].join('.');
     },
-	ipv6_addr: function (raw_packet, offset) {
-	    var ret = '';
-	    var octets = [];
-	    for (var i=offset; i<offset+16; i+=2) {
-		octets.push(unpack.uint16(raw_packet,i).toString(16));
-	    }
-	    var curr_start, curr_len = undefined;
-	    var max_start, max_len = undefined;
-	    for(var i = 0; i < 8; i++){
-		if(octets[i] == "0"){
-		    if(curr_start === undefined){
-			curr_len = 1;
-			curr_start = i;
-		    }else{
-			curr_len++;
-			if(!max_start || curr_len > max_len){
-			    max_start = curr_start;
-			    max_len = curr_len;
-			}
-		    }
-		}else{
-			curr_start = undefined;
-		}
-	    }
+    ipv6_addr: function (raw_packet, offset) {
+        var i;
+        var ret = '';
+        var octets = [];
+        for (i=offset; i<offset+16; i+=2) {
+        octets.push(unpack.uint16(raw_packet,i).toString(16));
+        }
+        var curr_start, curr_len;
+        var max_start, max_len;
+        for(i = 0; i < 8; i++){
+            if(octets[i] == "0"){
+                if(curr_start === undefined){
+                    curr_len = 1;
+                    curr_start = i;
+                }else{
+                    curr_len++;
+                    if(!max_start || curr_len > max_len){
+                        max_start = curr_start;
+                        max_len = curr_len;
+                    }
+                }
+            }else{
+                curr_start = undefined;
+            }
+        }
 
-	    if(max_start !== undefined){
-			var tosplice = max_start == 0 || (max_start + max_len > 7) ? ":" : "";
-			octets.splice(max_start, max_len,tosplice);
-			if(max_len == 8){octets.push("");}
-	    }
-		ret = octets.join(":");
-	    return ret;
-	}
+        if(max_start !== undefined){
+            var tosplice = max_start === 0 || (max_start + max_len > 7) ? ":" : "";
+            octets.splice(max_start, max_len,tosplice);
+            if(max_len == 8){octets.push("");}
+        }
+        ret = octets.join(":");
+        return ret;
+    }
 };
 exports.unpack = unpack;
 
@@ -376,7 +377,7 @@ decode.ieee802_11_radio = function (raw_packet, offset) {
         ret.shost = ret.ieee802_11Frame.shost;
         delete ret.ieee802_11Frame.shost;
         ret.dhost = ret.ieee802_11Frame.dhost;
-        delete ret.ieee802_11Frame.dhost
+        delete ret.ieee802_11Frame.dhost;
     }
 
     return ret;
@@ -426,8 +427,8 @@ decode.logicalLinkControl = function (raw_packet, offset) {
 
     ret.dsap = raw_packet[offset++];
     ret.ssap = raw_packet[offset++];
-    if(((ret.dsap == 0xaa) && (ret.ssap == 0xaa))
-       || ((ret.dsap == 0x00) && (ret.ssap == 0x00))) {
+    if(((ret.dsap == 0xaa) && (ret.ssap == 0xaa)) ||
+        ((ret.dsap === 0x00) && (ret.ssap === 0x00))) {
         ret.controlField = raw_packet[offset++];
         ret.orgCode = [
             raw_packet[offset++],
@@ -446,7 +447,7 @@ decode.logicalLinkControl = function (raw_packet, offset) {
     }
 
     return ret;
-}
+};
 
 decode.vlan = function (raw_packet, offset) {
     var ret = {};
@@ -553,7 +554,7 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
         break;
     default:
         // TODO: capture the extensions
-    		//decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
+        //decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
     }
 };
 
@@ -562,20 +563,20 @@ decode.ip6 = function (raw_packet, offset) {
 
     // http://en.wikipedia.org/wiki/IPv6
     ret.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
-	ret.traffic_class = ((raw_packet[offset] & 15) << 4) + ((raw_packet[offset+1] & 240) >> 4);
-	ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) +
+    ret.traffic_class = ((raw_packet[offset] & 15) << 4) + ((raw_packet[offset+1] & 240) >> 4);
+    ret.flow_label = ((raw_packet[offset + 1] & 15) << 16) +
         (raw_packet[offset + 2] << 8) +
         raw_packet[offset + 3];
-	ret.payload_length = unpack.uint16(raw_packet, offset+4);
-	ret.total_length = ret.payload_length + 40;
-	ret.next_header = raw_packet[offset+6];
-	ret.hop_limit = raw_packet[offset+7];
-	ret.saddr = unpack.ipv6_addr(raw_packet, offset+8);
-	ret.daddr = unpack.ipv6_addr(raw_packet, offset+24);
-	ret.header_bytes = 40;
+    ret.payload_length = unpack.uint16(raw_packet, offset+4);
+    ret.total_length = ret.payload_length + 40;
+    ret.next_header = raw_packet[offset+6];
+    ret.hop_limit = raw_packet[offset+7];
+    ret.saddr = unpack.ipv6_addr(raw_packet, offset+8);
+    ret.daddr = unpack.ipv6_addr(raw_packet, offset+24);
+    ret.header_bytes = 40;
 
-	decode.ip6_header(raw_packet, ret.next_header, ret, offset+40);
-	return ret;
+    decode.ip6_header(raw_packet, ret.next_header, ret, offset+40);
+    return ret;
 };
 
 decode.icmp = function (raw_packet, offset) {
@@ -714,23 +715,23 @@ decode.igmp = function (raw_packet, offset) {
     switch (ret.type) {
     case 0x11:
         ret.version = ret.max_response_time > 0 ? 2 : 1;
-        ret.type_desc = "Membership Query"
+        ret.type_desc = "Membership Query";
         break;
     case 0x12:
         ret.version = 1;
-        ret.type_desc = "Membership Report"
+        ret.type_desc = "Membership Report";
         break;
     case 0x16:
         ret.version = 2;
-        ret.type_desc = "Membership Report"
+        ret.type_desc = "Membership Report";
         break;
     case 0x17:
         ret.version = 2;
-        ret.type_desc = "Leave Group"
+        ret.type_desc = "Leave Group";
         break;
     case 0x22:
         ret.version = 3;
-        ret.type_desc = "Membership Report"
+        ret.type_desc = "Membership Report";
         // TODO: Decode v3 message
         break;
     default:
@@ -739,7 +740,7 @@ decode.igmp = function (raw_packet, offset) {
     }
 
     return ret;
-}
+};
 
 decode.udp = function (raw_packet, offset) {
     var ret = {};
@@ -961,7 +962,7 @@ var dns_util = {
 
         var lenOrPtr = raw_packet[offset + internal_offset];
         internal_offset++;
-        if(lenOrPtr == 0x00) {
+        if(lenOrPtr === 0x00) {
             return result;
         }
 
@@ -992,7 +993,7 @@ var dns_util = {
         } else {
             result.name = "";
             var ch;
-            while((ch = raw_packet[internal_offset++]) != 0x00) {
+            while((ch = raw_packet[internal_offset++]) !== 0x00) {
                 result.name += String.fromCharCode(ch);
             }
         }
@@ -1016,7 +1017,7 @@ var dns_util = {
         return internal_offset;
     },
     decodeRRs: function(raw_packet, offset, internal_offset, count, results) {
-        for (i = 0; i < count; i++) {
+        for (var i = 0; i < count; i++) {
             results[i] = {};
             internal_offset = dns_util.decodeRR(raw_packet, offset, internal_offset, results[i]);
         }
@@ -1201,7 +1202,7 @@ print.arp = function (packet) {
 };
 
 print.slltype = function (packet) {
-    var ret = ""
+    var ret = "";
 
     switch (packet.link.ethertype) {
     case 0x0:
