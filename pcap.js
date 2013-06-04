@@ -1,12 +1,12 @@
 /*global process require exports console */
 
-var util       = require('util'),
-    dns        = require('dns'),
-    events     = require('events'),
-    binding    = require('./build/Release/pcap_binding'),
-    HTTPParser = process.binding('http_parser').HTTPParser,
-    url        = require('url'),
-    IOWatcher  = require("socketwatcher");
+var util          = require('util'),
+    dns           = require('dns'),
+    events        = require('events'),
+    binding       = require('./build/Release/pcap_binding'),
+    HTTPParser    = process.binding('http_parser').HTTPParser,
+    url           = require('url'),
+    SocketWatcher = require("socketwatcher");
 
 function Pcap() {
     this.opened = false;
@@ -43,7 +43,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
 
     this.fd = binding.fileno();
     this.opened = true;
-    this.readWatcher = new IOWatcher();
+    this.readWatcher = new SocketWatcher();
     this.empty_reads = 0;
     this.buf = new Buffer(65535);
 
@@ -61,7 +61,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
         if (packets_read < 1) {
             // according to pcap_dispatch documentation if 0 is returned when reading
             // from a savefile there will be no more packets left. this check ensures
-            // we stop reading. Under certain circumstances IOWatcher will get caught
+            // we stop reading. Under certain circumstances SocketWatcher will get caught
             // in a loop and continue to signal us causing the program to be flooded
             // with events.
             if(!me.live) {
