@@ -6,7 +6,7 @@ var util          = require('util'),
     binding       = require('./build/Release/pcap_binding'),
     HTTPParser    = process.binding('http_parser').HTTPParser,
     url           = require('url'),
-    SocketWatcher = require("socketwatcher");
+    SocketWatcher = require("socketwatcher").SocketWatcher;
 
 function Pcap() {
     this.opened = false;
