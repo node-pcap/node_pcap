@@ -26,26 +26,14 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
     var me = this;
 
     if (typeof buffer_size === 'number' && !isNaN(buffer_size)) {
-        this.buffer_size = Math.round(buffer_size);
+        me.buffer_size = Math.round(buffer_size);
     } else {
-        this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
+        me.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
     }
 
-    this.live = live;
+    me.live = live;
 
-    if (live) {
-        this.device_name = device || binding.default_device();
-        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
-    } else {
-        this.device_name = device;
-        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
-    }
-
-    this.fd = binding.fileno();
-    this.opened = true;
-    this.readWatcher = new SocketWatcher();
-    this.empty_reads = 0;
-    this.buf = new Buffer(65535);
+    me.session = new binding.PcapSession();
 
     // called for each packet read by pcap
     function packet_ready(header) {
@@ -55,9 +43,31 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
         me.emit('packet', me.buf);
     }
 
-    // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
-    this.readWatcher.callback = function pcap_read_callback() {
-        var packets_read = binding.dispatch(me.buf, packet_ready);
+    if (live) {
+        me.device_name = device || binding.default_device();
+        me.link_type = me.session.open_live(me.device_name, filter || "", me.buffer_size, pcap_output_filename || "", packet_ready);
+    } else {
+        me.device_name = device;
+        me.link_type = me.session.open_offline(me.device_name, filter || "", me.buffer_size, pcap_output_filename || "", packet_ready);
+    }
+
+    me.fd = me.session.fileno();
+    me.opened = true;
+    me.readWatcher = new SocketWatcher();
+    me.empty_reads = 0;
+    me.buf = new Buffer(65535);
+
+
+    if (!live) {
+      var packets_read = me.session.dispatch(me.buf);
+      while (packets_read > 0) {
+        packets_read = me.session.dispatch(me.buf);
+      }
+      me.emit('eof');
+    } else {
+      // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
+      me.readWatcher.callback = function pcap_read_callback() {
+        var packets_read = me.session.dispatch(me.buf);
         if (packets_read < 1) {
             // according to pcap_dispatch documentation if 0 is returned when reading
             // from a savefile there will be no more packets left. this check ensures
@@ -70,21 +80,24 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
             }
 
             // TODO - figure out what is causing this, and if it is bad.
+            me.emit('eof');
             me.empty_reads += 1;
         }
-    };
-    this.readWatcher.set(this.fd, true, false);
-    this.readWatcher.start();
+      };
+      me.readWatcher.set(me.fd, true, false);
+      me.readWatcher.start();
+    }
 };
 
 Pcap.prototype.close = function () {
     this.opened = false;
-    binding.close();
+    this.readWatcher.stop();
+    this.session.close();
     // TODO - remove listeners so program will exit I guess?
 };
 
 Pcap.prototype.stats = function () {
-    return binding.stats();
+    return this.session.stats();
 };
 
 exports.Pcap = Pcap;
@@ -311,7 +324,7 @@ decode.ethernet = function (raw_packet, offset) {
         }
     }
 
-    
+
 
     return ret;
 };
@@ -320,16 +333,16 @@ decode.ethernet = function (raw_packet, offset) {
 decode.linux_sll = function (raw_packet, offset) {
     var ret = {};
     var types = {0:"HOST", 1:"BROADCAST", 2:"MULTICAST", 3:"OTHERHOST", 4:"OUTGOING"};
-    
+
     ret.sllPacketType = unpack.uint16(raw_packet, offset); offset+=2;
     ret.sllAddressType = types[unpack.uint16(raw_packet, offset)]; offset+=2;
     var sllAddressLength = unpack.uint16(raw_packet, offset); offset+=2;
 
-    ret.sllSource = unpack.sll_addr(raw_packet, offset, sllAddressLength); 
+    ret.sllSource = unpack.sll_addr(raw_packet, offset, sllAddressLength);
     offset+=8; //address field is fixed to 8 bytes from witch addresslength bytes are used
-    
+
     ret.sllProtocol = unpack.uint16(raw_packet, offset); offset+=2;
-    
+
     switch (ret.sllProtocol) {
     case 0x800: // IPv4
         ret.ip = decode.ip(raw_packet, offset);
@@ -519,6 +532,10 @@ decode.ip = function (raw_packet, offset) {
     case 17:
         ret.protocol_name = "UDP";
         ret.udp = decode.udp(raw_packet, offset + (ret.header_length * 4));
+        break;
+    case 47:
+        ret.protocol_name = "GRE";
+        ret.gre = decode.gre(raw_packet, offset + (ret.header_length * 4), ret);
         break;
     default:
         ret.protocol_name = "Unknown";
@@ -742,22 +759,76 @@ decode.udp = function (raw_packet, offset) {
     ret.dport       = unpack.uint16(raw_packet, offset + 2);    // 2, 3
     ret.length      = unpack.uint16(raw_packet, offset + 4);    // 4, 5
     ret.checksum    = unpack.uint16(raw_packet, offset + 6);    // 6, 7
-    
+
     ret.data_offset = offset + 8;
     ret.data_end    = ret.length + ret.data_offset - 8;
     ret.data_bytes  = ret.data_end - ret.data_offset;
-    
+
     // Follow tcp pattern and don't make a copy of the data payload
     // Therefore its only valid for this pass throught the capture loop
     if (ret.data_bytes > 0) {
         ret.data = raw_packet.slice(ret.data_offset, ret.data_end);
         ret.data.length = ret.data_bytes;
     }
-    
+
     if (ret.sport === 53 || ret.dport === 53) {
         ret.dns = decode.dns(raw_packet, offset + 8);
     }
 
+    return ret;
+};
+
+
+decode.gre = function (raw_packet, offset, ip) {
+    var ret = {}, option_offset, options_end;
+
+    var off = offset;
+    var data_end = off + ip.total_length - ip.header_bytes;
+
+    if (ip.fragment_offset > 0) {
+        ret.payload_packet = raw_packet.slice(off, data_end);
+        return ret;
+    }
+
+    var header = unpack.uint16(raw_packet, off);
+    off += 2;
+    ret.C = header & 0;
+    ret.R = (header & 2) >> 1;
+    ret.K = (header & 4) >> 2;
+    ret.S = (header & 8) >> 3;
+    ret.s = (header & 16) >> 4;
+    ret.recur = (header & 0xE0) >> 5;
+
+    ret.flags = (header & 0x1f00) >> 8;
+    ret.vesion = (header & 0xE000) >> 13;
+
+    ret.type = unpack.uint16(raw_packet, off);
+    off += 2;
+
+    if (ret.C === 1 || ret.R === 1) {
+        ret.checksum = unpack.uint16(raw_packet, off);
+        off += 2;
+
+        ret.offset = unpack.uint16(raw_packet, off);
+        off += 2;
+    }
+
+    if (ret.K === 1) {
+        ret.key = unpack.uint32(raw_packet, off);
+        off += 4;
+    }
+
+    if (ret.S === 1) {
+        ret.sequence_number = unpack.uint32(raw_packet, off);
+        off += 4;
+    }
+
+    if (ret.R === 1) {
+        ret.routing = raw_packet.slice(off, off + ret.offset);
+        off += ret.offset;
+    }
+
+    ret.payload_packet = raw_packet.slice(off, data_end);
     return ret;
 };
 
@@ -844,7 +915,8 @@ decode.tcp = function (raw_packet, offset, ip) {
             option_offset += 10;
             break;
         default:
-            throw new Error("Don't know how to process TCP option " + raw_packet[option_offset]);
+            console.log("Don't know how to process TCP option " + raw_packet[option_offset]);
+            option_offset += unpack.uint32(raw_packet, option_offset + 1);
         }
     }
 
