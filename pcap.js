@@ -26,26 +26,13 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
     var me = this;
 
     if (typeof buffer_size === 'number' && !isNaN(buffer_size)) {
-        this.buffer_size = Math.round(buffer_size);
+        me.buffer_size = Math.round(buffer_size);
     } else {
-        this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
+        me.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
     }
 
-    this.live = live;
-
-    if (live) {
-        this.device_name = device || binding.default_device();
-        this.link_type = binding.open_live(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
-    } else {
-        this.device_name = device;
-        this.link_type = binding.open_offline(this.device_name, filter || "", this.buffer_size, pcap_output_filename || "");
-    }
-
-    this.fd = binding.fileno();
-    this.opened = true;
-    this.readWatcher = new SocketWatcher();
-    this.empty_reads = 0;
-    this.buf = new Buffer(65535);
+    me.live = live;
+    me.session = new binding.PcapSession();
 
     // called for each packet read by pcap
     function packet_ready(header) {
@@ -55,16 +42,30 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
         me.emit('packet', me.buf);
     }
 
+    if (live) {
+        me.device_name = device || binding.default_device();
+        me.link_type = me.session.open_live(me.device_name, filter || "", me.buffer_size, pcap_output_filename || "", packet_ready);
+    } else {
+        me.device_name = device;
+        me.link_type = me.session.open_offline(me.device_name, filter || "", me.buffer_size, pcap_output_filename || "", packet_ready);
+    }
+
+    me.fd = me.session.fileno();
+    me.opened = true;
+    me.readWatcher = new SocketWatcher();
+    me.empty_reads = 0;
+    me.buf = new Buffer(65535);
+
     // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
-    this.readWatcher.callback = function pcap_read_callback() {
-        var packets_read = binding.dispatch(me.buf, packet_ready);
+    me.readWatcher.callback = function pcap_read_callback() {
+        var packets_read = me.session.dispatch(me.buf);
         if (packets_read < 1) {
             // according to pcap_dispatch documentation if 0 is returned when reading
             // from a savefile there will be no more packets left. this check ensures
             // we stop reading. Under certain circumstances SocketWatcher will get caught
             // in a loop and continue to signal us causing the program to be flooded
             // with events.
-            if(!me.live) {
+            if (!me.live) {
                 me.readWatcher.stop();
                 me.emit('complete');
             }
@@ -73,18 +74,18 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
             me.empty_reads += 1;
         }
     };
-    this.readWatcher.set(this.fd, true, false);
-    this.readWatcher.start();
+    me.readWatcher.set(me.fd, true, false);
+    me.readWatcher.start();
 };
 
 Pcap.prototype.close = function () {
     this.opened = false;
-    binding.close();
+    this.session.close();
     // TODO - remove listeners so program will exit I guess?
 };
 
 Pcap.prototype.stats = function () {
-    return binding.stats();
+    return this.session.stats();
 };
 
 exports.Pcap = Pcap;
