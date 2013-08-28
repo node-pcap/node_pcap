@@ -1,10 +1,16 @@
 Changelog
 =========
 
-## v0.3.3 - April 21, 2012
+## v1.0.0 - August 28, 2013
+
+Support for multiple sessions is introduced. Pcap is officially out of beta.
+
+## v0.3.3 - April 21, 2013
+
 Resolved "Symbol pcap_binding_module not found" by adding NODE_MODULE directive.
 
-## v0.3.2 - April 9, 2012
+## v0.3.2 - April 9, 2013
+
 Bumped version to test npm install
 
 ## v0.3.0 - January 14, 2012

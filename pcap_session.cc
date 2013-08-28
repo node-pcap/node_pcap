@@ -114,10 +114,9 @@ PcapSession::Dispatch(const Arguments& args)
     session->buffer_length = buffer_obj->length();
 #endif
 
-    int packet_count, total_packets = 0;
+    int packet_count;
     do {
         packet_count = pcap_dispatch(session->pcap_handle, 1, PacketReady, (u_char *)session);
-        total_packets += packet_count;
     } while (packet_count > 0);
 
     return scope.Close(Integer::NewFromUnsigned(packet_count));
