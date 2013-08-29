@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <pcap/pcap.h>
 #include <sys/ioctl.h>
+#include <cstring>
 
 #include "pcap_session.h"
 
