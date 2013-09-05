@@ -30,8 +30,8 @@ very straightforward in node.
 
 ## Installation
 
-You will need `libpcap` installed.  Most OSX machines seem to have it.  All major Linux distributions have it available
-either by default or with a package like `libpcap-dev`.
+You will need `libpcap>=1.0.0` installed.  Most OSX machines seem to have it.  All major Linux distributions have it available
+either by default or with a package like `libpcap-dev`. If not, you can install [from source](http://www.tcpdump.org/#latest-release).
 
 The easiest way to get `node_pcap` and its tools is with `npm`:
 
@@ -55,7 +55,7 @@ capture programs.
 There are several example programs that show how to use `node_pcap`.  These examples are best documentation.
 Try them out and see what they do.
 
-To use this library in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm` 
+To use this library in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm`
 takes care of this automatically.
 
 ### Starting a capture session
@@ -86,7 +86,7 @@ Listening for packets:
     });
 
 To convert `raw_packet` into a JavaScript object that is easy to work with, decode it:
-    
+
     var packet = pcap.decode.packet(raw_packet);
 
 The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
@@ -152,7 +152,7 @@ see the wonderful things it can do for you.  Hopefully the names of the properti
 ### HTTP Analysis
 
 The `TCP_tracker` also detects and decodes HTTP on all streams it receives.  If HTTP is detected, several
-new events will be emitted: 
+new events will be emitted:
 
 * `http request`: function(session, http)
 * `http request body`: function(session, http, data)
@@ -179,23 +179,23 @@ The `TCP_tracker` further detects and decodes WebSocket traffic on all streams i
 
 See `http_trace` for an example of how to use these events to decode WebSocket.
 
-    
+
 ## Some Common Problems
 
 ### TCP Segmentation Offload - TSO
 
-TSO is a technique that modern operating systems use to offload the burden of IP/TCP header computation to 
+TSO is a technique that modern operating systems use to offload the burden of IP/TCP header computation to
 the network hardware.  It also reduces the number of times that data is moved data between the kernel and the
 network hardware.  TSO saves CPU when sending data that is larger than a single IP packet.
 
 This is amazing and wonderful, but it does make some kinds of packet sniffing more difficult.  In many cases,
-it is important to see the exact packets that are sent, but if the network hardware is sending the packets, 
+it is important to see the exact packets that are sent, but if the network hardware is sending the packets,
 these are not available to `libpcap`.  The solution is to disable TSO.
 
 OSX:
 
     sudo sysctl -w net.inet.tcp.tso=0
-    
+
 Linux (substitute correct interface name):
 
     sudo ethtool -K eth0 tso off
@@ -210,7 +210,7 @@ resolve to the IPv6 address `::1` and then will try `127.0.0.1`.  Until we get I
 set to only see IPv4 traffic:
 
     sudo http_trace lo0 "ip proto \tcp"
-    
+
 The backslash is important.  The pcap filter language has an ambiguity with the word "tcp", so by escaping it,
 you'll get the correct interpretation for this case.
 
@@ -270,7 +270,7 @@ In another window I ran `curl nodejs.org`.
 ## Output from `session.findalldevs`:
 
     [ { name: 'en0'
-      , addresses: 
+      , addresses:
          [ { addr: '10.51.2.183'
            , netmask: '255.255.255.0'
            , broadaddr: '10.51.2.255'
@@ -292,11 +292,11 @@ Running `sys.inspect` on the first three decoded packets of this TCP session.
 
 First packet, TCP SYN:
 
-    { ethernet: 
+    { ethernet:
        { dhost: '00:18:39:ff:f9:1c'
        , shost: '00:1f:5b:ce:3e:29'
        , ethertype: 2048
-       , ip: 
+       , ip:
           { version: 4
           , header_length: 5
           , diffserv: 0
@@ -310,14 +310,14 @@ First packet, TCP SYN:
           , saddr: '10.240.0.133'
           , daddr: '97.107.132.72'
           , protocol_name: 'TCP'
-          , tcp: 
+          , tcp:
              { sport: 57230
              , dport: 80
              , seqno: 4179361823
              , ackno: 1540242985
              , data_offset: 11
              , reserved: 0
-             , flags: 
+             , flags:
                 { cwr: 0
                 , ece: 0
                 , urg: 0
@@ -335,7 +335,7 @@ First packet, TCP SYN:
              }
           }
        }
-    , pcap_header: 
+    , pcap_header:
        { time: Sat, 22 May 2010 07:48:40 GMT
        , tv_sec: 1274514520
        , tv_usec: 820479
@@ -344,14 +344,14 @@ First packet, TCP SYN:
        , link_type: 'LINKTYPE_ETHERNET'
        }
     }
-    
+
 Second packet, TCP SYN+ACK:
 
-    { ethernet: 
+    { ethernet:
        { dhost: '00:1f:5b:ce:3e:29'
        , shost: '00:18:39:ff:f9:1c'
        , ethertype: 2048
-       , ip: 
+       , ip:
           { version: 4
           , header_length: 5
           , diffserv: 32
@@ -365,14 +365,14 @@ Second packet, TCP SYN+ACK:
           , saddr: '97.107.132.72'
           , daddr: '10.240.0.133'
           , protocol_name: 'TCP'
-          , tcp: 
+          , tcp:
              { sport: 80
              , dport: 57230
              , seqno: 1042874392
              , ackno: 973076764
              , data_offset: 10
              , reserved: 0
-             , flags: 
+             , flags:
                 { cwr: 0
                 , ece: 0
                 , urg: 0
@@ -390,7 +390,7 @@ Second packet, TCP SYN+ACK:
              }
           }
        }
-    , pcap_header: 
+    , pcap_header:
        { time: Sat, 22 May 2010 07:48:40 GMT
        , tv_sec: 1274514520
        , tv_usec: 915980
@@ -402,11 +402,11 @@ Second packet, TCP SYN+ACK:
 
 Third packet, TCP ACK, 3-way handshake is now complete:
 
-    { ethernet: 
+    { ethernet:
        { dhost: '00:18:39:ff:f9:1c'
        , shost: '00:1f:5b:ce:3e:29'
        , ethertype: 2048
-       , ip: 
+       , ip:
           { version: 4
           , header_length: 5
           , diffserv: 0
@@ -420,14 +420,14 @@ Third packet, TCP ACK, 3-way handshake is now complete:
           , saddr: '10.240.0.133'
           , daddr: '97.107.132.72'
           , protocol_name: 'TCP'
-          , tcp: 
+          , tcp:
              { sport: 57230
              , dport: 80
              , seqno: 4179361823
              , ackno: 1540242985
              , data_offset: 8
              , reserved: 0
-             , flags: 
+             , flags:
                 { cwr: 0
                 , ece: 0
                 , urg: 0
@@ -445,7 +445,7 @@ Third packet, TCP ACK, 3-way handshake is now complete:
              }
           }
        }
-    , pcap_header: 
+    , pcap_header:
        { time: Sat, 22 May 2010 07:48:40 GMT
        , tv_sec: 1274514520
        , tv_usec: 916054
