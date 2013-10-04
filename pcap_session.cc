@@ -4,6 +4,7 @@
 #include <pcap/pcap.h>
 #include <sys/ioctl.h>
 #include <cstring>
+#include <string.h>
 
 #include "pcap_session.h"
 
