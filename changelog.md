@@ -1,6 +1,10 @@
 Changelog
 =========
 
+## v1.0.1 - October 5, 2013
+
+Fixes compilation error on some Linux systems.
+
 ## v1.0.0 - August 28, 2013
 
 Support for multiple sessions is introduced. Pcap is officially out of beta.
