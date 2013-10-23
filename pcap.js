@@ -312,7 +312,7 @@ decode.ethernet = function (raw_packet, offset) {
         }
     }
 
-    
+
 
     return ret;
 };
@@ -321,16 +321,16 @@ decode.ethernet = function (raw_packet, offset) {
 decode.linux_sll = function (raw_packet, offset) {
     var ret = {};
     var types = {0:"HOST", 1:"BROADCAST", 2:"MULTICAST", 3:"OTHERHOST", 4:"OUTGOING"};
-    
+
     ret.sllPacketType = unpack.uint16(raw_packet, offset); offset+=2;
     ret.sllAddressType = types[unpack.uint16(raw_packet, offset)]; offset+=2;
     var sllAddressLength = unpack.uint16(raw_packet, offset); offset+=2;
 
-    ret.sllSource = unpack.sll_addr(raw_packet, offset, sllAddressLength); 
+    ret.sllSource = unpack.sll_addr(raw_packet, offset, sllAddressLength);
     offset+=8; //address field is fixed to 8 bytes from witch addresslength bytes are used
-    
+
     ret.sllProtocol = unpack.uint16(raw_packet, offset); offset+=2;
-    
+
     switch (ret.sllProtocol) {
     case 0x800: // IPv4
         ret.ip = decode.ip(raw_packet, offset);
@@ -388,6 +388,10 @@ decode.ieee802_11_frame = function (raw_packet, offset) {
     ret.shost = unpack.ethernet_addr(raw_packet, offset); offset += 6;
     ret.dhost = unpack.ethernet_addr(raw_packet, offset); offset += 6;
     ret.fragSeq = unpack.uint16_be(raw_packet, offset); offset += 2;
+
+    var strength = raw_packet[22];
+    ret.strength = -Math.abs(265 - strength);
+
 
     switch(ret.subType) {
         case 8: // QoS Data
@@ -743,18 +747,18 @@ decode.udp = function (raw_packet, offset) {
     ret.dport       = unpack.uint16(raw_packet, offset + 2);    // 2, 3
     ret.length      = unpack.uint16(raw_packet, offset + 4);    // 4, 5
     ret.checksum    = unpack.uint16(raw_packet, offset + 6);    // 6, 7
-    
+
     ret.data_offset = offset + 8;
     ret.data_end    = ret.length + ret.data_offset - 8;
     ret.data_bytes  = ret.data_end - ret.data_offset;
-    
+
     // Follow tcp pattern and don't make a copy of the data payload
     // Therefore its only valid for this pass throught the capture loop
     if (ret.data_bytes > 0) {
         ret.data = raw_packet.slice(ret.data_offset, ret.data_end);
         ret.data.length = ret.data_bytes;
     }
-    
+
     if (ret.sport === 53 || ret.dport === 53) {
         ret.dns = decode.dns(raw_packet, offset + 8);
     }
