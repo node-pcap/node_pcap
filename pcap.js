@@ -1740,63 +1740,55 @@ TCP_tracker.prototype.track_packet = function (packet) {
         key = this.make_session_key(src, dst);
         session = this.sessions[key];
 
-        if (tcp.flags.syn && !tcp.flags.ack) {
-            if (session === undefined) {
-                this.sessions[key] = {
-                    src: src, // the side the sent the initial SYN
-                    src_mac: src_mac,
-                    dst: dst, // the side that the initial SYN was sent to
-                    dst_mac: dst_mac,
-                    syn_time: packet.pcap_header.time_ms,
-                    state: "SYN_SENT",
-                    key: key, // so we can easily remove ourselves
+        if (session === undefined) {
+            this.sessions[key] = {
+                src: src, // the side the sent the initial SYN
+                src_mac: src_mac,
+                dst: dst, // the side that the initial SYN was sent to
+                dst_mac: dst_mac,
+                syn_time: packet.pcap_header.time_ms,
+                state: (tcp.flags.syn && !tcp.flags.ack) ? "SYN_SENT" : "ESTAB",
+                key: key, // so we can easily remove ourselves
 
-                    send_isn: tcp.seqno,
-                    send_window_scale: tcp.options.window_scale || 1, // multipler, not bit shift value
-                    send_packets: {}, // send_packets is indexed by the expected ackno: seqno + length
-                    send_acks: {},
-                    send_retrans: {},
-                    send_next_seq: tcp.seqno + 1,
-                    send_acked_seq: null,
-                    send_bytes_ip: ip.header_bytes,
-                    send_bytes_tcp: tcp.header_bytes,
-                    send_bytes_payload: 0,
+                send_isn: tcp.seqno,
+                send_window_scale: tcp.options.window_scale || 1, // multipler, not bit shift value
+                send_packets: {}, // send_packets is indexed by the expected ackno: seqno + length
+                send_acks: {},
+                send_retrans: {},
+                send_next_seq: tcp.seqno + 1,
+                send_acked_seq: null,
+                send_bytes_ip: ip.header_bytes,
+                send_bytes_tcp: tcp.header_bytes,
+                send_bytes_payload: 0,
 
-                    recv_isn: null,
-                    recv_window_scale: null,
-                    recv_packets: {},
-                    recv_acks: {},
-                    recv_retrans: {},
-                    recv_next_seq: null,
-                    recv_acked_seq: null,
-                    recv_bytes_ip: 0,
-                    recv_bytes_tcp: 0,
-                    recv_bytes_payload: 0
-                };
-                session = this.sessions[key];
-                session.send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
-                session.src_name = dns_cache.ptr(ip.saddr, function (name) {
-                    session.src_name = name + ":" + tcp.sport;
-                    self.emit("reverse", ip.saddr, name);
-                }) + ":" + tcp.sport;
-                session.dst_name = dns_cache.ptr(ip.daddr, function (name) {
-                    session.dst_name = name + ":" + tcp.dport;
-                    self.emit("reverse", ip.daddr, name);
-                }) + ":" + tcp.dport;
-                session.current_cap_time = packet.pcap_header.time_ms;
-            } else { // SYN retry
-                this.emit('syn retry', session);
-            }
-        } else { // not a SYN
-            if (session) {
+                recv_isn: null,
+                recv_window_scale: null,
+                recv_packets: {},
+                recv_acks: {},
+                recv_retrans: {},
+                recv_next_seq: null,
+                recv_acked_seq: null,
+                recv_bytes_ip: 0,
+                recv_bytes_tcp: 0,
+                recv_bytes_payload: 0
+            };
+            session = this.sessions[key];
+            session.send_packets[tcp.seqno + 1] = packet.pcap_header.time_ms;
+            session.src_name = dns_cache.ptr(ip.saddr, function (name) {
+                session.src_name = name + ":" + tcp.sport;
+                self.emit("reverse", ip.saddr, name);
+            }) + ":" + tcp.sport;
+            session.dst_name = dns_cache.ptr(ip.daddr, function (name) {
+                session.dst_name = name + ":" + tcp.dport;
+                self.emit("reverse", ip.daddr, name);
+            }) + ":" + tcp.dport;
+            session.current_cap_time = packet.pcap_header.time_ms;
+        } else {
+            if (tcp.flags.syn && !tcp.flags.ack) {
+                this.emit('syn retry', session); // SYN retry
+            } else { // Not a SYN
                 session.current_cap_time = packet.pcap_header.time_ms;
                 this.track_next(key, packet);
-            } else {
-                // silently ignore session in progress
-
-                // TODO - for sessions in progress, we should pretend that this is the first packet from
-                //        the sender, go into ESTAB, and run HTTP detector.  That way we might see HTTP
-                //        requests on keepalive connections
             }
         }
     } else {
