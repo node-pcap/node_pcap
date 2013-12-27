@@ -88,6 +88,10 @@ Pcap.prototype.stats = function () {
     return this.session.stats();
 };
 
+Pcap.prototype.inject = function (data) {
+    return this.session.inject(data);
+};
+
 exports.Pcap = Pcap;
 
 exports.createSession = function (device, filter, buffer_size) {

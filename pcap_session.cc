@@ -32,6 +32,8 @@ void PcapSession::Init(Handle<Object> exports) {
       FunctionTemplate::New(Close)->GetFunction());
   tpl->PrototypeTemplate()->Set(String::NewSymbol("stats"),
       FunctionTemplate::New(Stats)->GetFunction());
+  tpl->PrototypeTemplate()->Set(String::NewSymbol("inject"),
+      FunctionTemplate::New(Inject)->GetFunction());
 
   Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
   exports->Set(String::NewSymbol("PcapSession"), constructor);
@@ -333,4 +335,37 @@ PcapSession::Stats(const Arguments& args)
     // ps_ifdrop may not be supported on this platform, but there's no good way to tell, is there?
 
     return scope.Close(stats_obj);
+}
+
+Handle<Value>
+PcapSession::Inject(const Arguments& args)
+{
+    HandleScope scope;
+
+    if (args.Length() != 1) {
+        return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly one arguments")));
+    }
+
+    if (!node::Buffer::HasInstance(args[0])) {
+        return ThrowException(Exception::TypeError(String::New("First argument must be a buffer")));
+    }
+
+    PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
+    char * bufferData = NULL;
+    size_t bufferLength = 0;
+#if NODE_VERSION_AT_LEAST(0,3,0)
+    Local<Object> buffer_obj = args[0]->ToObject();
+    bufferData = node::Buffer::Data(buffer_obj);
+    bufferLength = node::Buffer::Length(buffer_obj);
+#else
+    node::Buffer *buffer_obj = ObjectWrap::Unwrap<node::Buffer>(args[0]->ToObject());
+    bufferData = buffer_obj->data();
+    bufferLength = buffer_obj->length();
+#endif
+
+    if (pcap_inject(session->pcap_handle, bufferData, bufferLength) != (int)bufferLength) {
+        return ThrowException(Exception::Error(String::New("Pcap inject failed.")));
+    }
+
+    return Undefined();
 }
