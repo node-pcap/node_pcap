@@ -132,7 +132,7 @@ PcapSession::Open(bool live, const Arguments& args)
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (args.Length() == 5) {
+    if (args.Length() == 5 || args.Length() == 6) {
         if (!args[0]->IsString()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[0] must be a String")));
         }
@@ -147,6 +147,11 @@ PcapSession::Open(bool live, const Arguments& args)
         }
         if (!args[4]->IsFunction()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[4] must be a Function")));
+        }
+        if (args.Length() == 6) {
+            if (!args[5]->IsBoolean()) {
+                return ThrowException(Exception::TypeError(String::New("pcap Open: args[5] must be a Boolean")));
+            }
         }
     } else {
         return ThrowException(Exception::TypeError(String::New("pcap Open: expecting 4 arguments")));
@@ -193,11 +198,14 @@ PcapSession::Open(bool live, const Arguments& args)
             return ThrowException(Exception::Error(String::New("error setting read timeout")));
         }
 
-        // TODO - pass in an option to enable rfmon on supported interfaces.  Sadly, it can be a disruptive
-        // operation, so we can't just always try to turn it on.
-        // if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
-        //     return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
-        // }
+        // fixes a previous to-do that was here.
+        if (args.Length() == 6) {
+            if (args[5]->Int32Value()) {
+                if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
+                    return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
+                }
+            }
+        }
 
         if (pcap_activate(session->pcap_handle) != 0) {
             return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
@@ -343,7 +351,7 @@ PcapSession::Inject(const Arguments& args)
     HandleScope scope;
 
     if (args.Length() != 1) {
-        return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly one arguments")));
+        return ThrowException(Exception::TypeError(String::New("Inject takes exactly one argument")));
     }
 
     if (!node::Buffer::HasInstance(args[0])) {
@@ -369,3 +377,4 @@ PcapSession::Inject(const Arguments& args)
 
     return Undefined();
 }
+
