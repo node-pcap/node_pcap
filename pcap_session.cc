@@ -32,6 +32,8 @@ void PcapSession::Init(Handle<Object> exports) {
       FunctionTemplate::New(Close)->GetFunction());
   tpl->PrototypeTemplate()->Set(String::NewSymbol("stats"),
       FunctionTemplate::New(Stats)->GetFunction());
+  tpl->PrototypeTemplate()->Set(String::NewSymbol("inject"),
+      FunctionTemplate::New(Inject)->GetFunction());
 
   Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
   exports->Set(String::NewSymbol("PcapSession"), constructor);
@@ -130,7 +132,7 @@ PcapSession::Open(bool live, const Arguments& args)
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (args.Length() == 5) {
+    if (args.Length() == 5 || args.Length() == 6) {
         if (!args[0]->IsString()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[0] must be a String")));
         }
@@ -145,6 +147,11 @@ PcapSession::Open(bool live, const Arguments& args)
         }
         if (!args[4]->IsFunction()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[4] must be a Function")));
+        }
+        if (args.Length() == 6) {
+            if (!args[5]->IsBoolean()) {
+                return ThrowException(Exception::TypeError(String::New("pcap Open: args[5] must be a Boolean")));
+            }
         }
     } else {
         return ThrowException(Exception::TypeError(String::New("pcap Open: expecting 4 arguments")));
@@ -191,11 +198,14 @@ PcapSession::Open(bool live, const Arguments& args)
             return ThrowException(Exception::Error(String::New("error setting read timeout")));
         }
 
-        // TODO - pass in an option to enable rfmon on supported interfaces.  Sadly, it can be a disruptive
-        // operation, so we can't just always try to turn it on.
-        // if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
-        //     return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
-        // }
+        // fixes a previous to-do that was here.
+        if (args.Length() == 6) {
+            if (args[5]->Int32Value()) {
+                if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
+                    return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
+                }
+            }
+        }
 
         if (pcap_activate(session->pcap_handle) != 0) {
             return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
@@ -334,3 +344,37 @@ PcapSession::Stats(const Arguments& args)
 
     return scope.Close(stats_obj);
 }
+
+Handle<Value>
+PcapSession::Inject(const Arguments& args)
+{
+    HandleScope scope;
+
+    if (args.Length() != 1) {
+        return ThrowException(Exception::TypeError(String::New("Inject takes exactly one argument")));
+    }
+
+    if (!node::Buffer::HasInstance(args[0])) {
+        return ThrowException(Exception::TypeError(String::New("First argument must be a buffer")));
+    }
+
+    PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
+    char * bufferData = NULL;
+    size_t bufferLength = 0;
+#if NODE_VERSION_AT_LEAST(0,3,0)
+    Local<Object> buffer_obj = args[0]->ToObject();
+    bufferData = node::Buffer::Data(buffer_obj);
+    bufferLength = node::Buffer::Length(buffer_obj);
+#else
+    node::Buffer *buffer_obj = ObjectWrap::Unwrap<node::Buffer>(args[0]->ToObject());
+    bufferData = buffer_obj->data();
+    bufferLength = buffer_obj->length();
+#endif
+
+    if (pcap_inject(session->pcap_handle, bufferData, bufferLength) != (int)bufferLength) {
+        return ThrowException(Exception::Error(String::New("Pcap inject failed.")));
+    }
+
+    return Undefined();
+}
+

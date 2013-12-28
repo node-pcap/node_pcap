@@ -22,7 +22,7 @@ Pcap.prototype.findalldevs = function () {
     return binding.findalldevs();
 };
 
-Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_filename) {
+Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_filename, monitor) {
     var me = this;
 
     if (typeof buffer_size === 'number' && !isNaN(buffer_size)) {
@@ -44,7 +44,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
 
     if (live) {
         me.device_name = device || binding.default_device();
-        me.link_type = me.session.open_live(me.device_name, filter || "", me.buffer_size, pcap_output_filename || "", packet_ready);
+        me.link_type = me.session.open_live(me.device_name, filter || "", me.buffer_size, pcap_output_filename || "", packet_ready, monitor || false);
     } else {
         me.device_name = device;
         me.link_type = me.session.open_offline(me.device_name, filter || "", me.buffer_size, pcap_output_filename || "", packet_ready);
@@ -88,11 +88,15 @@ Pcap.prototype.stats = function () {
     return this.session.stats();
 };
 
+Pcap.prototype.inject = function (data) {
+    return this.session.inject(data);
+};
+
 exports.Pcap = Pcap;
 
-exports.createSession = function (device, filter, buffer_size) {
+exports.createSession = function (device, filter, buffer_size, monitor) {
     var session = new Pcap();
-    session.open(true, device, filter, buffer_size);
+    session.open(true, device, filter, buffer_size, null, monitor);
     return session;
 };
 

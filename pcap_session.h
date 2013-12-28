@@ -20,6 +20,7 @@ private:
     static v8::Handle<v8::Value> Fileno(const v8::Arguments& args);
     static v8::Handle<v8::Value> Close(const v8::Arguments& args);
     static v8::Handle<v8::Value> Stats(const v8::Arguments& args);
+    static v8::Handle<v8::Value> Inject(const v8::Arguments& args);
     static void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 
     v8::Persistent<v8::Function> packet_ready_cb;
