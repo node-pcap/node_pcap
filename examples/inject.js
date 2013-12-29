@@ -1,4 +1,3 @@
-
 var iface = process.argv[2];
 
 if(!iface) {
@@ -7,9 +6,11 @@ if(!iface) {
 }
 
 //first, lets watch for all ARP frames on eth0:
-// `tcpdump -i <interface> ARP`
+// `tcpdump -i <interface> arp`
 
 //then lets send our custom frame
+// `node inject.js <interface>`
+
 var pcap = require("pcap"),
     session = pcap.createSession(iface, "");
 
