@@ -1,13 +1,21 @@
-//first, lets watch for all ARP requests on eth0:
-// `tcpdump -i eth0 ARP`
+
+var iface = process.argv[2];
+
+if(!iface) {
+    console.log("usage: node inject <interface>");
+    process.exit(1);
+}
+
+//first, lets watch for all ARP frames on eth0:
+// `tcpdump -i <interface> ARP`
 
 //then lets send our custom frame
 var pcap = require("pcap"),
-    session = pcap.createSession("eth0", "");
+    session = pcap.createSession(iface, "");
 
 var arpRequest = new Buffer([
   0xff,0xff,0xff,0xff,0xff,0xff, //dst
-  0xf6,0xb5,0xc6,0x9b,0x43,0x35, //Src
+  0xf6,0xb5,0xc6,0x9b,0x43,0x35, //src
   0x08,0x06, //type - arp
   0x00,0x01, //htype - 0x0001 (ethernet)
   0x08,0x00, //ptype - 0x8000 (ip)
