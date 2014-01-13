@@ -1,6 +1,10 @@
 Changelog
 =========
 
+## v1.1.0 - January 13, 2013
+
+Adds ability enable rfmon while opening sessions.
+
 ## v1.0.1 - October 5, 2013
 
 Fixes compilation error on some Linux systems.
