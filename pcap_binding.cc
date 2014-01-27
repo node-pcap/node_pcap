@@ -101,8 +101,12 @@ DefaultDevice(const Arguments& args)
     pcap_addr_t *addr;
     bool found = false;
 
-    if (pcap_findalldevs(&alldevs, errbuf) == -1 || alldevs == NULL) {
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
         return ThrowException(Exception::Error(String::New(errbuf)));
+    }
+
+    if (alldevs == NULL) {
+        return ThrowException(Exception::Error(String::New("pcap_findalldevs didn't find any devs")));
     }
 
     for (dev = alldevs; dev != NULL; dev = dev->next) {
