@@ -218,16 +218,15 @@ PcapSession::Open(bool live, const Arguments& args)
             }
         }
 
+        if (pcap_setnonblock(session->pcap_handle, 1, errbuf) == -1) {
+          return ThrowException(Exception::Error(String::New(errbuf)));
+        }
     } else {
         // Device is the path to the savefile
         session->pcap_handle = pcap_open_offline((char *) *device, errbuf);
         if (session->pcap_handle == NULL) {
             return ThrowException(Exception::Error(String::New(errbuf)));
         }
-    }
-
-    if (pcap_setnonblock(session->pcap_handle, 1, errbuf) == -1) {
-        return ThrowException(Exception::Error(String::New(errbuf)));
     }
 
     if (filter.length() != 0) {
