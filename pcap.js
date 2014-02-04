@@ -68,7 +68,13 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
         me.readWatcher.set(me.fd, true, false);
         me.readWatcher.start();
     } else {
-        setImmediate(function() { me.session.dispatch(me.buf) });
+        setImmediate(function() {
+            var packets = 0;
+            do {
+                packets = me.session.dispatch(me.buf);
+            } while ( packets > 0 )
+            me.emit('complete');
+        });
     }
 };
 
