@@ -52,30 +52,24 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
 
     me.fd = me.session.fileno();
     me.opened = true;
-    me.readWatcher = new SocketWatcher();
-    me.empty_reads = 0;
     me.buf = new Buffer(65535);
+    if ( live ) {
+        me.readWatcher = new SocketWatcher();
+        me.empty_reads = 0;
 
-    // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
-    me.readWatcher.callback = function pcap_read_callback() {
-        var packets_read = me.session.dispatch(me.buf);
-        if (packets_read < 1) {
-            // according to pcap_dispatch documentation if 0 is returned when reading
-            // from a savefile there will be no more packets left. this check ensures
-            // we stop reading. Under certain circumstances SocketWatcher will get caught
-            // in a loop and continue to signal us causing the program to be flooded
-            // with events.
-            if (!me.live) {
-                me.readWatcher.stop();
-                me.emit('complete');
+        // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
+        me.readWatcher.callback = function pcap_read_callback() {
+            var packets_read = me.session.dispatch(me.buf);
+            if (packets_read < 1) {
+                // TODO - figure out what is causing this, and if it is bad.
+                me.empty_reads += 1;
             }
-
-            // TODO - figure out what is causing this, and if it is bad.
-            me.empty_reads += 1;
-        }
-    };
-    me.readWatcher.set(me.fd, true, false);
-    me.readWatcher.start();
+        };
+        me.readWatcher.set(me.fd, true, false);
+        me.readWatcher.start();
+    } else {
+        setImmediate(function() { me.session.dispatch(me.buf) });
+    }
 };
 
 Pcap.prototype.close = function () {
