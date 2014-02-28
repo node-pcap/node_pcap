@@ -1,6 +1,10 @@
 Changelog
 =========
 
+## v1.2.0 - February 28, 2014
+
+Fixed issue with opening offline files in linux
+
 ## v1.1.0 - January 13, 2013
 
 Adds ability enable rfmon while opening sessions.
