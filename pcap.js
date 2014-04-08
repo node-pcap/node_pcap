@@ -167,6 +167,14 @@ var unpack = {
             raw_packet[offset + 7]
         );
     },
+    string: function (raw_packet, offset, len) {
+        var res = '', i;
+        for (i=0; i<len; i++){
+            res += String.fromCharCode(raw_packet[offset + i]);
+        }
+
+        return res;
+    },
     ipv4_addr: function (raw_packet, offset) {
         return [
             raw_packet[offset],
@@ -404,7 +412,11 @@ decode.ieee802_11_frame = function (raw_packet, offset) {
             break;
     }
 
-    if(ret.type == 2 && ret.subType == 4) {
+    if(ret.type == 0 && ret.subType == 4) {
+        var ssidLen = raw_packet[59];
+        if(ssidLen > 0) ret.ssid = unpack.string(raw_packet, 60, len);
+    }
+    else if(ret.type == 2 && ret.subType == 4) {
         // skip this is Null function (No data)
     }
     else if(ret.type == 2 && ret.subType == 12) {
