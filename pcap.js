@@ -405,7 +405,7 @@ decode.ieee802_11_frame = function (raw_packet, offset) {
 
     if(ret.type == 0 && ret.subType == 4) {
         var ssidLen = raw_packet[59];
-        if(ssidLen > 0) ret.ssid = unpack.string(raw_packet, 60, len);
+        if(ssidLen > 0) ret.ssid = unpack.string(raw_packet, 60, ssidLen);
     }
 	else if(ret.type == 2 && ret.subType == 4) {
         // skip this is Null function (No data)
