@@ -8,9 +8,34 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#include <Ws2tcpip.h>
+#pragma comment(lib, "Ws2_32.lib")
+
+// Source: http://memset.wordpress.com/2010/10/09/inet_ntop-for-win32/
+const char* inet_ntop(int af, const void* src, char* dst, int cnt){
+ 
+    struct sockaddr_in srcaddr;
+ 
+    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
+    memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
+ 
+    srcaddr.sin_family = af;
+    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD) &cnt) != 0) {
+        DWORD rv = WSAGetLastError();
+        printf("WSAAddressToString() : %d\n",rv);
+        return NULL;
+    }
+    return dst;
+}
+
+#elif _linux_
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
+#endif
 
 #include "pcap_session.h"
 
