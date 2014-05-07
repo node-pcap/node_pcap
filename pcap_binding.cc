@@ -14,23 +14,8 @@
 #include <Ws2tcpip.h>
 #pragma comment(lib, "Ws2_32.lib")
 
-// Source: http://memset.wordpress.com/2010/10/09/inet_ntop-for-win32/
-const char* inet_ntop(int af, const void* src, char* dst, int cnt){
- 
-    struct sockaddr_in srcaddr;
- 
-    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
-    memcpy(&(srcaddr.sin_addr), src, sizeof(srcaddr.sin_addr));
- 
-    srcaddr.sin_family = af;
-    if (WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD) &cnt) != 0) {
-        DWORD rv = WSAGetLastError();
-        return NULL;
-    }
-    return dst;
-}
-
-/*const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
+// Implementation of inet_ntop for Windows.
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 {
     if (af == AF_INET)
     {
@@ -40,10 +25,9 @@ const char* inet_ntop(int af, const void* src, char* dst, int cnt){
         memcpy(&in.sin_addr, src, sizeof(struct in_addr));
         getnameinfo((struct sockaddr *)&in, sizeof(struct
             sockaddr_in), dst, cnt, NULL, 0, NI_NUMERICHOST);
-		printf("DST: %s\n",dst);
         return dst;
     }
-    else if (af == AF_INET6)
+    else //if (af == AF_INET6) // Seems this is large enough to handle other things.
     {
         struct sockaddr_in6 in;
         memset(&in, 0, sizeof(in));
@@ -51,11 +35,10 @@ const char* inet_ntop(int af, const void* src, char* dst, int cnt){
         memcpy(&in.sin6_addr, src, sizeof(struct in_addr6));
         getnameinfo((struct sockaddr *)&in, sizeof(struct
             sockaddr_in6), dst, cnt, NULL, 0, NI_NUMERICHOST);
-		printf("DST6: %s\n",dst);
         return dst;
     }
     return NULL;
-}*/
+}
 
 #elif _linux_
 #include <sys/time.h>
@@ -75,7 +58,6 @@ void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address)
     char dst_addr[INET6_ADDRSTRLEN + 1] = {0};
     char* src = 0;
     socklen_t size = 0;
-	
     if(addr->sa_family == AF_INET){
       struct sockaddr_in* saddr = (struct sockaddr_in*) addr;
       src = (char*) &(saddr->sin_addr);
@@ -89,8 +71,6 @@ void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address)
     const char* address = inet_ntop(addr->sa_family, src, dst_addr, size);
 	if (address) {
 		Address->Set(String::New(key), String::New(address));
-	} else {
-		Address->Set(String::New(key), String::New(""));
 	}
   }
 }
