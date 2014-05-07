@@ -8,9 +8,43 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#include <Ws2tcpip.h>
+#pragma comment(lib, "Ws2_32.lib")
+
+// Implementation of inet_ntop for Windows.
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
+{
+    if (af == AF_INET)
+    {
+        struct sockaddr_in in;
+        memset(&in, 0, sizeof(in));
+        in.sin_family = AF_INET;
+        memcpy(&in.sin_addr, src, sizeof(struct in_addr));
+        getnameinfo((struct sockaddr *)&in, sizeof(struct
+            sockaddr_in), dst, cnt, NULL, 0, NI_NUMERICHOST);
+        return dst;
+    }
+    else //if (af == AF_INET6) // Seems this is large enough to handle other things.
+    {
+        struct sockaddr_in6 in;
+        memset(&in, 0, sizeof(in));
+        in.sin6_family = AF_INET6;
+        memcpy(&in.sin6_addr, src, sizeof(struct in_addr6));
+        getnameinfo((struct sockaddr *)&in, sizeof(struct
+            sockaddr_in6), dst, cnt, NULL, 0, NI_NUMERICHOST);
+        return dst;
+    }
+    return NULL;
+}
+
+#elif _linux_
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
+#endif
 
 #include "pcap_session.h"
 
@@ -28,13 +62,16 @@ void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address)
       struct sockaddr_in* saddr = (struct sockaddr_in*) addr;
       src = (char*) &(saddr->sin_addr);
       size = INET_ADDRSTRLEN;
-    }else{
+    } else {
       struct sockaddr_in6* saddr6 = (struct sockaddr_in6*) addr;
       src = (char*) &(saddr6->sin6_addr);
       size = INET6_ADDRSTRLEN;
     }
+	
     const char* address = inet_ntop(addr->sa_family, src, dst_addr, size);
-    Address->Set(String::New(key), String::New(address));
+	if (address) {
+		Address->Set(String::New(key), String::New(address));
+	}
   }
 }
 
@@ -48,13 +85,12 @@ FindAllDevs(const Arguments& args)
     if (pcap_findalldevs(&alldevs, errbuf) == -1 || alldevs == NULL) {
         return ThrowException(Exception::TypeError(String::New(errbuf)));
     }
-
+	
     Local<Array> DevsArray = Array::New();
 
     int i = 0;
     for (cur_dev = alldevs ; cur_dev != NULL ; cur_dev = cur_dev->next, i++) {
         Local<Object> Dev = Object::New();
-
         Dev->Set(String::New("name"), String::New(cur_dev->name));
         if (cur_dev->description != NULL) {
             Dev->Set(String::New("description"), String::New(cur_dev->description));
@@ -62,16 +98,16 @@ FindAllDevs(const Arguments& args)
         Local<Array> AddrArray = Array::New();
         int j = 0;
         for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
-	  if (cur_addr->addr){
-		int af = cur_addr->addr->sa_family;
-		if(af == AF_INET || af == AF_INET6){
-		  Local<Object> Address = Object::New();
-		  SetAddrStringHelper("addr", cur_addr->addr, Address);
-		  SetAddrStringHelper("netmask", cur_addr->netmask, Address);
-		  SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
-		  SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
-		  AddrArray->Set(Integer::New(j), Address);
-		}
+			if (cur_addr->addr){
+				int af = cur_addr->addr->sa_family;
+				if(af == AF_INET || af == AF_INET6){
+				  Local<Object> Address = Object::New();
+				  SetAddrStringHelper("addr", cur_addr->addr, Address);
+				  SetAddrStringHelper("netmask", cur_addr->netmask, Address);
+				  SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
+				  SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
+				  AddrArray->Set(Integer::New(j), Address);
+				}
             }
         }
 
@@ -80,7 +116,7 @@ FindAllDevs(const Arguments& args)
         if (cur_dev->flags & PCAP_IF_LOOPBACK) {
             Dev->Set(String::New("flags"), String::New("PCAP_IF_LOOPBACK"));
         }
-
+		
         DevsArray->Set(Integer::New(i), Dev);
     }
 

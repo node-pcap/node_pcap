@@ -2,7 +2,13 @@
 #include <node_version.h>
 #include <assert.h>
 #include <pcap/pcap.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#elif _linux_
 #include <sys/ioctl.h>
+#endif
+
 #include <cstring>
 
 #include "pcap_session.h"
@@ -261,7 +267,12 @@ PcapSession::Open(bool live, const Arguments& args)
         ret = String::New("LINKTYPE_LINUX_SLL");
         break;
     default:
-        snprintf(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
+		#if defined(_WIN32) || defined(_WIN64)
+		sprintf_s(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
+		#elif _linux_
+		snprintf(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
+		#endif
+
         ret = String::New(errbuf);
         break;
     }
@@ -305,7 +316,14 @@ PcapSession::Fileno(const Arguments& args)
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
 
-    int fd = pcap_get_selectable_fd(session->pcap_handle);
+    int fd;
+
+	#if defined(_WIN32) || defined(_WIN64)
+	fd = (int)session->pcap_handle;
+	#elif _linux_
+	fd = pcap_get_selectable_fd(session->pcap_handle);
+	#endif
+
 
     return scope.Close(Integer::NewFromUnsigned(fd));
 }
