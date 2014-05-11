@@ -1601,6 +1601,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                 }
             }
             session.send_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
+            this.emit('received', session, tcp.data);
         }
         if (session.recv_packets[tcp.ackno]) {
             if (session.send_acks[tcp.ackno]) {
@@ -1639,6 +1640,7 @@ TCP_tracker.prototype.track_states.ESTAB = function (packet, session) {
                 }
             }
             session.recv_packets[tcp.seqno + tcp.data_bytes] = packet.pcap_header.time_ms;
+            this.emit('transmitted', session, tcp.data);
         }
         if (session.send_packets[tcp.ackno]) {
             if (session.recv_acks[tcp.ackno]) {
