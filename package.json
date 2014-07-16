@@ -12,6 +12,6 @@
         "url": "git://github.com/mranney/node_pcap.git"
     },
     "dependencies": {
-      "socketwatcher": "~0.2.0"
+      "socketwatcher": "git://github.com/zerouid/node-socketwatcher.git"
     }
 }

@@ -39,15 +39,17 @@ void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address)
   }
 }
 
-Handle<Value>
-FindAllDevs(const Arguments& args)
+
+void FindAllDevs(const FunctionCallbackInfo<Value>& args)
 {
-    HandleScope scope;
+    Isolate* isolate = args.GetIsolate();
+    HandleScope scope(isolate);
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t *alldevs, *cur_dev;
 
     if (pcap_findalldevs(&alldevs, errbuf) == -1 || alldevs == NULL) {
-        return ThrowException(Exception::TypeError(String::New(errbuf)));
+      isolate->ThrowException(Exception::TypeError(String::NewFromUtf8(isolate, errbuf)));
+      return;
     }
 
     Local<Array> DevsArray = Array::New();
@@ -63,17 +65,17 @@ FindAllDevs(const Arguments& args)
         Local<Array> AddrArray = Array::New();
         int j = 0;
         for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
-	  if (cur_addr->addr){
-		int af = cur_addr->addr->sa_family;
-		if(af == AF_INET || af == AF_INET6){
-		  Local<Object> Address = Object::New();
-		  SetAddrStringHelper("addr", cur_addr->addr, Address);
-		  SetAddrStringHelper("netmask", cur_addr->netmask, Address);
-		  SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
-		  SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
-		  AddrArray->Set(Integer::New(j), Address);
-		}
-            }
+          if (cur_addr->addr){
+              int af = cur_addr->addr->sa_family;
+              if(af == AF_INET || af == AF_INET6){
+                Local<Object> Address = Object::New();
+                SetAddrStringHelper("addr", cur_addr->addr, Address);
+                SetAddrStringHelper("netmask", cur_addr->netmask, Address);
+                SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
+                SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
+                AddrArray->Set(Integer::New(j), Address);
+              }
+           }
         }
 
         Dev->Set(String::New("addresses"), AddrArray);
@@ -86,27 +88,28 @@ FindAllDevs(const Arguments& args)
     }
 
     pcap_freealldevs(alldevs);
-    return scope.Close(DevsArray);
+    args.GetReturnValue().Set(DevsArray);
 }
 
-Handle<Value>
-DefaultDevice(const Arguments& args)
+void DefaultDevice(const FunctionCallbackInfo<Value>& args)
 {
-    HandleScope scope;
+    Isolate* isolate = args.GetIsolate();
+    HandleScope scope(isolate);
     char errbuf[PCAP_ERRBUF_SIZE];
 
     // Look up the first device with an address, pcap_lookupdev() just returns the first non-loopback device.
-    Local<Value> ret;
     pcap_if_t *alldevs, *dev;
     pcap_addr_t *addr;
     bool found = false;
 
     if (pcap_findalldevs(&alldevs, errbuf) == -1) {
-        return ThrowException(Exception::Error(String::New(errbuf)));
+      isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, errbuf)));
+      return;
     }
 
     if (alldevs == NULL) {
-        return ThrowException(Exception::Error(String::New("pcap_findalldevs didn't find any devs")));
+      isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate,"pcap_findalldevs didn't find any devs")));
+      return;
     }
 
     for (dev = alldevs; dev != NULL; dev = dev->next) {
@@ -115,7 +118,7 @@ DefaultDevice(const Arguments& args)
                 // TODO - include IPv6 addresses in DefaultDevice guess
                 // if (addr->addr->sa_family == AF_INET || addr->addr->sa_family == AF_INET6) {
                 if (addr->addr->sa_family == AF_INET) {
-                    ret = String::New(dev->name);
+                    args.GetReturnValue().Set(String::NewFromUtf8(isolate, dev->name));
                     found = true;
                     break;
                 }
@@ -128,20 +131,19 @@ DefaultDevice(const Arguments& args)
     }
 
     pcap_freealldevs(alldevs);
-    return scope.Close(ret);
 }
 
-Handle<Value>
-LibVersion(const Arguments &args)
+void LibVersion(const FunctionCallbackInfo<Value>& args)
 {
-    HandleScope scope;
+    Isolate* isolate = args.GetIsolate();
+    HandleScope scope(isolate);
 
-    return scope.Close(String::New(pcap_lib_version()));
+    args.GetReturnValue().Set(String::NewFromUtf8(isolate, pcap_lib_version()));
 }
 
 void Initialize(Handle<Object> exports)
 {
-    HandleScope scope;
+//    HandleScope scope;
 
     PcapSession::Init(exports);
 
