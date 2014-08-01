@@ -908,6 +908,8 @@ var dns_util = {
             return "MX";
         case 16:
             return "TXT";
+        case 28:
+            return "AAAA";
         default:
             return ("Unknown (" + type_num + ")");
         }
@@ -951,6 +953,10 @@ var dns_util = {
         if(rrRecord.rrtype == 'A' && rrRecord.rrclass == 'IN' && rrRecord.rdlength == 4) {
             var data = {};
             data.ipAddress = raw_packet[offset] + '.' + raw_packet[offset+1] + '.' + raw_packet[offset+2] + '.' + raw_packet[offset+3];
+            return data;
+        } else if(rrRecord.rrtype == 'AAAA' && rrRecord.rrclass == 'IN' && rrRecord.rdlength == 16) {
+            var data = {};
+            data.ipAddress = unpack.ipv6_addr(raw_packet, offset);
             return data;
         }
 
