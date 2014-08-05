@@ -521,6 +521,10 @@ decode.ip = function (raw_packet, offset) {
         ret.protocol_name = "IGMP";
         ret.igmp = decode.igmp(raw_packet, offset + (ret.header_length * 4));
         break;
+    case 4:
+        ret.protocol_name = "IPv4"; //IPv4 encapsulation, RFC2003
+        ret.ip = decode.ip(raw_packet, offset + (ret.header_length * 4));
+        break;
     case 6:
         ret.protocol_name = "TCP";
         ret.tcp = decode.tcp(raw_packet, offset + (ret.header_length * 4), ret);
@@ -528,6 +532,10 @@ decode.ip = function (raw_packet, offset) {
     case 17:
         ret.protocol_name = "UDP";
         ret.udp = decode.udp(raw_packet, offset + (ret.header_length * 4));
+        break;
+    case 41:
+        ret.protocol_name = "IPv6"; //IPv6 encapsulation, RFC2473
+        ret.ip = decode.ip6(raw_packet, offset + (ret.header_length * 4));
         break;
     default:
         ret.protocol_name = "Unknown";
@@ -545,6 +553,10 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
         ip.protocol_name = "IGMP";
         ip.igmp = decode.igmp(raw_packet, offset);
         break;
+    case 4:
+        ret.protocol_name = "IPv4"; //IPv4 encapsulation, RFC2003
+        ret.ip = decode.ip(raw_packet, offset);
+        break;
     case 6:
         ip.protocol_name = "TCP";
         ip.tcp = decode.tcp(raw_packet, offset, ip);
@@ -552,6 +564,10 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
     case 17:
         ip.protocol_name = "UDP";
         ip.udp = decode.udp(raw_packet, offset);
+        break;
+    case 41:
+        ret.protocol_name = "IPv6"; //IPv6 encapsulation, RFC2473
+        ret.ip = decode.ip6(raw_packet, offset);
         break;
     default:
         // TODO: capture the extensions
