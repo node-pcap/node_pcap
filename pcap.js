@@ -569,9 +569,20 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
         ret.protocol_name = "IPv6"; //IPv6 encapsulation, RFC2473
         ret.ip = decode.ip6(raw_packet, offset);
         break;
-    default:
+    
+    /* Extension Headers, http://en.wikipedia.org/wiki/IPv6_packet
+     * We need delimit  for known extension headers, in order to prefent stack overflow here
+     * because we can get here with other Next Header numbers that aren't extensions.
+     * */
         // TODO: capture the extensions
-        //decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
+    case 0: //Hop-by-Hop
+    case 60: //Destination Options
+    case 43: //Routing
+    case 51: //Authentication Header
+    case 135: //Mobility
+        decode.ip6_header(raw_packet, raw_packet[offset], ip, offset + raw_packet[offset+1]);
+    default:
+        // 59 - No next Header, and unknowed upper layer protocols, do nothing.
     }
 };
 
