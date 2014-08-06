@@ -580,7 +580,7 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
     case 43: //Routing
     case 51: //Authentication Header
     case 135: //Mobility
-        decode.ip6_header(raw_packet, raw_packet[offset], ip, offset + raw_packet[offset+1]);
+        decode.ip6_header(raw_packet, raw_packet[offset], ip, offset + 8*raw_packet[offset+1] + 8);
     default:
         // 59 - No next Header, and unknowed upper layer protocols, do nothing.
     }
