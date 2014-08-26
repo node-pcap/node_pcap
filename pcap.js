@@ -569,18 +569,19 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
         ret.protocol_name = "IPv6"; //IPv6 encapsulation, RFC2473
         ret.ip = decode.ip6(raw_packet, offset);
         break;
-    
-    /* Extension Headers, http://en.wikipedia.org/wiki/IPv6_packet
-     * We need delimit  for known extension headers, in order to prefent stack overflow here
-     * because we can get here with other Next Header numbers that aren't extensions.
-     * */
-        // TODO: capture the extensions
+    /* Please follow numbers and RFC in http://www.iana.org/assignments/ipv6-parameters/ipv6-parameters.xhtml#extension-header
+     * Not all next protocols follow this rule (and we can have unsuported upper protocols here too).
+     *  */
     case 0: //Hop-by-Hop
     case 60: //Destination Options
     case 43: //Routing
-    case 51: //Authentication Header
     case 135: //Mobility
+    case 139: //Host Identity Protocol. //Discussion: rfc5201 support only No Next Header/trailing data, but future documents May do. 
+    case 140: //Shim6 Protocol
         decode.ip6_header(raw_packet, raw_packet[offset], ip, offset + 8*raw_packet[offset+1] + 8);
+        break;
+    case 51: //Authentication Header
+        decode.ip6_header(raw_packet, raw_packet[offset], ip, offset + 4*raw_packet[offset+1] + 8);
     default:
         // 59 - No next Header, and unknowed upper layer protocols, do nothing.
     }
