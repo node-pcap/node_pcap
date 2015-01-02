@@ -52,7 +52,7 @@ Pcap.prototype.open = function (live, device, filter, buffer_size, pcap_output_f
 
     me.fd = me.session.fileno();
     me.opened = true;
-    me.buf = new Buffer(65535);
+    me.buf = new Buffer(me.buffer_size || 65535);
     if ( live ) {
         me.readWatcher = new SocketWatcher();
         me.empty_reads = 0;
