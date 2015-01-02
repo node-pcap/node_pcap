@@ -521,6 +521,10 @@ decode.ip = function (raw_packet, offset) {
         ret.protocol_name = "IGMP";
         ret.igmp = decode.igmp(raw_packet, offset + (ret.header_length * 4));
         break;
+    case 4:
+        ret.protocol_name = "IPv4"; //IPv4 encapsulation, RFC2003
+        ret.ip = decode.ip(raw_packet, offset + (ret.header_length * 4));
+        break;
     case 6:
         ret.protocol_name = "TCP";
         ret.tcp = decode.tcp(raw_packet, offset + (ret.header_length * 4), ret);
@@ -528,6 +532,10 @@ decode.ip = function (raw_packet, offset) {
     case 17:
         ret.protocol_name = "UDP";
         ret.udp = decode.udp(raw_packet, offset + (ret.header_length * 4));
+        break;
+    case 41:
+        ret.protocol_name = "IPv6"; //IPv6 encapsulation, RFC2473
+        ret.ip = decode.ip6(raw_packet, offset + (ret.header_length * 4));
         break;
     default:
         ret.protocol_name = "Unknown";
@@ -545,6 +553,10 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
         ip.protocol_name = "IGMP";
         ip.igmp = decode.igmp(raw_packet, offset);
         break;
+    case 4:
+        ret.protocol_name = "IPv4"; //IPv4 encapsulation, RFC2003
+        ret.ip = decode.ip(raw_packet, offset);
+        break;
     case 6:
         ip.protocol_name = "TCP";
         ip.tcp = decode.tcp(raw_packet, offset, ip);
@@ -553,9 +565,25 @@ decode.ip6_header = function(raw_packet, next_header, ip, offset) {
         ip.protocol_name = "UDP";
         ip.udp = decode.udp(raw_packet, offset);
         break;
+    case 41:
+        ret.protocol_name = "IPv6"; //IPv6 encapsulation, RFC2473
+        ret.ip = decode.ip6(raw_packet, offset);
+        break;
+    /* Please follow numbers and RFC in http://www.iana.org/assignments/ipv6-parameters/ipv6-parameters.xhtml#extension-header
+     * Not all next protocols follow this rule (and we can have unsuported upper protocols here too).
+     *  */
+    case 0: //Hop-by-Hop
+    case 60: //Destination Options
+    case 43: //Routing
+    case 135: //Mobility
+    case 139: //Host Identity Protocol. //Discussion: rfc5201 support only No Next Header/trailing data, but future documents May do. 
+    case 140: //Shim6 Protocol
+        decode.ip6_header(raw_packet, raw_packet[offset], ip, offset + 8*raw_packet[offset+1] + 8);
+        break;
+    case 51: //Authentication Header
+        decode.ip6_header(raw_packet, raw_packet[offset], ip, offset + 4*raw_packet[offset+1] + 8);
     default:
-        // TODO: capture the extensions
-        //decode.ip6_header(raw_packet, raw_packet[offset], offset + raw_packet[offset+1]);
+        // 59 - No next Header, and unknowed upper layer protocols, do nothing.
     }
 };
 
@@ -908,6 +936,8 @@ var dns_util = {
             return "MX";
         case 16:
             return "TXT";
+        case 28:
+            return "AAAA";
         default:
             return ("Unknown (" + type_num + ")");
         }
@@ -951,6 +981,10 @@ var dns_util = {
         if(rrRecord.rrtype == 'A' && rrRecord.rrclass == 'IN' && rrRecord.rdlength == 4) {
             var data = {};
             data.ipAddress = raw_packet[offset] + '.' + raw_packet[offset+1] + '.' + raw_packet[offset+2] + '.' + raw_packet[offset+3];
+            return data;
+        } else if(rrRecord.rrtype == 'AAAA' && rrRecord.rrclass == 'IN' && rrRecord.rdlength == 16) {
+            var data = {};
+            data.ipAddress = unpack.ipv6_addr(raw_packet, offset);
             return data;
         }
 
