@@ -108,15 +108,9 @@ PcapSession::Dispatch(const Arguments& args)
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
 
-#if NODE_VERSION_AT_LEAST(0,3,0)
     Local<Object> buffer_obj = args[0]->ToObject();
     session->buffer_data = node::Buffer::Data(buffer_obj);
     session->buffer_length = node::Buffer::Length(buffer_obj);
-#else
-    node::Buffer *buffer_obj = ObjectWrap::Unwrap<node::Buffer>(args[0]->ToObject());
-    session->buffer_data = buffer_obj->data();
-    session->buffer_length = buffer_obj->length();
-#endif
 
     int packet_count;
     do {
@@ -360,15 +354,9 @@ PcapSession::Inject(const Arguments& args)
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
     char * bufferData = NULL;
     size_t bufferLength = 0;
-#if NODE_VERSION_AT_LEAST(0,3,0)
     Local<Object> buffer_obj = args[0]->ToObject();
     bufferData = node::Buffer::Data(buffer_obj);
     bufferLength = node::Buffer::Length(buffer_obj);
-#else
-    node::Buffer *buffer_obj = ObjectWrap::Unwrap<node::Buffer>(args[0]->ToObject());
-    bufferData = buffer_obj->data();
-    bufferLength = buffer_obj->length();
-#endif
 
     if (pcap_inject(session->pcap_handle, bufferData, bufferLength) != (int)bufferLength) {
         return ThrowException(Exception::Error(String::New("Pcap inject failed.")));
