@@ -75,18 +75,15 @@ void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const
     }
     memcpy(session->buffer_data, packet, copy_len);
 
+    // copy header data to fixed offsets in second buffer from user
+    memcpy(session->header_data, &(pkthdr->ts.tv_sec), 4);
+    memcpy(session->header_data + 4, &(pkthdr->ts.tv_usec), 4);
+    memcpy(session->header_data + 8, &(pkthdr->caplen), 4);
+    memcpy(session->header_data + 12, &(pkthdr->len), 4);
+
     TryCatch try_catch;
 
-    Local<Object> packet_header = Object::New();
-
-    packet_header->Set(String::New("tv_sec"), Integer::NewFromUnsigned(pkthdr->ts.tv_sec));
-    packet_header->Set(String::New("tv_usec"), Integer::NewFromUnsigned(pkthdr->ts.tv_usec));
-    packet_header->Set(String::New("caplen"), Integer::NewFromUnsigned(pkthdr->caplen));
-    packet_header->Set(String::New("len"), Integer::NewFromUnsigned(pkthdr->len));
-
-    Local<Value> argv[1] = { packet_header };
-
-    session->packet_ready_cb->Call(Context::GetCurrent()->Global(), 1, argv);
+    session->packet_ready_cb->Call(Context::GetCurrent()->Global(), 0, NULL);
 
     if (try_catch.HasCaught())  {
         node::FatalException(try_catch);
@@ -98,12 +95,15 @@ PcapSession::Dispatch(const Arguments& args)
 {
     HandleScope scope;
 
-    if (args.Length() != 1) {
-        return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly one arguments")));
+    if (args.Length() != 2) {
+        return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly two arguments")));
     }
 
     if (!node::Buffer::HasInstance(args[0])) {
         return ThrowException(Exception::TypeError(String::New("First argument must be a buffer")));
+    }
+    if (!node::Buffer::HasInstance(args[1])) {
+        return ThrowException(Exception::TypeError(String::New("Second argument must be a buffer")));
     }
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
@@ -111,6 +111,8 @@ PcapSession::Dispatch(const Arguments& args)
     Local<Object> buffer_obj = args[0]->ToObject();
     session->buffer_data = node::Buffer::Data(buffer_obj);
     session->buffer_length = node::Buffer::Length(buffer_obj);
+    Local<Object> header_obj = args[1]->ToObject();
+    session->header_data = node::Buffer::Data(header_obj);
 
     int packet_count;
     do {
@@ -126,7 +128,7 @@ PcapSession::Open(bool live, const Arguments& args)
     HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (args.Length() == 5 || args.Length() == 6) {
+    if (args.Length() == 6) {
         if (!args[0]->IsString()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[0] must be a String")));
         }
@@ -142,13 +144,11 @@ PcapSession::Open(bool live, const Arguments& args)
         if (!args[4]->IsFunction()) {
             return ThrowException(Exception::TypeError(String::New("pcap Open: args[4] must be a Function")));
         }
-        if (args.Length() == 6) {
-            if (!args[5]->IsBoolean()) {
-                return ThrowException(Exception::TypeError(String::New("pcap Open: args[5] must be a Boolean")));
-            }
+        if (!args[5]->IsBoolean()) {
+            return ThrowException(Exception::TypeError(String::New("pcap Open: args[5] must be a Boolean")));
         }
     } else {
-        return ThrowException(Exception::TypeError(String::New("pcap Open: expecting 4 arguments")));
+        return ThrowException(Exception::TypeError(String::New("pcap Open: expecting 6 arguments")));
     }
     String::Utf8Value device(args[0]->ToString());
     String::Utf8Value filter(args[1]->ToString());

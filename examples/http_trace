@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-/*global process require exports setInterval console */
-
 var util = require('util'),
     node_http = require('http'),
     node_url  = require('url'),
