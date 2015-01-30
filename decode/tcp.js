@@ -63,13 +63,13 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
             offset += 1;
             break;
         case 2:
-            offset += 1;
+            offset += 2;
             this.mss = raw_packet.readUInt16BE(offset);
-            offset += 4;
+            offset += 2;
             break;
         case 3:
-            offset += 1;
-            this.window_scale = Math.pow(2, (raw_packet[offset]));
+            offset += 2;
+            this.window_scale = raw_packet[offset];
             offset += 1;
             break;
         case 4:
@@ -118,10 +118,10 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
             }
             break;
         case 8:
-            offset += 1;
-            this.timestamp = raw_packet.readUInt32LE(offset);
+            offset += 2;
+            this.timestamp = raw_packet.readUInt32BE(offset);
             offset += 4;
-            this.echo = raw_packet.readUInt32LE(offset);
+            this.echo = raw_packet.readUInt32BE(offset);
             offset += 4;
             break;
         default:
@@ -135,23 +135,23 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
 TCPOptions.prototype.toString = function () {
     var ret = "";
     if (this.mss !== null) {
-        ret += "mss:" + this.mss;
+        ret += "mss:" + this.mss + " ";
     }
     if (this.window_scale !== null) {
-        ret += "scale:" + this.window_scale;
+        ret += "scale:" + this.window_scale + "(" + Math.pow(2, (this.window_scale)) + ") ";
     }
     if (this.sack_ok !== null) {
-        ret += "sack_ok";
+        ret += "sack_ok" + " ";
     }
     if (this.sack !== null) {
-        ret += "sack:" + this.sack.join(",");
+        ret += "sack:" + this.sack.join(",") + " ";
     }
 
     if (ret.length === 0) {
-        ret = ".";
+        ret = ". ";
     }
 
-    return "[" + ret + "]";
+    return "[" + ret.slice(0, -1) + "]";
 };
 
 function TCP() {
@@ -171,8 +171,15 @@ function TCP() {
     this.data_bytes     = null;
 }
 
+// If you get stuck trying to decode or understand the offset math, stick this block in to dump the contents:
+// for (var i = orig_offset; i < orig_offset + len ; i++) {
+//     console.log((i - orig_offset) + " / " + i + ": " + raw_packet[i] + " " + String.fromCharCode(raw_packet[i]));
+// }
+
 // http://en.wikipedia.org/wiki/Transmission_Control_Protocol
 TCP.prototype.decode = function (raw_packet, offset, len) {
+    var orig_offset = offset;
+
     this.sport          = raw_packet.readUInt16BE(offset, true); // 0, 1
     offset += 2;
     this.dport          = raw_packet.readUInt16BE(offset, true); // 2, 3
@@ -182,6 +189,9 @@ TCP.prototype.decode = function (raw_packet, offset, len) {
     this.ackno          = raw_packet.readUInt32BE(offset, true); // 8, 9, 10, 11
     offset += 4;
     this.data_offset    = (raw_packet[offset] & 0xf0) >> 4; // first 4 bits of 12
+    if (this.data_offset < 5 || this.data_offset > 15) {
+        throw new Error("invalid data_offset: " + this.data_offset);
+    }
     this.header_bytes   = this.data_offset * 4; // convenience for using data_offset
     this.reserved       = raw_packet[offset] & 15; // second 4 bits of 12
     offset += 1;
@@ -203,7 +213,7 @@ TCP.prototype.decode = function (raw_packet, offset, len) {
     offset += 2;
 
     this.options = new TCPOptions();
-    var options_len = this.header_bytes - offset;
+    var options_len = this.header_bytes - (offset - orig_offset);
     if (options_len > 0) {
         this.options.decode(raw_packet, offset, options_len);
         offset += options_len;
@@ -227,6 +237,7 @@ TCP.prototype.toString = function () {
         ret += " urg " + this.urgent_pointer;
     }
     ret += " " + this.options.toString();
+    ret += " len " + this.data_bytes;
     return ret;
 };
 
