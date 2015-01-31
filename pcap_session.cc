@@ -75,18 +75,16 @@ void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const
     }
     memcpy(session->buffer_data, packet, copy_len);
 
+    // copy header data to fixed offsets in second buffer from user
+    memcpy(session->header_data, &(pkthdr->ts.tv_sec), 4);
+    memcpy(session->header_data + 4, &(pkthdr->ts.tv_usec), 4);
+    memcpy(session->header_data + 8, &(pkthdr->caplen), 4);
+    memcpy(session->header_data + 12, &(pkthdr->len), 4);
+
+
     TryCatch try_catch;
 
-    Local<Object> packet_header = NanNew<Object>();
-
-    packet_header->Set(NanNew("tv_sec"), NanNew<Integer>(pkthdr->ts.tv_sec));
-    packet_header->Set(NanNew("tv_usec"), NanNew<Integer>(pkthdr->ts.tv_usec));
-    packet_header->Set(NanNew("caplen"), NanNew<Integer>(pkthdr->caplen));
-    packet_header->Set(NanNew("len"), NanNew<Integer>(pkthdr->len));
-
-    Local<Value> argv[1] = { packet_header };
-
-    NanMakeCallback(NanGetCurrentContext()->Global(), NanNew(session->packet_ready_cb), 1, argv);
+    NanMakeCallback(NanGetCurrentContext()->Global(), NanNew(session->packet_ready_cb), 0, NULL);
 
     if (try_catch.HasCaught())  {
         node::FatalException(try_catch);
@@ -97,8 +95,8 @@ NAN_METHOD(PcapSession::Dispatch)
 {
     NanScope();
 
-    if (args.Length() != 1) {
-        NanThrowTypeError("Dispatch takes exactly one arguments");
+    if (args.Length() != 2) {
+        NanThrowTypeError("Dispatch takes exactly two arguments");
         NanReturnUndefined();
     }
 
@@ -107,17 +105,18 @@ NAN_METHOD(PcapSession::Dispatch)
         NanReturnUndefined();
     }
 
+    if (!node::Buffer::HasInstance(args[1])) {
+        NanThrowTypeError("Second argument must be a buffer");
+        NanReturnUndefined();
+    }
+
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
 
-#if NODE_VERSION_AT_LEAST(0,3,0)
     Local<Object> buffer_obj = args[0]->ToObject();
     session->buffer_data = node::Buffer::Data(buffer_obj);
     session->buffer_length = node::Buffer::Length(buffer_obj);
-#else
-    node::Buffer *buffer_obj = ObjectWrap::Unwrap<node::Buffer>(args[0]->ToObject());
-    session->buffer_data = buffer_obj->data();
-    session->buffer_length = buffer_obj->length();
-#endif
+    Local<Object> header_obj = args[1]->ToObject();
+    session->header_data = node::Buffer::Data(header_obj);
 
     int packet_count;
     do {
@@ -132,7 +131,7 @@ _NAN_METHOD_RETURN_TYPE PcapSession::Open(bool live, const FunctionCallbackInfo<
     NanScope();
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (args.Length() == 5 || args.Length() == 6) {
+    if (args.Length() == 6) {
         if (!args[0]->IsString()) {
             NanThrowTypeError("pcap Open: args[0] must be a String");
             NanReturnUndefined();
@@ -153,14 +152,12 @@ _NAN_METHOD_RETURN_TYPE PcapSession::Open(bool live, const FunctionCallbackInfo<
             NanThrowTypeError("pcap Open: args[4] must be a Function");
             NanReturnUndefined();
         }
-        if (args.Length() == 6) {
-            if (!args[5]->IsBoolean()) {
-                NanThrowTypeError("pcap Open: args[5] must be a Boolean");
-                NanReturnUndefined();
-            }
+        if (!args[5]->IsBoolean()) {
+            NanThrowTypeError("pcap Open: args[5] must be a Boolean");
+            NanReturnUndefined();
         }
     } else {
-        NanThrowTypeError("pcap Open: expecting 4 arguments");
+        NanThrowTypeError("pcap Open: expecting 6 arguments");
         NanReturnUndefined();
     }
     NanUtf8String device(args[0]->ToString());
@@ -375,15 +372,9 @@ NAN_METHOD(PcapSession::Inject)
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
     char * bufferData = NULL;
     size_t bufferLength = 0;
-#if NODE_VERSION_AT_LEAST(0,3,0)
     Local<Object> buffer_obj = args[0]->ToObject();
     bufferData = node::Buffer::Data(buffer_obj);
     bufferLength = node::Buffer::Length(buffer_obj);
-#else
-    node::Buffer *buffer_obj = ObjectWrap::Unwrap<node::Buffer>(args[0]->ToObject());
-    bufferData = buffer_obj->data();
-    bufferLength = buffer_obj->length();
-#endif
 
     if (pcap_inject(session->pcap_handle, bufferData, bufferLength) != (int)bufferLength) {
         NanThrowError("Pcap inject failed.");
