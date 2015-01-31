@@ -65,3 +65,5 @@ IGMP.prototype.toString = function () {
 
     return ret;
 };
+
+module.exports = IGMP;
