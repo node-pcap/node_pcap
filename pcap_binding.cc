@@ -2,7 +2,6 @@
 #include <node_buffer.h>
 #include <node_version.h>
 #include <assert.h>
-#include <pcap/pcap.h>
 #include <v8.h>
 #include <iostream>
 #include <stdio.h>
