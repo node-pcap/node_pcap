@@ -1,9 +1,5 @@
-#include <node.h>
-#include <node_buffer.h>
-#include <node_version.h>
 #include <assert.h>
 #include <pcap/pcap.h>
-#include <v8.h>
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,78 +31,79 @@ void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address)
       size = INET6_ADDRSTRLEN;
     }
     const char* address = inet_ntop(addr->sa_family, src, dst_addr, size);
-    Address->Set(String::New(key), String::New(address));
+    Address->Set(NanNew(key), NanNew(address));
   }
 }
 
-Handle<Value>
-FindAllDevs(const Arguments& args)
+
+NAN_METHOD(FindAllDevs)
 {
-    HandleScope scope;
+    NanScope();
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t *alldevs, *cur_dev;
 
     if (pcap_findalldevs(&alldevs, errbuf) == -1 || alldevs == NULL) {
-        return ThrowException(Exception::TypeError(String::New(errbuf)));
+        NanThrowTypeError(errbuf);
+        NanReturnUndefined();
     }
 
-    Local<Array> DevsArray = Array::New();
+    Local<Array> DevsArray = NanNew<Array>();
 
     int i = 0;
     for (cur_dev = alldevs ; cur_dev != NULL ; cur_dev = cur_dev->next, i++) {
-        Local<Object> Dev = Object::New();
+        Local<Object> Dev = NanNew<Object>();
 
-        Dev->Set(String::New("name"), String::New(cur_dev->name));
+        Dev->Set(NanNew("name"), NanNew(cur_dev->name));
         if (cur_dev->description != NULL) {
-            Dev->Set(String::New("description"), String::New(cur_dev->description));
+            Dev->Set(NanNew("description"), NanNew(cur_dev->description));
         }
-        Local<Array> AddrArray = Array::New();
+        Local<Array> AddrArray = NanNew<Array>();
         int j = 0;
         for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
-	  if (cur_addr->addr){
-		int af = cur_addr->addr->sa_family;
-		if(af == AF_INET || af == AF_INET6){
-		  Local<Object> Address = Object::New();
-		  SetAddrStringHelper("addr", cur_addr->addr, Address);
-		  SetAddrStringHelper("netmask", cur_addr->netmask, Address);
-		  SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
-		  SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
-		  AddrArray->Set(Integer::New(j), Address);
-		}
-            }
+          if (cur_addr->addr){
+              int af = cur_addr->addr->sa_family;
+              if(af == AF_INET || af == AF_INET6){
+                Local<Object> Address = NanNew<Object>();
+                SetAddrStringHelper("addr", cur_addr->addr, Address);
+                SetAddrStringHelper("netmask", cur_addr->netmask, Address);
+                SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
+                SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
+                AddrArray->Set(NanNew<Integer>(j), Address);
+              }
+           }
         }
 
-        Dev->Set(String::New("addresses"), AddrArray);
+        Dev->Set(NanNew("addresses"), AddrArray);
 
         if (cur_dev->flags & PCAP_IF_LOOPBACK) {
-            Dev->Set(String::New("flags"), String::New("PCAP_IF_LOOPBACK"));
+            Dev->Set(NanNew("flags"), NanNew("PCAP_IF_LOOPBACK"));
         }
 
-        DevsArray->Set(Integer::New(i), Dev);
+        DevsArray->Set(NanNew<Integer>(i), Dev);
     }
 
     pcap_freealldevs(alldevs);
-    return scope.Close(DevsArray);
+    NanReturnValue(DevsArray);
 }
 
-Handle<Value>
-DefaultDevice(const Arguments& args)
+NAN_METHOD(DefaultDevice)
 {
-    HandleScope scope;
+    NanScope();
     char errbuf[PCAP_ERRBUF_SIZE];
 
     // Look up the first device with an address, pcap_lookupdev() just returns the first non-loopback device.
-    Local<Value> ret;
     pcap_if_t *alldevs, *dev;
     pcap_addr_t *addr;
     bool found = false;
 
     if (pcap_findalldevs(&alldevs, errbuf) == -1) {
-        return ThrowException(Exception::Error(String::New(errbuf)));
+      NanThrowError(errbuf);
+      NanReturnUndefined();
     }
 
     if (alldevs == NULL) {
-        return ThrowException(Exception::Error(String::New("pcap_findalldevs didn't find any devs")));
+      NanThrowError("pcap_findalldevs didn't find any devs");
+      NanReturnUndefined();
     }
 
     for (dev = alldevs; dev != NULL; dev = dev->next) {
@@ -115,7 +112,7 @@ DefaultDevice(const Arguments& args)
                 // TODO - include IPv6 addresses in DefaultDevice guess
                 // if (addr->addr->sa_family == AF_INET || addr->addr->sa_family == AF_INET6) {
                 if (addr->addr->sa_family == AF_INET) {
-                    ret = String::New(dev->name);
+                    NanReturnValue(NanNew(dev->name));
                     found = true;
                     break;
                 }
@@ -128,26 +125,25 @@ DefaultDevice(const Arguments& args)
     }
 
     pcap_freealldevs(alldevs);
-    return scope.Close(ret);
+    NanReturnUndefined();
 }
 
-Handle<Value>
-LibVersion(const Arguments &args)
+NAN_METHOD(LibVersion)
 {
-    HandleScope scope;
+    NanScope();
 
-    return scope.Close(String::New(pcap_lib_version()));
+    NanReturnValue(NanNew(pcap_lib_version()));
 }
 
 void Initialize(Handle<Object> exports)
 {
-    HandleScope scope;
+//    HandleScope scope;
 
     PcapSession::Init(exports);
 
-    exports->Set(String::New("findalldevs"), FunctionTemplate::New(FindAllDevs)->GetFunction());
-    exports->Set(String::New("default_device"), FunctionTemplate::New(DefaultDevice)->GetFunction());
-    exports->Set(String::New("lib_version"), FunctionTemplate::New(LibVersion)->GetFunction());
+    exports->Set(NanNew("findalldevs"), NanNew<FunctionTemplate>(FindAllDevs)->GetFunction());
+    exports->Set(NanNew("default_device"), NanNew<FunctionTemplate>(DefaultDevice)->GetFunction());
+    exports->Set(NanNew("lib_version"), NanNew<FunctionTemplate>(LibVersion)->GetFunction());
 }
 
 NODE_MODULE(pcap_binding, Initialize)

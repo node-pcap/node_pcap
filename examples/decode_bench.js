@@ -4,7 +4,7 @@ var pcap = require("../pcap");
 var runs = 10000;
 
 function run() {
-    var start = Date.now();    
+    var start = Date.now();
     var count = 0;
     pcap_session = pcap.createOfflineSession(process.argv[2]);
     pcap_session.on("packet", function (raw_packet) {

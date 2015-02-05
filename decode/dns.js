@@ -150,7 +150,7 @@ DNS.prototype.read_name = function () {
         this.offset++;
     }
 
-    return result;    
+    return result;
 };
 
 DNS.prototype.decode_RR = function (is_question) {

@@ -51,7 +51,7 @@ EthernetPacket.prototype.decode = function (raw_packet, offset) {
             console.log("node_pcap: EthernetFrame() - Don't know how to decode ethertype " + this.ethertype);
         }
     }
-    
+
     return this;
 };
 

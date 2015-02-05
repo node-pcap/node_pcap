@@ -1,5 +1,3 @@
-#include <node_buffer.h>
-#include <node_version.h>
 #include <assert.h>
 #include <pcap/pcap.h>
 #include <sys/ioctl.h>
@@ -10,42 +8,44 @@
 
 using namespace v8;
 
+Persistent<Function> PcapSession::constructor;
+
 PcapSession::PcapSession() {};
 PcapSession::~PcapSession() {};
 
 void PcapSession::Init(Handle<Object> exports) {
+  NanScope();
   // Prepare constructor template
-  Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
-  tpl->SetClassName(String::NewSymbol("PcapSession"));
+  Local<FunctionTemplate> tpl = NanNew<FunctionTemplate>(New);
+  tpl->SetClassName(NanNew("PcapSession"));
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
   // Prototype
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("open_live"),
-      FunctionTemplate::New(OpenLive)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("open_offline"),
-      FunctionTemplate::New(OpenOffline)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("dispatch"),
-      FunctionTemplate::New(Dispatch)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("fileno"),
-      FunctionTemplate::New(Fileno)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("close"),
-      FunctionTemplate::New(Close)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("stats"),
-      FunctionTemplate::New(Stats)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("inject"),
-      FunctionTemplate::New(Inject)->GetFunction());
+  NODE_SET_PROTOTYPE_METHOD(tpl, "open_live", OpenLive);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "open_offline", OpenOffline);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "dispatch", Dispatch);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "fileno", Fileno);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "close", Close);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "stats", Stats);
+  NODE_SET_PROTOTYPE_METHOD(tpl, "inject", Inject);
 
-  Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
-  exports->Set(String::NewSymbol("PcapSession"), constructor);
+  NanAssignPersistent(constructor, tpl->GetFunction());
+  exports->Set(NanNew("PcapSession"), tpl->GetFunction());
 }
 
-Handle<Value> PcapSession::New(const Arguments& args) {
-  HandleScope scope;
+NAN_METHOD(PcapSession::New) {
+  NanScope();
 
-  PcapSession* obj = new PcapSession();
-  obj->Wrap(args.This());
-
-  return args.This();
+  if (args.IsConstructCall()) {
+    // Invoked as constructor: `new MyObject(...)`
+    PcapSession* obj = new PcapSession();
+    obj->Wrap(args.This());
+    NanReturnValue(args.This());
+  } else {
+    // Invoked as plain function `MyObject(...)`, turn into construct call.
+    Local<Function> cons = NanNew<Function>(constructor);
+    NanReturnValue(cons->NewInstance());
+  }
 }
 
 // PacketReady is called from within pcap, still on the stack of Dispatch.  It should be called
@@ -61,7 +61,7 @@ Handle<Value> PcapSession::New(const Arguments& args) {
 // 6. session.dispatch callback (pcap.js)
 //
 void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
-    HandleScope scope;
+    NanScope();
 
     PcapSession* session = (PcapSession *)s;
 
@@ -81,29 +81,33 @@ void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const
     memcpy(session->header_data + 8, &(pkthdr->caplen), 4);
     memcpy(session->header_data + 12, &(pkthdr->len), 4);
 
+
     TryCatch try_catch;
 
-    session->packet_ready_cb->Call(Context::GetCurrent()->Global(), 0, NULL);
+    NanMakeCallback(NanGetCurrentContext()->Global(), NanNew(session->packet_ready_cb), 0, NULL);
 
     if (try_catch.HasCaught())  {
         node::FatalException(try_catch);
     }
 }
 
-Handle<Value>
-PcapSession::Dispatch(const Arguments& args)
+NAN_METHOD(PcapSession::Dispatch)
 {
-    HandleScope scope;
+    NanScope();
 
     if (args.Length() != 2) {
-        return ThrowException(Exception::TypeError(String::New("Dispatch takes exactly two arguments")));
+        NanThrowTypeError("Dispatch takes exactly two arguments");
+        NanReturnUndefined();
     }
 
     if (!node::Buffer::HasInstance(args[0])) {
-        return ThrowException(Exception::TypeError(String::New("First argument must be a buffer")));
+        NanThrowTypeError("First argument must be a buffer");
+        NanReturnUndefined();
     }
+
     if (!node::Buffer::HasInstance(args[1])) {
-        return ThrowException(Exception::TypeError(String::New("Second argument must be a buffer")));
+        NanThrowTypeError("Second argument must be a buffer");
+        NanReturnUndefined();
     }
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
@@ -119,45 +123,51 @@ PcapSession::Dispatch(const Arguments& args)
         packet_count = pcap_dispatch(session->pcap_handle, 1, PacketReady, (u_char *)session);
     } while (packet_count > 0);
 
-    return scope.Close(Integer::NewFromUnsigned(packet_count));
+    NanReturnValue(NanNew<Integer>(packet_count));
 }
 
-Handle<Value>
-PcapSession::Open(bool live, const Arguments& args)
+_NAN_METHOD_RETURN_TYPE PcapSession::Open(bool live, const FunctionCallbackInfo<Value>& args)
 {
-    HandleScope scope;
+    NanScope();
     char errbuf[PCAP_ERRBUF_SIZE];
 
     if (args.Length() == 6) {
         if (!args[0]->IsString()) {
-            return ThrowException(Exception::TypeError(String::New("pcap Open: args[0] must be a String")));
+            NanThrowTypeError("pcap Open: args[0] must be a String");
+            NanReturnUndefined();
         }
         if (!args[1]->IsString()) {
-            return ThrowException(Exception::TypeError(String::New("pcap Open: args[1] must be a String")));
+            NanThrowTypeError("pcap Open: args[1] must be a String");
+            NanReturnUndefined();
         }
         if (!args[2]->IsInt32()) {
-            return ThrowException(Exception::TypeError(String::New("pcap Open: args[2] must be a Number")));
+            NanThrowTypeError("pcap Open: args[2] must be a Number");
+            NanReturnUndefined();
         }
         if (!args[3]->IsString()) {
-            return ThrowException(Exception::TypeError(String::New("pcap Open: args[3] must be a String")));
+            NanThrowTypeError("pcap Open: args[3] must be a String");
+            NanReturnUndefined();
         }
         if (!args[4]->IsFunction()) {
-            return ThrowException(Exception::TypeError(String::New("pcap Open: args[4] must be a Function")));
+            NanThrowTypeError("pcap Open: args[4] must be a Function");
+            NanReturnUndefined();
         }
         if (!args[5]->IsBoolean()) {
-            return ThrowException(Exception::TypeError(String::New("pcap Open: args[5] must be a Boolean")));
+            NanThrowTypeError("pcap Open: args[5] must be a Boolean");
+            NanReturnUndefined();
         }
     } else {
-        return ThrowException(Exception::TypeError(String::New("pcap Open: expecting 6 arguments")));
+        NanThrowTypeError("pcap Open: expecting 6 arguments");
+        NanReturnUndefined();
     }
-    String::Utf8Value device(args[0]->ToString());
-    String::Utf8Value filter(args[1]->ToString());
+    NanUtf8String device(args[0]->ToString());
+    NanUtf8String filter(args[1]->ToString());
     int buffer_size = args[2]->Int32Value();
-    String::Utf8Value pcap_output_filename(args[3]->ToString());
+    NanUtf8String pcap_output_filename(args[3]->ToString());
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
 
-    session->packet_ready_cb = Persistent<Function>::New(Handle<Function>::Cast(args[4]));
+    NanAssignPersistent(session->packet_ready_cb, args[4].As<Function>());
     session->pcap_dump_handle = NULL;
 
     if (live) {
@@ -169,67 +179,79 @@ PcapSession::Open(bool live, const Arguments& args)
 
         session->pcap_handle = pcap_create((char *) *device, errbuf);
         if (session->pcap_handle == NULL) {
-            return ThrowException(Exception::Error(String::New(errbuf)));
+            NanThrowError(errbuf);
+            NanReturnUndefined();
         }
 
         // 64KB is the max IPv4 packet size
         if (pcap_set_snaplen(session->pcap_handle, 65535) != 0) {
-            return ThrowException(Exception::Error(String::New("error setting snaplen")));
+            NanThrowError("error setting snaplen");
+            NanReturnUndefined();
         }
 
         // always use promiscuous mode
         if (pcap_set_promisc(session->pcap_handle, 1) != 0) {
-            return ThrowException(Exception::Error(String::New("error setting promiscuous mode")));
+            NanThrowError("error setting promiscuous mode");
+            NanReturnUndefined();
         }
 
         // Try to set buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
         if (pcap_set_buffer_size(session->pcap_handle, buffer_size) != 0) {
-            return ThrowException(Exception::Error(String::New("error setting buffer size")));
+            NanThrowError("error setting buffer size");
+            NanReturnUndefined();
         }
 
         // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
         if (pcap_set_timeout(session->pcap_handle, 1000) != 0) {
-            return ThrowException(Exception::Error(String::New("error setting read timeout")));
+            NanThrowError("error setting read timeout");
+            NanReturnUndefined();
         }
 
         // fixes a previous to-do that was here.
         if (args.Length() == 6) {
             if (args[5]->Int32Value()) {
                 if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
-                    return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
+                    NanThrowError(pcap_geterr(session->pcap_handle));
+                    NanReturnUndefined();
                 }
             }
         }
 
         if (pcap_activate(session->pcap_handle) != 0) {
-            return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
+            NanThrowError(pcap_geterr(session->pcap_handle));
+            NanReturnUndefined();
         }
 
         if (strlen((char *) *pcap_output_filename) > 0) {
             session->pcap_dump_handle = pcap_dump_open(session->pcap_handle, (char *) *pcap_output_filename);
             if (session->pcap_dump_handle == NULL) {
-                return ThrowException(Exception::Error(String::New("error opening dump")));
+                NanThrowError("error opening dump");
+                NanReturnUndefined();
             }
         }
 
         if (pcap_setnonblock(session->pcap_handle, 1, errbuf) == -1) {
-          return ThrowException(Exception::Error(String::New(errbuf)));
+          NanThrowError(errbuf);
+          NanReturnUndefined();
         }
     } else {
         // Device is the path to the savefile
         session->pcap_handle = pcap_open_offline((char *) *device, errbuf);
         if (session->pcap_handle == NULL) {
-            return ThrowException(Exception::Error(String::New(errbuf)));
+            NanThrowError(errbuf);
+            NanReturnUndefined();
         }
     }
 
     if (filter.length() != 0) {
       if (pcap_compile(session->pcap_handle, &session->fp, (char *) *filter, 1, session->net) == -1) {
-        return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
+        NanThrowError(pcap_geterr(session->pcap_handle));
+        NanReturnUndefined();
       }
 
       if (pcap_setfilter(session->pcap_handle, &session->fp) == -1) {
-        return ThrowException(Exception::Error(String::New(pcap_geterr(session->pcap_handle))));
+        NanThrowError(pcap_geterr(session->pcap_handle));
+        NanReturnUndefined();
       }
       pcap_freecode(&session->fp);
     }
@@ -250,44 +272,41 @@ PcapSession::Open(bool live, const Arguments& args)
     Local<Value> ret;
     switch (link_type) {
     case DLT_NULL:
-        ret = String::New("LINKTYPE_NULL");
+        ret = NanNew("LINKTYPE_NULL");
         break;
     case DLT_EN10MB: // most wifi interfaces pretend to be "ethernet"
-        ret =  String::New("LINKTYPE_ETHERNET");
+        ret =  NanNew("LINKTYPE_ETHERNET");
         break;
     case DLT_IEEE802_11_RADIO: // 802.11 "monitor mode"
-        ret = String::New("LINKTYPE_IEEE802_11_RADIO");
+        ret = NanNew("LINKTYPE_IEEE802_11_RADIO");
         break;
     case DLT_RAW: // "raw IP"
-        ret = String::New("LINKTYPE_RAW");
+        ret = NanNew("LINKTYPE_RAW");
         break;
     case DLT_LINUX_SLL: // "Linux cooked capture"
-        ret = String::New("LINKTYPE_LINUX_SLL");
+        ret = NanNew("LINKTYPE_LINUX_SLL");
         break;
     default:
         snprintf(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
-        ret = String::New(errbuf);
+        ret = NanNew(errbuf);
         break;
     }
-    return scope.Close(ret);
+    NanReturnValue(ret);
 }
 
-Handle<Value>
-PcapSession::OpenLive(const Arguments& args)
+NAN_METHOD(PcapSession::OpenLive)
 {
     return Open(true, args);
 }
 
-Handle<Value>
-PcapSession::OpenOffline(const Arguments& args)
+NAN_METHOD(PcapSession::OpenOffline)
 {
     return Open(false, args);
 }
 
-Handle<Value>
-PcapSession::Close(const Arguments& args)
+NAN_METHOD(PcapSession::Close)
 {
-    HandleScope scope;
+    NanScope();
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
 
@@ -297,58 +316,57 @@ PcapSession::Close(const Arguments& args)
     }
 
     pcap_close(session->pcap_handle);
-    session->packet_ready_cb.Dispose();
-
-    return Undefined();
+    NanDisposePersistent(session->packet_ready_cb);
+    NanReturnUndefined();
 }
 
-Handle<Value>
-PcapSession::Fileno(const Arguments& args)
+NAN_METHOD(PcapSession::Fileno)
 {
-    HandleScope scope;
+    NanScope();
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
 
     int fd = pcap_get_selectable_fd(session->pcap_handle);
 
-    return scope.Close(Integer::NewFromUnsigned(fd));
+    NanReturnValue(NanNew<Integer>(fd));
 }
 
-Handle<Value>
-PcapSession::Stats(const Arguments& args)
+NAN_METHOD(PcapSession::Stats)
 {
-    HandleScope scope;
+    NanScope();
 
     struct pcap_stat ps;
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
 
     if (pcap_stats(session->pcap_handle, &ps) == -1) {
-        return ThrowException(Exception::Error(String::New("Error in pcap_stats")));
+        NanThrowError("Error in pcap_stats");
+        return;
         // TODO - use pcap_geterr to figure out what the error was
     }
 
-    Local<Object> stats_obj = Object::New();
+    Local<Object> stats_obj = NanNew<Object>();
 
-    stats_obj->Set(String::New("ps_recv"), Integer::NewFromUnsigned(ps.ps_recv));
-    stats_obj->Set(String::New("ps_drop"), Integer::NewFromUnsigned(ps.ps_drop));
-    stats_obj->Set(String::New("ps_ifdrop"), Integer::NewFromUnsigned(ps.ps_ifdrop));
+    stats_obj->Set(NanNew("ps_recv"), NanNew<Integer>(ps.ps_recv));
+    stats_obj->Set(NanNew("ps_drop"), NanNew<Integer>(ps.ps_drop));
+    stats_obj->Set(NanNew("ps_ifdrop"), NanNew<Integer>(ps.ps_ifdrop));
     // ps_ifdrop may not be supported on this platform, but there's no good way to tell, is there?
 
-    return scope.Close(stats_obj);
+    NanReturnValue(stats_obj);
 }
 
-Handle<Value>
-PcapSession::Inject(const Arguments& args)
+NAN_METHOD(PcapSession::Inject)
 {
-    HandleScope scope;
+    NanScope();
 
     if (args.Length() != 1) {
-        return ThrowException(Exception::TypeError(String::New("Inject takes exactly one argument")));
+        NanThrowTypeError("Inject takes exactly one argument");
+        NanReturnUndefined();
     }
 
     if (!node::Buffer::HasInstance(args[0])) {
-        return ThrowException(Exception::TypeError(String::New("First argument must be a buffer")));
+        NanThrowTypeError("First argument must be a buffer");
+        NanReturnUndefined();
     }
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
@@ -359,9 +377,9 @@ PcapSession::Inject(const Arguments& args)
     bufferLength = node::Buffer::Length(buffer_obj);
 
     if (pcap_inject(session->pcap_handle, bufferData, bufferLength) != (int)bufferLength) {
-        return ThrowException(Exception::Error(String::New("Pcap inject failed.")));
+        NanThrowError("Pcap inject failed.");
+        NanReturnUndefined();
     }
-
-    return Undefined();
+    NanReturnUndefined();
 }
 

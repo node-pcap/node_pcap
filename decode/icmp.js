@@ -29,7 +29,7 @@ ICMP.prototype.toString = function () {
         ret += "Reserved";
         break;
     case 3: // destination unreachable
-        switch (this.code) { 
+        switch (this.code) {
         case 0:
             ret += "Destination Network Unreachable";
             break;

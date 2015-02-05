@@ -1,7 +1,7 @@
 #ifndef PCAP_SESSION_H
 #define PCAP_SESSION_H
 
-#include <node.h>
+#include <nan.h>
 #include <pcap/pcap.h>
 
 class PcapSession : public node::ObjectWrap {
@@ -12,18 +12,19 @@ private:
     PcapSession();
     ~PcapSession();
 
-    static v8::Handle<v8::Value> New(const v8::Arguments& args);
-    static v8::Handle<v8::Value> Open(bool live, const v8::Arguments& args);
-    static v8::Handle<v8::Value> OpenLive(const v8::Arguments& args);
-    static v8::Handle<v8::Value> OpenOffline(const v8::Arguments& args);
-    static v8::Handle<v8::Value> Dispatch(const v8::Arguments& args);
-    static v8::Handle<v8::Value> Fileno(const v8::Arguments& args);
-    static v8::Handle<v8::Value> Close(const v8::Arguments& args);
-    static v8::Handle<v8::Value> Stats(const v8::Arguments& args);
-    static v8::Handle<v8::Value> Inject(const v8::Arguments& args);
+    static NAN_METHOD(New);
+    static _NAN_METHOD_RETURN_TYPE Open(bool live, _NAN_METHOD_ARGS);
+    static NAN_METHOD(OpenLive);
+    static NAN_METHOD(OpenOffline);
+    static NAN_METHOD(Dispatch);
+    static NAN_METHOD(Fileno);
+    static NAN_METHOD(Close);
+    static NAN_METHOD(Stats);
+    static NAN_METHOD(Inject);
     static void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 
     v8::Persistent<v8::Function> packet_ready_cb;
+    static v8::Persistent<v8::Function> constructor;
 
     struct bpf_program fp;
     bpf_u_int32 mask;
