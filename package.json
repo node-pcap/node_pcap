@@ -1,18 +1,18 @@
 {
-   "name" : "pcap",
-    "version" : "2.0.0",
-    "description" : "raw packet capture, decoding, and analysis",
-    "author": "Matt Ranney <mjr@ranney.com>",
-    "maintainers": [
-        "Ujjwal Thaakar <ujjwalthaakar@gmail.com>"
-    ],
-    "main": "./pcap",
-    "repository": {
-        "type": "git",
-        "url": "git://github.com/mranney/node_pcap.git"
-    },
-    "dependencies": {
-        "nan": "^1.4.1",
-        "socketwatcher": "git://github.com/zerouid/node-socketwatcher.git"
-    }
+  "name": "pcap",
+  "version": "2.0.0",
+  "description": "raw packet capture, decoding, and analysis",
+  "author": "Matt Ranney <mjr@ranney.com>",
+  "maintainers": [
+    "Ujjwal Thaakar <ujjwalthaakar@gmail.com>"
+  ],
+  "main": "./pcap",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mranney/node_pcap.git"
+  },
+  "dependencies": {
+    "nan": "^1.6.1",
+    "socketwatcher": "git://github.com/zerouid/node-socketwatcher.git"
+  }
 }
