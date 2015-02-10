@@ -126,7 +126,7 @@ NAN_METHOD(PcapSession::Dispatch)
     NanReturnValue(NanNew<Integer>(packet_count));
 }
 
-_NAN_METHOD_RETURN_TYPE PcapSession::Open(bool live, const FunctionCallbackInfo<Value>& args)
+_NAN_METHOD_RETURN_TYPE PcapSession::Open(bool live, _NAN_METHOD_ARGS)
 {
     NanScope();
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -341,7 +341,7 @@ NAN_METHOD(PcapSession::Stats)
 
     if (pcap_stats(session->pcap_handle, &ps) == -1) {
         NanThrowError("Error in pcap_stats");
-        return;
+        NanReturnUndefined();
         // TODO - use pcap_geterr to figure out what the error was
     }
 
