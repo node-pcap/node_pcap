@@ -1,8 +1,14 @@
+function RadioBeaconFrameTag () {
+    this.type = undefined;
+    this.typeId = undefined;
+    this.length = undefined;
+}
+
 function RadioBeaconFrame () {
+    this.tags = [];
 }
 
 RadioBeaconFrame.prototype.decode = function (raw_packet, offset) {
-    var ret = {};
     //first 8 bytes a time stamp
     offset += 8;
 
@@ -22,8 +28,7 @@ RadioBeaconFrame.prototype.decode = function (raw_packet, offset) {
      * turn this into a loop and read all
      * the tags.
      */
-    ret.tags = [];
-    var tag = {};
+    var tag = new RadioBeaconFrameTag();
 
     //tag id
     tag.typeId = raw_packet[offset++];
@@ -32,13 +37,13 @@ RadioBeaconFrame.prototype.decode = function (raw_packet, offset) {
     tag.length = raw_packet[offset++];
 
     if(tag.typeId == 0) {
-        tag.type == 'ssid';
+        tag.type = 'ssid';
 
         //tag value
         tag.ssid = raw_packet.toString('utf8', offset, offset + tag.length);
     }
-    ret.tags.push(tag);
-    return ret;
+    this.tags.push(tag);
+    return this;
 };
 
 module.exports = RadioBeaconFrame;

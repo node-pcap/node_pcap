@@ -1,46 +1,70 @@
 var EthernetAddr = require('./ethernet_addr');
 var LogicalLinkControl = require('./llc_packet');
 var RadioBeaconFrame = require('./radio_beacon_frame');
-function RadioFrame() {
 
+function RadioFrameFlags() {
+    raw = undefined;
+    moreFragments = undefined;
+    isRetry = undefined;
+    moreData = undefined;
+    encrypted = undefined;
+    ordered = undefined;
+}
+
+//flags should be a uint8LE
+RadioFrameFlags.prototype.decode = function decode (flags) {
+    this.raw = flags;
+    this.moreFragments = Boolean((flags >> 2) & 0x0001);
+    this.isRetry = Boolean((flags >> 3) & 0x0001);
+    this.moreData = Boolean((flags >> 5) & 0x0001);
+    this.encrypted = Boolean((flags >> 6) & 0x0001);
+    this.ordered = Boolean((flags >> 7) & 0x0001);
+    return this;
+}
+
+function RadioFrame() {
+    this.frameControl = undefined;
+    this.version = undefined;
+    this.type = undefined;
+    this.subType = undefined;
+    this.flags = undefined;
+    this.duration = undefined;
+    this.bssid = undefined;
+    this.shost = undefined;
+    this.dhost = undefined;
+    this.fragSeq = undefined;
+    this.beacon = undefined;
+    this.llc = undefined;
 }
 
 RadioFrame.prototype.decode = function (raw_packet, offset) {
-    var ret = {};
-    ret.frameControl = raw_packet.readUInt16LE(offset, true); offset += 2;
-    ret.version = ret.frameControl & 0x0003;
-    ret.type = (ret.frameControl >> 2) & 0x0003;
-    ret.subType = (ret.frameControl >> 4) & 0x000f;
-    var flags = (ret.frameControl >> 8) & 0xff;
-    ret.flags = { raw:flags };
-    ret.flags.moreFragments = Boolean((flags >> 2) & 0x0001);
-    ret.flags.isRetry = Boolean((flags >> 3) & 0x0001);
-    ret.flags.moreData = Boolean((flags >> 5) & 0x0001);
-    ret.flags.encrypted = Boolean((flags >> 6) & 0x0001);
-    ret.flags.ordered = Boolean((flags >> 7) & 0x0001);
+    this.frameControl = raw_packet.readUInt16LE(offset, true); offset += 2;
+    this.version = this.frameControl & 0x0003;
+    this.type = (this.frameControl >> 2) & 0x0003;
+    this.subType = (this.frameControl >> 4) & 0x000f;
+    this.flags = new RadioFrameFlags().decode((this.frameControl >> 8) & 0xff);
+    this.duration = raw_packet.readUInt16BE(offset, true); offset += 2;
+    this.bssid = new EthernetAddr(raw_packet, offset); offset += 6;
+    this.shost = new EthernetAddr(raw_packet, offset); offset += 6;
+    this.dhost = new EthernetAddr(raw_packet, offset); offset += 6;
+    this.fragSeq = raw_packet.readUInt16BE(offset, true); offset += 2;
 
-    ret.duration = raw_packet.readUInt16BE(offset, true); offset += 2;
-    ret.bssid = new EthernetAddr(raw_packet, offset); offset += 6;
-    ret.shost = new EthernetAddr(raw_packet, offset); offset += 6;
-    ret.dhost = new EthernetAddr(raw_packet, offset); offset += 6;
-    ret.fragSeq = raw_packet.readUInt16BE(offset, true); offset += 2;
-
-    if (ret.type == 0) {
-        if(ret.subType == 8) { // Beacon
+    if (this.type == 0) {
+        if(this.subType == 8) { // Beacon
             var beacon = new RadioBeaconFrame();
-            ret.beacon = beacon.decode(raw_packet, offset);
+            this.beacon = beacon.decode(raw_packet, offset);
         }
-    } else if (ret.type == 1) { //Control Frame
+    } else if (this.type == 1) { //Control Frame
 
-    } else if (ret.type == 2) { // Data Frame
-        if (ret.flags.encrypted) {
+    } else if (this.type == 2) { // Data Frame
+        if (this.flags.encrypted) {
             //Just skip encrypted data for now.
-        } else if (ret.subType != 36) { // subType 36 is a null data frame
-            ret.llc = new LogicalLinkControl().decode(raw_packet, offset);
+        } else if (this.subType != 36) { // subType 36 is a null data frame
+            this.llc = new LogicalLinkControl().decode(raw_packet, offset);
         }
     }
 
-    return ret;
+    return this;
 };
 
 module.exports = RadioFrame;
