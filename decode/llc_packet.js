@@ -19,8 +19,7 @@ LogicalLinkControl.prototype.decode = function (raw_packet, offset) {
             raw_packet[offset++],
             raw_packet[offset++]
         ];
-        this.type = raw_packet.readUInt16BE(raw_packet, offset);
-        offset += 2;
+        this.type = raw_packet.readUInt16BE(offset); offset += 2;
 
         switch (this.type) {
         case 0x0800: // IPv4
