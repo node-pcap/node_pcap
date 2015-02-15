@@ -33,3 +33,4 @@ LogicalLinkControl.prototype.decode = function (raw_packet, offset) {
 
     return this;
 };
+module.exports = LogicalLinkControl;
