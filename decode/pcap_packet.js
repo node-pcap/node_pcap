@@ -42,7 +42,7 @@ PcapPacket.prototype.decode = function (packet_with_header) {
         this.payload = new RawPacket().decode(buf, 0);
         break;
     case "LINKTYPE_IEEE802_11_RADIO":
-        this.payload = new RadioPacket.decode(buf, 0);
+        this.payload = new RadioPacket().decode(buf, 0);
         break;
     case "LINKTYPE_LINUX_SLL":
         this.payload = new SLLPacket().decode(buf, 0);

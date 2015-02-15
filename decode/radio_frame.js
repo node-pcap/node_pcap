@@ -39,7 +39,7 @@ RadioFrame.prototype.decode = function (raw_packet, offset) {
     } else if (ret.type == 2 && ret.subType == 6) {
         // skip this is CF-Poll (No data)
     } else if (ret.type == 2) { // data
-        ret.llc = new LogicalLinkControl.decode(raw_packet, offset);
+        ret.llc = new LogicalLinkControl().decode(raw_packet, offset);
     }
 
     return ret;
