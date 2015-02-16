@@ -29,7 +29,7 @@ PcapPacket.prototype.decode = function (packet_with_header) {
     this.link_type = packet_with_header.link_type;
     this.pcap_header = new PcapHeader(packet_with_header.header);
 
-    var buf = packet_with_header.buf;
+    var buf = packet_with_header.buf.slice(0, this.pcap_header.len);
 
     switch (this.link_type) {
     case "LINKTYPE_ETHERNET":
