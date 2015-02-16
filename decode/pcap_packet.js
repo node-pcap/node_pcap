@@ -1,7 +1,7 @@
 var EthernetPacket = require("./ethernet_packet");
 var NullPacket = require("./null_packet");
 var RawPacket = require("./raw_packet");
-var RadioPacket = require("./radio_packet");
+var RadioPacket = require("./ieee802.11/radio_packet");
 var SLLPacket = require("./sll_packet");
 
 // Setting properties from the C++ side is very slow, so we send in a shared Buffer.

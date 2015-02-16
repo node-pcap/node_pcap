@@ -1,5 +1,5 @@
-var EthernetAddr = require('./ethernet_addr');
-var LogicalLinkControl = require('./llc_packet');
+var EthernetAddr = require('../ethernet_addr');
+var LogicalLinkControl = require('../llc_packet');
 var RadioBeaconFrame = require('./radio_beacon_frame');
 
 function RadioFrameFlags() {
