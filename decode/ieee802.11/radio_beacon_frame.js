@@ -1,14 +1,9 @@
-function RadioBeaconFrameTag () {
-    this.type = undefined;
-    this.typeId = undefined;
-    this.length = undefined;
-}
-
+var RadioManagementFrameTag = require('./radio_management_frame_tag');
 function RadioBeaconFrame () {
     this.tags = [];
 }
 
-RadioBeaconFrame.prototype.decode = function (raw_packet, offset) {
+RadioBeaconFrame.prototype.decode = function decode(raw_packet, offset) {
     //first 8 bytes a time stamp
     offset += 8;
 
@@ -28,21 +23,11 @@ RadioBeaconFrame.prototype.decode = function (raw_packet, offset) {
      * turn this into a loop and read all
      * the tags.
      */
-    var tag = new RadioBeaconFrameTag();
-
-    //tag id
-    tag.typeId = raw_packet[offset++];
-
-    //tag value length
-    tag.length = raw_packet[offset++];
-
-    if(tag.typeId == 0) {
-        tag.type = 'ssid';
-
-        //tag value
-        tag.ssid = raw_packet.toString('utf8', offset, offset + tag.length);
+    var tag = new RadioManagementFrameTag().decode(raw_packet, offset);
+    if (tag.typeId != undefined) {
+        this.tags.push(tag);
+        offset += tag.length + 2;
     }
-    this.tags.push(tag);
     return this;
 };
 

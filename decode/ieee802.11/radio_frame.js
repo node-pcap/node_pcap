@@ -1,6 +1,7 @@
 var EthernetAddr = require('../ethernet_addr');
 var LogicalLinkControl = require('../llc_packet');
 var RadioBeaconFrame = require('./radio_beacon_frame');
+var RadioProbeFrame = require('./radio_probe_frame');
 
 function RadioFrameFlags() {
     raw = undefined;
@@ -50,10 +51,15 @@ RadioFrame.prototype.decode = function (raw_packet, offset) {
     this.fragSeq = raw_packet.readUInt16BE(offset, true); offset += 2;
 
     if (this.type == 0) {
-        if(this.subType == 8) { // Beacon
-            var beacon = new RadioBeaconFrame();
-            this.beacon = beacon.decode(raw_packet, offset);
+        switch(this.subType) {
+        case 4:
+            this.probe = new RadioProbeFrame().decode(raw_packet, offset)
+            break;
+        case 8: // Beacon
+            this.beacon = new RadioBeaconFrame().decode(raw_packet, offset);
+            break;
         }
+
     } else if (this.type == 1) { //Control Frame
 
     } else if (this.type == 2) { // Data Frame
