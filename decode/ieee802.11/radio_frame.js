@@ -60,12 +60,8 @@ RadioFrame.prototype.decode = function (raw_packet, offset) {
             break;
         }
 
-    } else if (this.type === 1) {
-        //Control Frame
     } else if (this.type === 2) { // Data Frame
-        if (this.flags.encrypted) {
-            //Just skip encrypted data for now.
-        } else if (this.subType !== 36) { // subType 36 is a null data frame
+        if (!this.flags.encrypted && this.subType !== 36) { // subType 36 is a null data frame
             this.llc = new LogicalLinkControl().decode(raw_packet, offset);
         }
     }

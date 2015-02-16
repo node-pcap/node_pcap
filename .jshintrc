@@ -19,7 +19,7 @@
     "trailing": true,
     "noempty": true,
     "maxdepth": 4,
-    "maxparams": 4,
+    "maxparams": 6,
     "globals": {
         "console": true,
         "Buffer": true,
