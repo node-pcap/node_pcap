@@ -14,5 +14,9 @@
   "dependencies": {
     "nan": "~1.6.1",
     "socketwatcher": "git://github.com/zerouid/node-socketwatcher.git"
+  },
+  "devDependencies": {
+    "grunt": "^0.4.5",
+    "grunt-contrib-jshint": "^0.11.0"
   }
 }
