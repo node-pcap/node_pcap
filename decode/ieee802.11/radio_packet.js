@@ -1,4 +1,4 @@
-var RadioFrame = require('./radio_frame');
+var RadioFrame = require("./radio_frame");
 
 function RadioPacket() {
 
@@ -31,7 +31,7 @@ RadioPacket.prototype.decode = function (raw_packet, offset) {
     ret.strength = -256 + raw_packet[offset++];
 
     //Antenna
-    ret.antenna = raw_packet[offset++]
+    ret.antenna = raw_packet[offset++];
 
     offset = original_offset + ret.headerLength;
 

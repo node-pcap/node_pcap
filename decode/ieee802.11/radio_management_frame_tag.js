@@ -11,11 +11,11 @@ RadioMangementFrameTag.prototype.decode = function decode(raw_packet, offset) {
     //tag value length
     this.length = raw_packet[offset++];
 
-    if(this.typeId == 0) {
-        this.type = 'ssid';
+    if(this.typeId === 0) {
+        this.type = "ssid";
 
         //tag value
-        this.ssid = raw_packet.toString('utf8', offset, offset + this.length);
+        this.ssid = raw_packet.toString("utf8", offset, offset + this.length);
     }
     return this;
 };
