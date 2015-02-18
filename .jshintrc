@@ -33,6 +33,9 @@
         "global": false,
         "process": true,
         "__dirname": false,
-        "__filename": false
+        "__filename": false,
+        "describe": true,
+        "it": true,
+        "beforeEach": true
     }
 }
