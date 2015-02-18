@@ -124,6 +124,11 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
             this.echo = raw_packet.readUInt32BE(offset);
             offset += 4;
             break;
+        case 254:
+        case 255:
+            console.log("Don't know how to process experimental TCP option " + raw_packet[offset]);
+            offset += raw_packet.readUInt8(offset + 1);
+            break;
         default:
             throw new Error("Don't know how to process TCP option " + raw_packet[offset]);
         }
