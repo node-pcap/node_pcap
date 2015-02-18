@@ -1,3 +1,4 @@
+var events = require("events");
 // Meaningfully hold the different types of frames at some point
 function WebSocketFrame() {
     this.type = null;

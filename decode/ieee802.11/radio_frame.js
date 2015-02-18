@@ -1,15 +1,15 @@
-var EthernetAddr = require('../ethernet_addr');
-var LogicalLinkControl = require('../llc_packet');
-var RadioBeaconFrame = require('./radio_beacon_frame');
-var RadioProbeFrame = require('./radio_probe_frame');
+var EthernetAddr = require("../ethernet_addr");
+var LogicalLinkControl = require("../llc_packet");
+var RadioBeaconFrame = require("./radio_beacon_frame");
+var RadioProbeFrame = require("./radio_probe_frame");
 
 function RadioFrameFlags() {
-    raw = undefined;
-    moreFragments = undefined;
-    isRetry = undefined;
-    moreData = undefined;
-    encrypted = undefined;
-    ordered = undefined;
+    this.raw = undefined;
+    this.moreFragments = undefined;
+    this.isRetry = undefined;
+    this.moreData = undefined;
+    this.encrypted = undefined;
+    this.ordered = undefined;
 }
 
 //flags should be a uint8LE
@@ -21,7 +21,7 @@ RadioFrameFlags.prototype.decode = function decode (flags) {
     this.encrypted = Boolean((flags >> 6) & 0x0001);
     this.ordered = Boolean((flags >> 7) & 0x0001);
     return this;
-}
+};
 
 function RadioFrame() {
     this.frameControl = undefined;
@@ -50,22 +50,18 @@ RadioFrame.prototype.decode = function (raw_packet, offset) {
     this.dhost = new EthernetAddr(raw_packet, offset); offset += 6;
     this.fragSeq = raw_packet.readUInt16BE(offset, true); offset += 2;
 
-    if (this.type == 0) {
+    if (this.type === 0) {
         switch(this.subType) {
         case 4:
-            this.probe = new RadioProbeFrame().decode(raw_packet, offset)
+            this.probe = new RadioProbeFrame().decode(raw_packet, offset);
             break;
         case 8: // Beacon
             this.beacon = new RadioBeaconFrame().decode(raw_packet, offset);
             break;
         }
 
-    } else if (this.type == 1) { //Control Frame
-
-    } else if (this.type == 2) { // Data Frame
-        if (this.flags.encrypted) {
-            //Just skip encrypted data for now.
-        } else if (this.subType != 36) { // subType 36 is a null data frame
+    } else if (this.type === 2) { // Data Frame
+        if (!this.flags.encrypted && this.subType !== 36) { // subType 36 is a null data frame
             this.llc = new LogicalLinkControl().decode(raw_packet, offset);
         }
     }

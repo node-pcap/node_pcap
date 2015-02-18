@@ -5,6 +5,7 @@ var SocketWatcher = require("socketwatcher").SocketWatcher;
 var decode        = require("./decode").decode;
 var tcp_tracker   = require("./tcp_tracker");
 var DNSCache      = require("./dns_cache");
+var timers        = require("timers");
 
 exports.decode = decode;
 exports.TCPTracker = tcp_tracker.TCPTracker;
@@ -68,7 +69,7 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
         this.readWatcher.set(this.fd, true, false);
         this.readWatcher.start();
     } else {
-        setImmediate(function() {
+        timers.setImmediate(function() {
             var packets = 0;
             do {
                 packets = self.session.dispatch(self.buf, self.header);
