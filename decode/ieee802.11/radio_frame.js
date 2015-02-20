@@ -39,6 +39,12 @@ function RadioFrame() {
 }
 
 RadioFrame.prototype.decode = function (raw_packet, offset) {
+    //Check packet length once per decode to avoid having to check it
+    //everytime one parses a single value out of th buffer.
+    if(raw_packet.length-offset < 24) {
+        throw "Not enough of packet left to be a RadioFrame";
+    }
+
     this.frameControl = raw_packet.readUInt16LE(offset, true); offset += 2;
     this.version = this.frameControl & 0x0003;
     this.type = (this.frameControl >> 2) & 0x0003;
