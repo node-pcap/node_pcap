@@ -126,7 +126,7 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
             break;
         case 254:
         case 255:
-            console.log("Don't know how to process experimental TCP option " + raw_packet[offset]);
+            //console.log("Don't know how to process experimental TCP option " + raw_packet[offset]);
             offset += raw_packet.readUInt8(offset + 1);
             break;
         default:
