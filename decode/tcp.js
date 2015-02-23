@@ -126,7 +126,9 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
             break;
         case 254:
         case 255:
-            //console.log("Don't know how to process experimental TCP option " + raw_packet[offset]);
+            //We do not know how to parse rfc6994 (Experimental TCP option)
+            //however, the first byte is the length of the option (including
+            //the 1 byte kind, and 1 byte of length.) So skip over option.
             offset += raw_packet.readUInt8(offset + 1);
             break;
         default:
