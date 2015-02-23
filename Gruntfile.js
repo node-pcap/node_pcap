@@ -20,7 +20,7 @@ module.exports = function(grunt) {
             coverage: {
                 src: allJs,
                 options: {
-                    reportFormats: ["text"],
+                    reportFormats: ["text", "html"],
                     excludes: tests
                 }
             }
