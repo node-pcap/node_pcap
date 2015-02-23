@@ -124,6 +124,13 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
             this.echo = raw_packet.readUInt32BE(offset);
             offset += 4;
             break;
+        case 254:
+        case 255:
+            //We do not know how to parse rfc6994 (Experimental TCP option)
+            //however, the first byte is the length of the option (including
+            //the 1 byte kind, and 1 byte of length.) So skip over option.
+            offset += raw_packet.readUInt8(offset + 1);
+            break;
         default:
             throw new Error("Don't know how to process TCP option " + raw_packet[offset]);
         }
