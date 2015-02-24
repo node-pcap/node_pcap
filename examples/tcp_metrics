@@ -4,11 +4,11 @@ var pcap         = require("../pcap"), pcap_session,
     tcp_tracker  = new pcap.TCPTracker();
     
 if (process.argv.length > 4) {
-    util.error("usage: tcp_metrics interface filter");
-    util.error("Examples: ");
-    util.error("  tcp_metrics \"tcp port 80\"");
-    util.error("  tcp_metrics eth1 \"\"");
-    util.error("  tcp_metrics lo0 \"ip proto \\tcp and tcp port 80\"");
+    console.error("usage: tcp_metrics interface filter");
+    console.error("Examples: ");
+    console.error("  tcp_metrics \"tcp port 80\"");
+    console.error("  tcp_metrics eth1 \"\"");
+    console.error("  tcp_metrics lo0 \"ip proto \\tcp and tcp port 80\"");
     process.exit(1);
 }
 

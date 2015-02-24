@@ -108,38 +108,38 @@ function format_obj(obj) {
 
 function usage_die(message) {
     if (message) {
-        util.error("");
-        util.error(message);
+        console.error("");
+        console.error(message);
     }
-    util.error("");
-    util.error("usage: http_trace [options]");
-    util.error("");
-    util.error("Capture options:");
-    util.error("    -i <interface>           interface name for capture (def: first with an addr)");
-    util.error("    -f <pcap_filter>         packet filter in pcap-filter(7) syntax (def: all TCP packets)");
-    util.error("    -b <buffer>              size in MB to buffer between libpcap and app (def: 10)");
-    util.error("");
-    util.error("HTTP filtering:");
-    util.error("    Filters are OR-ed together and may be specified more than once.");
-    util.error("    --method <regex>         filter on method");
-    util.error("    --host <regex>           filter on Host request header");
-    util.error("    --url <regex>            filter on URL");
-    util.error("    --user-agent <regex>     filter on User-Agent request header");
-    util.error("");
-    util.error("HTTP output:");
-    util.error("    --headers                print headers of request and response (def: off)");
-    util.error("    --bodies                 print request and response bodies, if any (def: off)");
-//    util.error("    --group                  group all output for req/res (def: progressive)");
-    util.error("    --tcp-verbose            display TCP events (def: off)");
-    util.error("    --no-color               disable ANSI colors (def: pretty colors on)");
-    util.error("");
-    util.error("Examples:");
-    util.error('    http_trace -f "tcp port 80"');
-    util.error('       listen for TCP port 80 on the default device');
-    util.error('    http_trace -i eth1 --method POST');
-    util.error('       listen on eth1 for all traffic that has an HTTP POST');
-    util.error('    http_trace --host ranney --headers');
-    util.error('       matches ranney in Host header and prints req/res headers');
+    console.error("");
+    console.error("usage: http_trace [options]");
+    console.error("");
+    console.error("Capture options:");
+    console.error("    -i <interface>           interface name for capture (def: first with an addr)");
+    console.error("    -f <pcap_filter>         packet filter in pcap-filter(7) syntax (def: all TCP packets)");
+    console.error("    -b <buffer>              size in MB to buffer between libpcap and app (def: 10)");
+    console.error("");
+    console.error("HTTP filtering:");
+    console.error("    Filters are OR-ed together and may be specified more than once.");
+    console.error("    --method <regex>         filter on method");
+    console.error("    --host <regex>           filter on Host request header");
+    console.error("    --url <regex>            filter on URL");
+    console.error("    --user-agent <regex>     filter on User-Agent request header");
+    console.error("");
+    console.error("HTTP output:");
+    console.error("    --headers                print headers of request and response (def: off)");
+    console.error("    --bodies                 print request and response bodies, if any (def: off)");
+//    console.error("    --group                  group all output for req/res (def: progressive)");
+    console.error("    --tcp-verbose            display TCP events (def: off)");
+    console.error("    --no-color               disable ANSI colors (def: pretty colors on)");
+    console.error("");
+    console.error("Examples:");
+    console.error('    http_trace -f "tcp port 80"');
+    console.error('       listen for TCP port 80 on the default device');
+    console.error('    http_trace -i eth1 --method POST');
+    console.error('       listen on eth1 for all traffic that has an HTTP POST');
+    console.error('    http_trace --host ranney --headers');
+    console.error('       matches ranney in Host header and prints req/res headers');
     process.exit(1);
 }
 
