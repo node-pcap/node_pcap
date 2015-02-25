@@ -1,4 +1,4 @@
-var RadioManagementFrameTag = require("./radio_management_frame_tag");
+var radioUtils = require("./radio_utils");
 function RadioBeaconFrame () {
     this.tags = [];
 }
@@ -23,11 +23,7 @@ RadioBeaconFrame.prototype.decode = function decode(raw_packet, offset) {
      * turn this into a loop and read all
      * the tags.
      */
-    var tag = new RadioManagementFrameTag().decode(raw_packet, offset);
-    if (tag.typeId !== undefined) {
-        this.tags.push(tag);
-        offset += tag.length + 2;
-    }
+    this.tags = radioUtils.parseTags(raw_packet, offset);
     return this;
 };
 
