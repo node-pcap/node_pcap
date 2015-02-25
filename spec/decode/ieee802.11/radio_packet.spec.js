@@ -8,13 +8,13 @@ describe("RadioPacket", function(){
     probeExample2 = new Buffer("00001A002F480000000000000000000010026C09A000D8000000" + //Example of a radio tap header
                               "40000000ffffffffffffe4ce8f16da48ffffffffffff804b" + // Probe request
                               "0000010402040b16" + // i802.11 tags [ssid]
-                              "FFFF" , "hex"); // checksum, note this one is not valid
+                              "FFFFFFFF" , "hex"); // checksum, note this one is not valid
 
     // a probe that has no additional information in the header
     probeExample1 = new Buffer("000012002e48000000028509a000d3010000" + //Example of a radio tap header
                               "40000000ffffffffffffe4ce8f16da48ffffffffffff804b" + // Probe request
                               "0000010402040b16" + // i802.11 tags [ssid]
-                              "FFFF" , "hex"); // checksum, note this one is not valid
+                              "FFFFFFFF" , "hex"); // checksum, note this one is not valid
     instance = new RadioPacket();
   });
 
