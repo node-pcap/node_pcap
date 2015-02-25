@@ -1,4 +1,4 @@
-var pcap = require("pcap"), 
+var pcap = require("../pcap"), 
     pcap_session = pcap.createSession("", "tcp"),
     matcher = /safari/i;
 

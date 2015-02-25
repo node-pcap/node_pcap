@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-var pcap = require("pcap");
+var pcap = require("../pcap");
 
 if (process.argv.length < 3) {
   console.error("usage: multiple_interfaces <interface 1> [interface 2] ...");

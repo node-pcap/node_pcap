@@ -4,17 +4,17 @@
 
 var util = require('util'),
     Buffer = require("buffer").Buffer,
-    pcap = require("pcap"), pcap_session,
+    pcap = require("../pcap"), pcap_session;
     count = 0,
     start_time = new Date(),
     dns_cache = pcap.dns_cache,
-    tcp_tracker = new pcap.TCP_tracker(),
+    tcp_tracker = new pcap.TCPTracker(),
     http = require('http'),
     url = require('url'),
     path = require('path'),
     fs = require('fs'),
     track_ids = {},
-    bulk_data;
+    bulk_data='';
 
 if (process.argv.length !== 4) {
     console.error("usage speed_server interface filter");
