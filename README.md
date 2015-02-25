@@ -98,10 +98,10 @@ This structure is easy to explore with `sys.inspect`.
 
 ### TCP Analysis
 
-TCP can be analyzed by feeding the packets into a `TCP_tracker` and then listening for `start` and `end` events.
+TCP can be analyzed by feeding the packets into a `TCPTracker` and then listening for `start` and `end` events.
 
     var pcap = require('pcap'),
-        tcp_tracker = new pcap.TCP_tracker(),
+        tcp_tracker = new pcap.TCPTracker(),
         pcap_session = pcap.createSession(interface, "ip proto \\tcp");
 
     tcp_tracker.on('start', function (session) {
