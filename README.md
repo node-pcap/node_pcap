@@ -1,5 +1,6 @@
 node_pcap
 =========
+[![Build Status](https://travis-ci.org/mranney/node_pcap.svg?branch=master)](https://travis-ci.org/mranney/node_pcap)[![Coverage Status](https://coveralls.io/repos/mranney/node_pcap/badge.svg)](https://coveralls.io/r/mranney/node_pcap)
 
 This is a set of bindings from `libpcap` to node as well as some useful libraries to decode, print, and
 analyze packets.  `libpcap` is a packet capture library used by programs like `tcpdump` and `wireshark`.
