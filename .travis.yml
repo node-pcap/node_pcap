@@ -8,3 +8,5 @@ before_script:
   - npm install -g grunt-cli
 before_install:
   - sudo apt-get install libpcap-dev
+script:
+  - grunt travis

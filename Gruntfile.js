@@ -20,18 +20,29 @@ module.exports = function(grunt) {
             coverage: {
                 src: allJs,
                 options: {
-                    reportFormats: ["text", "html"],
+                    reportFormats: ["text", "html", "lcov"],
                     excludes: tests
                 }
             }
-        }
+        },
+        coveralls: {
+            src: {
+                src: "coverage/lcov.info"
+            }
+        },
     });
 
+    grunt.loadNpmTasks("grunt-coveralls");
     grunt.loadNpmTasks("grunt-mocha-test");
     grunt.loadNpmTasks("grunt-contrib-jshint");
     grunt.loadNpmTasks("grunt-mocha-istanbul");
 
-    // Default task(s).
+    //The travis ci build
+    grunt.registerTask("travis", ["jshint", "mocha_istanbul:coverage", "coveralls:src"]);
+
+    //Check code coverage with grunt cover
     grunt.registerTask("cover", ["mocha_istanbul:coverage"]);
+
+    //Just run grunt for day to day work
     grunt.registerTask("default", ["jshint", "mochaTest:test"]);
 };
