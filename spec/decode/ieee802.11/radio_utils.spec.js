@@ -6,7 +6,7 @@ describe("radioUtils", function(){
     beforeEach(function(){
       threeTags = new Buffer("010130"+     //id=0, length=1, value=0x30
                              "0203040506"+ //id=2, length=3, value=0x040506
-                             "0300"+       //id=3, length=0, value=0x00
+                             "0300"+       //id=3, length=0
                              "FFFFFFFF", "hex"); //new to provide 'checksum'
     });
 
