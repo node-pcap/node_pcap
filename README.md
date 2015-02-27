@@ -1,5 +1,7 @@
 node_pcap
 =========
+
+[![Join the chat at https://gitter.im/mranney/node_pcap](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mranney/node_pcap?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/mranney/node_pcap.svg?branch=master)](https://travis-ci.org/mranney/node_pcap)[![Coverage Status](https://coveralls.io/repos/mranney/node_pcap/badge.svg)](https://coveralls.io/r/mranney/node_pcap)
 
 This is a set of bindings from `libpcap` to node as well as some useful libraries to decode, print, and
