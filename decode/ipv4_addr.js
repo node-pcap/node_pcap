@@ -1,4 +1,4 @@
-var map = require("../util").int8_to_dec;
+var dec = require("../util").int8_to_dec;
 
 function IPv4Addr(raw_packet, offset) {
 	this.o1	= raw_packet[offset];
@@ -9,7 +9,7 @@ function IPv4Addr(raw_packet, offset) {
 
 // Don't use Array.prototype.join here, because string concat is much faster
 IPv4Addr.prototype.toString = function () {
-    return map[this.o1] + "." + map[this.o2] + "." + map[this.o3] + "." + map[this.o4];
+    return dec[this.o1] + "." + dec[this.o2] + "." + dec[this.o3] + "." + dec[this.o4];
 };
 
 module.exports = IPv4Addr;
