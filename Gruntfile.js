@@ -1,6 +1,7 @@
 module.exports = function(grunt) {
     var src = ["*.js", "decode/**/*.js"];
     var tests = ["spec/**/*.spec.js"];
+    var supportingFiles = ["Gruntfile.js"];
     var allJs = tests.concat(src);
     grunt.initConfig({
         jshint: {
@@ -21,7 +22,7 @@ module.exports = function(grunt) {
                 src: allJs,
                 options: {
                     reportFormats: ["text", "html", "lcov"],
-                    excludes: tests
+                    excludes: tests.concat(supportingFiles)
                 }
             }
         },
