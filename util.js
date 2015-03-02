@@ -5,12 +5,6 @@ function lpad(str, len) {
     return str;
 }
 
-exports.dump_bytes = function dump_bytes(raw_packet, offset) {
-    for (var i = offset; i < raw_packet.pcap_header.caplen ; i += 1) {
-        console.log(i + ": " + raw_packet[i]);
-    }
-};
-
 var int8_to_hex = [];
 var int8_to_hex_nopad = [];
 var int8_to_dec = [];
