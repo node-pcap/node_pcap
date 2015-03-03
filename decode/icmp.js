@@ -20,10 +20,6 @@ ICMP.prototype.toString = function () {
     case 0:
         ret += "Echo Reply";
         break;
-    case 1:
-    case 2:
-        ret += "Reserved";
-        break;
     case 3: // destination unreachable
         switch (this.code) {
         case 0:
@@ -76,7 +72,7 @@ ICMP.prototype.toString = function () {
         ret += "Source Quench";
         break;
     case 5: // redirect
-        switch (ret.code) {
+        switch (this.code) {
         case 0:
             ret += "Redirect Network";
             break;
@@ -90,7 +86,7 @@ ICMP.prototype.toString = function () {
             ret += "Redirect TOS and Host";
             break;
         default:
-            ret += "Redirect (unknown code " + ret.code + ")";
+            ret += "Redirect (unknown code " + this.code + ")";
             break;
         }
         break;
