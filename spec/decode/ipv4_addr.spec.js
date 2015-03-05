@@ -15,10 +15,7 @@ describe("IPv4Addr", function(){
     it("decodes ip address", function() {
       var instance = new IPv4Addr(exampleIp, 0);
 
-      instance.should.have.property("o1", 1);
-      instance.should.have.property("o2", 2);
-      instance.should.have.property("o3", 3);
-      instance.should.have.property("o4", 4);
+      instance.should.have.property("addr", [1, 2, 3, 4]);
     });
   });
 
