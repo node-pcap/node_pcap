@@ -13,21 +13,27 @@ IPv6Header.prototype.decode = function (raw_packet, next_header, ip, offset) {
     switch (next_header) {
     case 1:
         ip.payload = new ICMP().decode(raw_packet, offset);
+        ip.protocol_name = "ICMP";
         break;
     case 2:
         ip.payload = new IGMP().decode(raw_packet, offset);
+        ip.protocol_name = "IGMP";
         break;
     case 4:
         ip.payload = new IPv4().decode(raw_packet, offset); // IPv4 encapsulation, RFC2003
+        ip.protocol_name = "IPv4";
         break;
     case 6:
         ip.payload = new TCP().decode(raw_packet, offset, ip);
+        ip.protocol_name = "TCP";
         break;
     case 17:
         ip.payload = new UDP().decode(raw_packet, offset);
+        ip.protocol_name = "UDP";
         break;
     case 41:
         ip.payload = new IPv6().decode(raw_packet, offset); // IPv6 encapsulation, RFC2473
+        ip.protocol_name = "IPv6";
         break;
     /* Please follow numbers and RFC in http://www.iana.org/assignments/ipv6-parameters/ipv6-parameters.xhtml#extension-header
      * Not all next protocols follow this rule (and we can have unsuported upper protocols here too).

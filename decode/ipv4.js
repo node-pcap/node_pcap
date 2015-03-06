@@ -80,23 +80,29 @@ IPv4.prototype.decode = function (raw_packet, offset) {
 
     switch (this.protocol) {
     case 1:
-        this.payload = new ICMP();
-        this.payload.decode(raw_packet, offset);
+        this.payload = new ICMP().decode(raw_packet, offset);
+        this.protocol_name = "ICMP";
         break;
     case 2:
         this.payload = new IGMP().decode(raw_packet, offset);
+        this.protocol_name = "IGMP";
         break;
     case 4:
         this.payload = new IPv4().decode(raw_packet, offset);
+        this.protocol_name = "IPv4";
+        break;
         break;
     case 6:
         this.payload = new TCP().decode(raw_packet, offset, this.total_length - this.header_bytes);
+        this.protocol_name = "TCP";
         break;
     case 17:
         this.payload = new UDP().decode(raw_packet, offset);
+        this.protocol_name = "UDP";
         break;
     case 41:
         this.payload = new IPv6().decode(raw_packet, offset);
+        this.protocol_name = "IPv6";
         break;
     default:
         this.protocol_name = "Unknown";
