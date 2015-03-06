@@ -33,6 +33,65 @@ describe("IGMP", function(){
       instance.decode(exampleIgmp, 0);
       instance.groupAddress.should.have.property("addr", [5, 6, 7, 8]);
     });
+
+    describe("when IGMP is type 0x11", function(){
+      var packet;
+      beforeEach(function(){
+        packet = new Buffer("1102030405060708", "hex");
+      });
+
+      it("sets #version to 3", function(){
+        instance.decode(packet, 0);
+        instance.should.have.property("version", 3);
+      });
+    });
+
+    describe("when IGMP is type 0x12", function(){
+      var packet;
+      beforeEach(function(){
+        packet = new Buffer("1202030405060708", "hex");
+      });
+
+      it("sets #version to 1", function(){
+        instance.decode(packet, 0);
+        instance.should.have.property("version", 1);
+      });
+    });
+
+    describe("when IGMP is type 0x16", function(){
+      var packet;
+      beforeEach(function(){
+        packet = new Buffer("1602030405060708", "hex");
+      });
+
+      it("sets #version to 2", function(){
+        instance.decode(packet, 0);
+        instance.should.have.property("version", 2);
+      });
+    });
+
+    describe("when IGMP is type 0x17", function(){
+      var packet;
+      beforeEach(function(){
+        packet = new Buffer("1702030405060708", "hex");
+      });
+
+      it("sets #version to 2", function(){
+        instance.decode(packet, 0);
+        instance.should.have.property("version", 2);
+      });
+    });
+    describe("when IGMP is type 0x22", function(){
+      var packet;
+      beforeEach(function(){
+        packet = new Buffer("2202030405060708", "hex");
+      });
+
+      it("sets #version to 3", function(){
+        instance.decode(packet, 0);
+        instance.should.have.property("version", 3);
+      });
+    });
   });
 
   describe("#toString()", function() {

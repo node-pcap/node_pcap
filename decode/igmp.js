@@ -8,6 +8,16 @@ function IGMP() {
     this.groupAddress = undefined;
 }
 
+function toSingleByteFloat(b) {
+    if(b < 128){
+        return b;
+    }
+
+    var mant = (b & 0x0f);
+    var exp = (b & 0x70) >> 4;
+    return (mant | 0x10) << (exp + 3);
+}
+
 // http://en.wikipedia.org/wiki/Internet_Group_Management_Protocol
 // This is an implementation of V3
 // https://tools.ietf.org/html/rfc3376
@@ -17,7 +27,7 @@ IGMP.prototype.decode = function (raw_packet, offset) {
     // units are 1/10s
     // if value < 128 this is an int, else it is a float
     // right now we don't handle the float version
-    this.maxResponseTime = raw_packet[offset + 1];
+    this.maxResponseTime = toSingleByteFloat(raw_packet[offset + 1]);
 
     this.checksum = raw_packet.readUInt16BE(offset + 2); // 2, 3
     this.groupAddress = new IPV4Addr(raw_packet, offset + 4); // 4, 5, 6, 7
