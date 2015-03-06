@@ -2,19 +2,19 @@ var IPv4Addr = require("../../decode/ipv4_addr");
 require("should");
 
 describe("IPv4Addr", function(){
-  var exampleIp;
+  var exampleIp, instance;
   beforeEach(function () {
     exampleIp = new Buffer("01020304", "hex");
+    instance = new IPv4Addr();
   });
 
-  describe("constructor", function(){
+  describe("#decode", function(){
     it("is a function", function(){
-        IPv4Addr.should.be.type("function");
+        instance.decode.should.be.type("function");
     });
 
-    it("decodes ip address", function() {
-      var instance = new IPv4Addr(exampleIp, 0);
-
+    it("it sets #addr to the ipv4 address", function() {
+      instance.decode(exampleIp, 0);
       instance.should.have.property("addr", [1, 2, 3, 4]);
     });
   });
@@ -30,6 +30,7 @@ describe("IPv4Addr", function(){
     });
 
     it("returns a string like 1.2.3.4", function(){
+      instance.decode(exampleIp, 0);
       var result = instance.toString();
       result.should.be.exactly("1.2.3.4");
     });

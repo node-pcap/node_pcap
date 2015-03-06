@@ -1,4 +1,4 @@
-var IPV4Addr = require("./ipv4_addr");
+var IPv4Addr = require("./ipv4_addr");
 
 function IGMP() {
     this.type = undefined;
@@ -20,7 +20,7 @@ IGMP.prototype.decode = function (raw_packet, offset) {
     this.maxResponseTime =raw_packet[offset + 1];
 
     this.checksum = raw_packet.readUInt16BE(offset + 2); // 2, 3
-    this.groupAddress = new IPV4Addr(raw_packet, offset + 4); // 4, 5, 6, 7
+    this.groupAddress = new IPv4Addr().decode(raw_packet, offset + 4); // 4, 5, 6, 7
 
     //Membership Query (0x11)
     //Membership Report (IGMPv1: 0x12, IGMPv2: 0x16, IGMPv3: 0x22)

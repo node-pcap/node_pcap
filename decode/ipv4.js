@@ -69,9 +69,9 @@ IPv4.prototype.decode = function (raw_packet, offset) {
     offset += 1;
     this.header_checksum = raw_packet.readUInt16BE(offset, true);
     offset += 2;
-    this.saddr = new IPv4Addr(raw_packet, offset);
+    this.saddr = new IPv4Addr.decode(raw_packet, offset);
     offset += 4;
-    this.daddr = new IPv4Addr(raw_packet, offset);
+    this.daddr = new IPv4Addr.decode(raw_packet, offset);
     offset += 4;
 
     // TODO - parse IP "options" if header_length > 5
