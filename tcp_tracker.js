@@ -109,7 +109,7 @@ TCPSession.prototype.track = function (packet) {
         this.send_isn = tcp.seqno;
         this.send_window_scale = tcp.options.window_scale || 1; // multipler, not bit shift value
         this.send_next_seq = tcp.seqno + 1;
-        this.send_bytes_ip = ip.header_bytes;
+        this.send_bytes_ip = ip.headerLength;
         this.send_bytes_tcp = tcp.header_bytes;
     } else if (tcp.flags.syn && !tcp.flags.ack) {
         this.emit("syn retry", this);
