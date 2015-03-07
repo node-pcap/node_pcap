@@ -91,6 +91,7 @@ IPv4.prototype.decode = function (raw_packet, offset) {
 
     offset = orig_offset + this.headerLength;
 
+    //https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
     switch (this.protocol) {
     case 1:
         this.payload = new ICMP();
@@ -119,34 +120,18 @@ IPv4.prototype.decode = function (raw_packet, offset) {
 };
 
 IPv4.prototype.toString = function () {
-    var ret = this.saddr + " -> " + this.daddr;
+    var ret = this.saddr + " -> " + this.daddr + " ";
     var flags = this.flags.toString();
     if (flags.length > 2) {
-        ret += " flags " + flags;
+        ret += "flags " + flags + " ";
     }
 
-    switch (this.protocol) {
-    case 1:
-        ret += " ICMP";
-        break;
-    case 2:
-        ret += " IGMP";
-        break;
-    case 4:
-        ret += " IPv4_in_IPv4"; // IPv4 encapsulation, RFC2003
-        break;
-    case 6:
-        ret += " TCP";
-        break;
-    case 17:
-        ret += " UDP";
-        break;
-    case 41:
-        ret += " IPv6_in_IP4"; // IPv6 encapsulation, RFC2473
-        break;
-    default:
-        ret += " proto " + this.protocol;
+    if(this.payload === undefined || this.payload === null ){
+        ret += "proto " + this.protocol;
+    } else {
+        ret += this.payload.constructor.name;
     }
+    
 
     return ret + " " + this.payload;
 };

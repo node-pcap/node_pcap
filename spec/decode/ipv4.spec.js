@@ -78,5 +78,30 @@ describe("IPv4", function(){
     it("is a function", function(){
       instance.toString.should.be.type("function");
     });
+
+    it("returns a value like \"192.168.33.1 -> 239.255.255.250 IGMP Membership Report\" when no flags are set", function(){
+      var noflags = new Buffer("46c000200000000001021274c0a82101effffffa94040000" + //header
+                               "1600fa04effffffa" + //igmpv2
+                               "00000000", //checksum
+                               "hex");
+
+      instance.decode(noflags, 0);
+
+      instance.toString().should.be.exactly("192.168.33.1 -> 239.255.255.250 IGMP Membership Report");
+    });
+
+    it("returns a value like \"192.168.33.1 -> 239.255.255.250 flags [d] IGMP Membership Report\" when flags are set", function() {
+      instance.decode(example, 0);
+      instance.toString().should.be.exactly("192.168.33.1 -> 239.255.255.250 flags [d] IGMP Membership Report");
+    });
+
+    it("returns a value like \"192.168.33.1 -> 239.255.255.250 flags [d] proto 255 undefined\" when the protocol is not support by node_pcap", function() {
+      var unknownProtocol = new Buffer("46c000200000400001ff1274c0a82101effffffa94040000" + //header
+                                       "00000000", //checksum
+                                       "hex");
+
+      instance.decode(unknownProtocol, 0);
+      instance.toString().should.be.exactly("192.168.33.1 -> 239.255.255.250 flags [d] proto 255 undefined");
+    });
   });
 });
