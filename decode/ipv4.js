@@ -1,9 +1,14 @@
-var ICMP = require("./icmp");
-var IGMP = require("./igmp");
-var TCP = require("./tcp");
-var UDP = require("./udp");
-var IPv6 = require("./ipv6");
 var IPv4Addr = require("./ipv4_addr");
+var protocols = new Array(256);
+function init(){
+    protocols[1] = require("./icmp");
+    protocols[2] = require("./igmp");
+    protocols[4] = IPv4;
+    protocols[6] = require("./tcp");
+    protocols[17] = require("./udp");
+    protocols[41] = require("./ipv6");
+}
+init();
 
 function IPFlags() {
     this.reserved = undefined;
@@ -92,28 +97,11 @@ IPv4.prototype.decode = function (raw_packet, offset) {
     offset = orig_offset + this.headerLength;
 
     //https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
-    switch (this.protocol) {
-    case 1:
-        this.payload = new ICMP();
-        this.payload.decode(raw_packet, offset);
-        break;
-    case 2:
-        this.payload = new IGMP().decode(raw_packet, offset);
-        break;
-    case 4:
-        this.payload = new IPv4().decode(raw_packet, offset);
-        break;
-    case 6:
-        this.payload = new TCP().decode(raw_packet, offset, this.length - this.headerLength);
-        break;
-    case 17:
-        this.payload = new UDP().decode(raw_packet, offset);
-        break;
-    case 41:
-        this.payload = new IPv6().decode(raw_packet, offset);
-        break;
-    default:
+    var ProtocolDecoder = protocols[this.protocol];
+    if(ProtocolDecoder === undefined) {
         this.protocolName = "Unknown";
+    } else {
+        this.payload = new ProtocolDecoder().decode(raw_packet, offset, this.length - this.headerLength);
     }
 
     return this;
