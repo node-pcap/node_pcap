@@ -49,24 +49,28 @@ IPv6Header.prototype.decode = function (raw_packet, next_header, ip, offset) {
 };
 
 function IPv6() {
-
+    this.version = undefined;
+    this.trafficClass = undefined;
+    this.flowLabel = undefined;
+    this.payloadLength = undefined;
+    this.nextHeader = undefined;
+    this.hopLimit = undefined;
+    this.saddr = undefined;
+    this.daddr = undefined;
 }
 
 IPv6.prototype.decode = function (raw_packet, offset) {
-
     // http://en.wikipedia.org/wiki/IPv6
-    this.version = (raw_packet[offset] & 240) >> 4; // first 4 bits
-    this.traffic_class = ((raw_packet[offset] & 15) << 4) + ((raw_packet[offset+1] & 240) >> 4);
-    this.flow_label = ((raw_packet[offset + 1] & 15) << 16) +
+    this.version = ((raw_packet[offset] & 0xf0) >> 4); // first 4 bits
+    this.trafficClass = ((raw_packet[offset] & 0x0f) << 4) | ((raw_packet[offset+1] & 0xf0) >> 4);
+    this.flowLabel = ((raw_packet[offset + 1] & 0x0f) << 16) +
         (raw_packet[offset + 2] << 8) +
         raw_packet[offset + 3];
-    this.payload_length = raw_packet.readUInt16BE(offset+4, true);
-    this.total_length = this.payload_length + 40;
-    this.next_header = raw_packet[offset+6];
-    this.hop_limit = raw_packet[offset+7];
+    this.payloadLength = raw_packet.readUInt16BE(offset+4, true);
+    this.nextHeader = raw_packet[offset+6];
+    this.hopLimit = raw_packet[offset+7];
     this.saddr = new IPv6Addr().decode(raw_packet, offset+8);
     this.daddr = new IPv6Addr().decode(raw_packet, offset+24);
-    this.header_bytes = 40;
 
     new IPv6Header().decode(raw_packet, this.next_header, this, offset+40);
     return this;
