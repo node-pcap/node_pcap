@@ -18,7 +18,7 @@ describe("NoNext", function(){
       should.not.exist(instance._error);
     });
 
-    it("sets #_error is something is wrong", function(){
+    it("sets #_error when something is wrong", function(){
       //should not have data left
       instance.decode(new Buffer("00", "hex"), 0);
       should.exist(instance._error);
