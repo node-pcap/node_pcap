@@ -1,14 +1,6 @@
 var IPv4Addr = require("./ipv4_addr");
-var protocols = new Array(256);
-function init(){
-    protocols[1] = require("./icmp");
-    protocols[2] = require("./igmp");
-    protocols[4] = IPv4;
-    protocols[6] = require("./tcp");
-    protocols[17] = require("./udp");
-    protocols[41] = require("./ipv6");
-}
-init();
+var protocols = require("./ip_protocols");
+
 
 function IPFlags() {
     this.reserved = undefined;
@@ -96,7 +88,6 @@ IPv4.prototype.decode = function (raw_packet, offset) {
 
     offset = orig_offset + this.headerLength;
 
-    //https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
     var ProtocolDecoder = protocols[this.protocol];
     if(ProtocolDecoder === undefined) {
         this.protocolName = "Unknown";
