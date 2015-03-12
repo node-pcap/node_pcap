@@ -15,6 +15,7 @@ function IPv6() {
 
 IPv6.prototype.decode = function (raw_packet, offset) {
     // http://en.wikipedia.org/wiki/IPv6
+    var originalOffset = offset;
     this.version = ((raw_packet[offset] & 0xf0) >> 4); // first 4 bits
     this.trafficClass = ((raw_packet[offset] & 0x0f) << 4) | ((raw_packet[offset+1] & 0xf0) >> 4);
     this.flowLabel = ((raw_packet[offset + 1] & 0x0f) << 16) +
@@ -33,20 +34,21 @@ IPv6.prototype.decode = function (raw_packet, offset) {
      * The IPv6 Next Header field carries values from the same name space as
      * the IPv4 Protocol name space. 
     */
-    var ProtocolDecoder = protocols[this.protocol];
+    offset = originalOffset + 40;
+    var ProtocolDecoder = protocols[this.nextHeader];
     if(ProtocolDecoder === undefined) {
         this.protocolName = "Unknown";
     } else {
-        this.payload = new ProtocolDecoder().decode(raw_packet, offset, this.length - this.headerLength);
+        this.payload = new ProtocolDecoder().decode(raw_packet, offset, raw_packet.length - 40);
     }
     return this;
 };
 
 IPv6.prototype.toString = function () {
-    var ret = this.saddr + " -> " + this.daddr;
+    var ret = this.saddr + " -> " + this.daddr + " ";
 
     if(this.payload === undefined || this.payload === null ){
-        ret += "proto " + this.protocol;
+        ret += "proto " + this.nextHeader;
     } else {
         ret += this.payload.constructor.name;
     }

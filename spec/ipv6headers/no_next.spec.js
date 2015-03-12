@@ -29,5 +29,10 @@ describe("NoNext", function(){
     it("is a function", function(){
         instance.toString.should.be.type("function");
     });
+
+    it("returns \"\"", function(){
+      instance.decode(example, 0);
+      instance.toString().should.be.exactly("");
+    });
   });
 });

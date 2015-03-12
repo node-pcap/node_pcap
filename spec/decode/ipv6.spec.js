@@ -1,4 +1,5 @@
 var IPv6 = require("../../decode/ipv6");
+var NoNext = require("../../decode/ipv6headers/no_next");
 require("should");
 
 describe("IPv6", function(){
@@ -58,6 +59,11 @@ describe("IPv6", function(){
       instance.decode(example, 0);
       instance.daddr.should.have.property("addr", [0x20, 0x01, 0x00, 0x00, 0x41, 0x37, 0x9e, 0x50, 0x80, 0x00, 0xf1, 0x2a, 0xb9, 0xc8, 0x28, 0x15]);
     });
+
+    it("sets #payload to the next header", function(){
+      instance.decode(example, 0);
+      instance.payload.should.be.instanceOf(NoNext);
+    });
   });
 
   describe("#toString()", function(){
@@ -68,6 +74,34 @@ describe("IPv6", function(){
 
     it("is a function", function(){
       instance.toString.should.be.type("function");
+    });
+
+    it("returns a value like \"fe80:0000:0000:0000:708d:fe83:4114:a512 -> 2001:0000:4137:9e50:8000:f12a:b9c8:2815 proto 255 undefined\" when the protocol is not support by node_pcap", function(){
+      var unsupported = new Buffer("60000000" + // version=6, trafficClass=0x12, labelflow=0, 
+                          "0000" + // payloadLength =0
+                          "ff" + // a next header type which is not supported
+                          "00" + // hopLimit=0
+                          "fe80000000000000708dfe834114a512" + // src address
+                          "2001000041379e508000f12ab9c82815" + // dest address
+                          "1600fa04effffffa",
+                          "hex");
+
+      instance.decode(unsupported, 0);
+      instance.toString().should.be.exactly("fe80:0000:0000:0000:708d:fe83:4114:a512 -> 2001:0000:4137:9e50:8000:f12a:b9c8:2815 proto 255 undefined");
+    });
+
+    it("returns a value like \"fe80:0000:0000:0000:708d:fe83:4114:a512 -> 2001:0000:4137:9e50:8000:f12a:b9c8:2815 IGMP Membership Report\" when the protocol is support by node_pcap", function(){
+      var igmp = new Buffer("60000000" + // version=6, trafficClass=0x12, labelflow=0, 
+                          "0000" + // payloadLength =0
+                          "02" + // IGMP next
+                          "00" + // hopLimit=0
+                          "fe80000000000000708dfe834114a512" + // src address
+                          "2001000041379e508000f12ab9c82815" + // dest address
+                          "1600fa04effffffa",
+                          "hex");
+
+      instance.decode(igmp, 0);
+      instance.toString().should.be.exactly("fe80:0000:0000:0000:708d:fe83:4114:a512 -> 2001:0000:4137:9e50:8000:f12a:b9c8:2815 IGMP Membership Report");
     });
   });
 });

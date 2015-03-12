@@ -40,9 +40,16 @@ describe("HeaderExtension", function(){
         instance.toString.should.be.type("function");
     });
 
-    it("decodes nothing", function(){
-      instance.decode(example, 0);
-      instance.toString().should.be.exactly("");
+    it("returns a value like \"proto 255 undefined\" when the protocol is not support by node_pcap", function(){
+      instance.decode(new Buffer("FF00000000000000","hex"), 0);
+      instance.toString().should.be.exactly("proto 255 undefined");
+    });
+
+    it("returns a value like \"IGMP Membership Report\" when the protocol is support by node_pcap", function(){
+      instance.decode(new Buffer("0200000000000000" +
+        "1600fa04effffffa", //IGMP
+        "hex"), 0);
+      instance.toString().should.be.exactly("IGMP Membership Report");
     });
   });
 });

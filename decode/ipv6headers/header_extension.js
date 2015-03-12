@@ -28,7 +28,14 @@ HeaderExtension.prototype.decode = function (raw_packet, offset) {
 };
 
 HeaderExtension.prototype.toString = function () {
-    return "";
+  var ret = "";
+  if(this.payload === undefined || this.payload === null){
+      ret += "proto " + this.nextHeader;
+  } else {
+      ret += this.payload.constructor.name;
+  }
+
+  return ret + " " + this.payload;
 };
 
 module.exports = HeaderExtension;
