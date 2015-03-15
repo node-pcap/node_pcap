@@ -1,4 +1,4 @@
-var NoNext = require("../../decode/ipv6headers/no_next");
+var NoNext = require("../../../decode/ipv6headers/no_next");
 var should = require("should");
 
 describe("NoNext", function(){

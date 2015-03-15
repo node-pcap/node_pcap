@@ -1,5 +1,5 @@
-var HeaderExtension = require("../../decode/ipv6headers/header_extension");
-var NoNext = require("../../decode/ipv6headers/no_next");
+var HeaderExtension = require("../../../decode/ipv6headers/header_extension");
+var NoNext = require("../../../decode/ipv6headers/no_next");
 var should = require("should");
 
 describe("HeaderExtension", function(){
