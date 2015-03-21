@@ -76,4 +76,15 @@ describe("TCP", function(){
       instance.should.have.property("data", null);
     });
   });
+  describe("#toString", function(){
+    it("is a function", function(){
+      instance.toString.should.be.type("function");
+    });
+
+    it("returns a value like #->80 seq 179265614 ack 0 flags [ces] win 4128 csum 17586 [mss:536] len 0", function() {
+      instance.decode(exampleTcp, 0, 24);
+      var result = instance.toString();
+      result.should.be.exactly("46557->80 seq 179265614 ack 0 flags [ces] win 4128 csum 17586 [mss:536] len 0");
+    });
+  });
 });
