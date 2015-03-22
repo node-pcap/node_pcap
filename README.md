@@ -1,5 +1,11 @@
+##Disclaimer
+node_pcap is currently being heavily refactored much of the documentation is out of date. If you installed node_pcap from npm go to [v2.0.1](https://github.com/mranney/node_pcap/commit/6e4d56671c54e0cf690f72b92554a538244bd1b6). Thanks for your patience and contributions as we work on the next major version of node_pcap.
+
 node_pcap
 =========
+
+[![Join the chat at https://gitter.im/mranney/node_pcap](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mranney/node_pcap?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://travis-ci.org/mranney/node_pcap.svg?branch=master)](https://travis-ci.org/mranney/node_pcap)[![Coverage Status](https://coveralls.io/repos/mranney/node_pcap/badge.svg)](https://coveralls.io/r/mranney/node_pcap)
 
 This is a set of bindings from `libpcap` to node as well as some useful libraries to decode, print, and
 analyze packets.  `libpcap` is a packet capture library used by programs like `tcpdump` and `wireshark`.
@@ -98,67 +104,30 @@ This structure is easy to explore with `sys.inspect`.
 
 ### TCP Analysis
 
-TCP can be analyzed by feeding the packets into a `TCP_tracker` and then listening for `start` and `end` events.
+TCP can be analyzed by feeding the packets into a `TCPTracker` and then listening for `session` and `end` events.
 
-    var pcap = require('pcap'),
-        tcp_tracker = new pcap.TCP_tracker(),
-        pcap_session = pcap.createSession(interface, "ip proto \\tcp");
+```javascript
+var pcap = require('./pcap'),
+    tcp_tracker = new pcap.TCPTracker(),
+    pcap_session = pcap.createSession('en0', "ip proto \\tcp");
 
-    tcp_tracker.on('start', function (session) {
-        console.log("Start of TCP session between " + session.src_name + " and " + session.dst_name);
-    });
+tcp_tracker.on('session', function (session) {
+  console.log("Start of session between " + session.src_name + " and " + session.dst_name);
+  session.on('end', function (session) {
+      console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
+  });
+});
 
-    tcp_tracker.on('end', function (session) {
-        console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
-    });
-
-    pcap_session.on('packet', function (raw_packet) {
-        var packet = pcap.decode.packet(raw_packet);
-        tcp_tracker.track_packet(packet);
-    });
+pcap_session.on('packet', function (raw_packet) {
+    var packet = pcap.decode.packet(raw_packet);
+    tcp_tracker.track_packet(packet);
+});
+```
 
 You must only send IPv4 TCP packets to the TCP tracker.  Explore the `session` object with `sys.inspect` to
 see the wonderful things it can do for you.  Hopefully the names of the properties are self-explanatory:
 
-    { src: '10.51.2.130:55965'
-    , dst: '75.119.207.0:80'
-    , syn_time: 1280425738896.771
-    , state: 'ESTAB'
-    , key: '10.51.2.130:55965-75.119.207.0:80'
-    , send_isn: 2869922608
-    , send_window_scale: 8
-    , send_packets: { '2869922609': 1280425738896.771 }
-    , send_acks: { '1063203923': 1280425738911.618 }
-    , send_retrans: {}
-    , send_next_seq: 2869922609
-    , send_acked_seq: null
-    , send_bytes_ip: 60
-    , send_bytes_tcp: 108
-    , send_bytes_payload: 144
-    , recv_isn: 1063203922
-    , recv_window_scale: 128
-    , recv_packets: { '1063203923': 1280425738911.536 }
-    , recv_acks: { '2869922609': 1280425738911.536 }
-    , recv_retrans: {}
-    , recv_next_seq: null
-    , recv_acked_seq: null
-    , recv_bytes_ip: 20
-    , recv_bytes_tcp: 40
-    , recv_bytes_payload: 0
-    , src_name: '10.51.2.130:55965'
-    , dst_name: '75.119.207.0:80'
-    , current_cap_time: 1280425738911.65
-
-
-### WebSocket Analysis
-
-The `TCP_tracker` further detects and decodes WebSocket traffic on all streams it receives.
-
-* `websocket upgrade`: function(session, http)
-* `websocket message`: function(session, dir, message)
-
-See [http_trace](https://github.com/mranney/http_trace) for an example of how to use these events to decode WebSocket.
-
+See [http_trace](https://github.com/mranney/http_trace) for an example of how to use these events to decode HTTP.
     
 ## Some Common Problems
 
@@ -188,9 +157,9 @@ Sadly, `node_pcap` does not know how to decode IPv6 packets yet.  Often when cap
 will arrive surprisingly, even though you were expecting IPv4.  A common case is the hostname `localhost`, which many client programs will
 resolve to the IPv6 address `::1` and then will try `127.0.0.1`.  Until we get IPv6 decode support, a `libpcap` filter can be
 set to only see IPv4 traffic:
-```
-    "ip proto \tcp"
-```    
+
+    sudo http_trace lo0 "ip proto \tcp"
+    
 The backslash is important.  The pcap filter language has an ambiguity with the word "tcp", so by escaping it,
 you'll get the correct interpretation for this case.
 
@@ -205,10 +174,11 @@ If the pcap filters are set correctly and `libpcap` still drops packets, it is p
 buffer size.  At the moment, this requires changing `pcap_binding.cc`.  Look for `pcap_set_buffer_size()` and
 set to a larger value.
 
-## Help Wanted
+## Examples
 
-I want to build up decoders and printers for all popular protocols.  Patches are welcome.
+[redis_trace](https://github.com/mranney/redis_trace)
 
+[http_trace](https://github.com/mranney/http_trace)
 
 ## LICENSE - "MIT License"
 

@@ -1,18 +1,14 @@
 function ICMP() {
-    this.type = null;
-    this.code = null;
-    this.checksum = null;
-    this.id = null;
-    this.sequence = null;
+    this.type = undefined;
+    this.code = undefined;
+    this.checksum = undefined;
 }
 
 // http://en.wikipedia.org/wiki/Internet_Control_Message_Protocol
 ICMP.prototype.decode = function (raw_packet, offset) {
-    this.type = raw_packet[offset];
-    this.code = raw_packet[offset + 1];
-    this.checksum = raw_packet.readUInt16BE(offset + 2); // 2, 3
-    this.id = raw_packet.readUInt16BE(offset + 4); // 4, 5
-    this.sequence = raw_packet.readUInt16BE(offset + 6); // 6, 7
+    this.type = raw_packet[offset++];
+    this.code = raw_packet[offset++];
+    this.checksum = raw_packet.readUInt16BE(offset); // 2, 3
 
     return this;
 };
@@ -23,10 +19,6 @@ ICMP.prototype.toString = function () {
     switch (this.type) {
     case 0:
         ret += "Echo Reply";
-        break;
-    case 1:
-    case 2:
-        ret += "Reserved";
         break;
     case 3: // destination unreachable
         switch (this.code) {
@@ -80,7 +72,7 @@ ICMP.prototype.toString = function () {
         ret += "Source Quench";
         break;
     case 5: // redirect
-        switch (ret.code) {
+        switch (this.code) {
         case 0:
             ret += "Redirect Network";
             break;
@@ -94,7 +86,7 @@ ICMP.prototype.toString = function () {
             ret += "Redirect TOS and Host";
             break;
         default:
-            ret += "Redirect (unknown code " + ret.code + ")";
+            ret += "Redirect (unknown code " + this.code + ")";
             break;
         }
         break;

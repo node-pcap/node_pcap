@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+
+var pcap = require("../pcap");
+
+if (process.argv.length < 3) {
+  console.error("usage: multiple_interfaces <interface 1> [interface 2] ...");
+  console.error("Example: ");
+  console.error('  multiple_interfaces eth0 wlan0');
+  process.exit(1);
+}
+
+process.argv.slice(2).forEach(function(dev) {
+  var session = pcap.createSession(dev);
+  session.on('packet', function(raw_packet) {
+    var packet = pcap.decode.packet(raw_packet);
+    console.log(dev + ": " + pcap.print.packet(packet));
+  });
+});

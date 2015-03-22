@@ -1,14 +1,28 @@
 
 function TCPFlags() {
-    this.cwr = null;
-    this.ece = null;
-    this.urg = null;
-    this.ack = null;
-    this.psh = null;
-    this.rst = null;
-    this.syn = null;
-    this.fin = null;
+    this.nonce = undefined;
+    this.cwr = undefined;
+    this.ece = undefined;
+    this.urg = undefined;
+    this.ack = undefined;
+    this.psh = undefined;
+    this.rst = undefined;
+    this.syn = undefined;
+    this.fin = undefined;
 }
+
+TCPFlags.prototype.decode = function (first_byte, second_byte) {
+    this.nonce = Boolean(first_byte & 16);
+    this.cwr = Boolean(second_byte & 128);
+    this.ece = Boolean(second_byte & 64);
+    this.urg = Boolean(second_byte & 32);
+    this.ack = Boolean(second_byte & 16);
+    this.psh = Boolean(second_byte & 8);
+    this.rst = Boolean(second_byte & 4);
+    this.syn = Boolean(second_byte & 2);
+    this.fin = Boolean(second_byte & 1);
+    return this;
+};
 
 TCPFlags.prototype.toString = function () {
     var ret = "[";
@@ -162,20 +176,19 @@ TCPOptions.prototype.toString = function () {
 };
 
 function TCP() {
-    this.sport          = null;
-    this.dport          = null;
-    this.seqno          = null;
-    this.ackno          = null;
-    this.data_offset    = null;
-    this.header_bytes   = null; // not part of packet but handy
-    this.reserved       = null;
-    this.flags          = new TCPFlags();
-    this.window_size    = null;
-    this.checksum       = null;
-    this.urgent_pointer = null;
-    this.options        = null;
-    this.data           = null;
-    this.data_bytes     = null;
+    this.sport          = undefined;
+    this.dport          = undefined;
+    this.seqno          = undefined;
+    this.ackno          = undefined;
+    this.headerLength   = undefined;
+    this.reserved       = undefined;
+    this.flags          = undefined;
+    this.windowSize     = undefined;
+    this.checksum       = undefined;
+    this.urgentPointer  = undefined;
+    this.options        = undefined;
+    this.data           = undefined;
+    this.dataLength     = undefined;
 }
 
 // If you get stuck trying to decode or understand the offset math, stick this block in to dump the contents:
@@ -195,43 +208,37 @@ TCP.prototype.decode = function (raw_packet, offset, len) {
     offset += 4;
     this.ackno          = raw_packet.readUInt32BE(offset, true); // 8, 9, 10, 11
     offset += 4;
-    this.data_offset    = (raw_packet[offset] & 0xf0) >> 4; // first 4 bits of 12
-    if (this.data_offset < 5 || this.data_offset > 15) {
-        throw new Error("invalid data_offset: " + this.data_offset);
-    }
-    this.header_bytes   = this.data_offset * 4; // convenience for using data_offset
-    this.reserved       = raw_packet[offset] & 15; // second 4 bits of 12
-    offset += 1;
-    var all_flags = raw_packet[offset];
-    this.flags.cwr      = (all_flags & 128) >> 7; // all flags packed into 13
-    this.flags.ece      = (all_flags & 64) >> 6;
-    this.flags.urg      = (all_flags & 32) >> 5;
-    this.flags.ack      = (all_flags & 16) >> 4;
-    this.flags.psh      = (all_flags & 8) >> 3;
-    this.flags.rst      = (all_flags & 4) >> 2;
-    this.flags.syn      = (all_flags & 2) >> 1;
-    this.flags.fin      = all_flags & 1;
-    offset += 1;
-    this.window_size    = raw_packet.readUInt16BE(offset, true); // 14, 15
+    // The first 4 bits of the next header * 4 tells use the length
+    // of the header.
+    this.headerLength    = (raw_packet[offset] & 0xf0) >> 2;
+
+    this.flags = new TCPFlags().decode(raw_packet[offset], raw_packet[offset+1]);
+    offset += 2;
+    this.windowSize    = raw_packet.readUInt16BE(offset, true); // 14, 15
     offset += 2;
     this.checksum       = raw_packet.readUInt16BE(offset, true); // 16, 17
     offset += 2;
-    this.urgent_pointer = raw_packet.readUInt16BE(offset, true); // 18, 19
+    this.urgentPointer = raw_packet.readUInt16BE(offset, true); // 18, 19
     offset += 2;
 
     this.options = new TCPOptions();
-    var options_len = this.header_bytes - (offset - orig_offset);
+    var options_len = this.headerLength - (offset - orig_offset);
     if (options_len > 0) {
         this.options.decode(raw_packet, offset, options_len);
         offset += options_len;
     }
 
-    this.data_bytes = len - this.header_bytes;
-    if (this.data_bytes > 0) {
+    this.dataLength = len - this.headerLength;
+    if (this.dataLength > 0) {
         // add a buffer slice pointing to the data area of this TCP packet.
         // Note that this does not make a copy, so ret.data is only valid for this current
         // trip through the capture loop.
         this.data = raw_packet.slice(offset, offset + this.data_bytes);
+    } else {
+        // null indicated the value was set. Where as undefined
+        // means the value was never set. Since there is no data
+        // we explicity want to communicate this to consumers.
+        this.data = null;
     }
 
     return this;
@@ -239,12 +246,12 @@ TCP.prototype.decode = function (raw_packet, offset, len) {
 
 TCP.prototype.toString = function () {
     var ret = this.sport + "->" + this.dport + " seq " + this.seqno + " ack " + this.ackno + " flags " + this.flags + " " +
-        "win " + this.window_size + " csum " + this.checksum;
+        "win " + this.windowSize + " csum " + this.checksum;
     if (this.urgent_pointer) {
-        ret += " urg " + this.urgent_pointer;
+        ret += " urg " + this.urgentPointer;
     }
     ret += " " + this.options.toString();
-    ret += " len " + this.data_bytes;
+    ret += " len " + this.dataLength;
     return ret;
 };
 

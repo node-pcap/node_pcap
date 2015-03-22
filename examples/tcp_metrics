@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+
+var pcap         = require("../pcap"), pcap_session,
+    tcp_tracker  = new pcap.TCPTracker();
+    
+if (process.argv.length > 4) {
+    console.error("usage: tcp_metrics interface filter");
+    console.error("Examples: ");
+    console.error("  tcp_metrics \"tcp port 80\"");
+    console.error("  tcp_metrics eth1 \"\"");
+    console.error("  tcp_metrics lo0 \"ip proto \\tcp and tcp port 80\"");
+    process.exit(1);
+}
+
+pcap_session = pcap.createOfflineSession(process.argv[2], process.argv[3]);
+
+// listen for packets, decode them, and feed TCP to the tracker
+pcap_session.on("packet", function (raw_packet) {
+    var packet = pcap.decode.packet(raw_packet);
+    tcp_tracker.track_packet(packet);
+});
+
+// tracker emits sessions, and sessions emit data
+tcp_tracker.on("session", function (session) {
+    console.log("Start of TCP session between " + session.src_name + " and " + session.dst_name);
+    session.on("data send", function (session, data) {
+        console.log(session.src_name + " -> " + session.dst_name + " data send " + session.send_bytes_payload + " + " + data.length + " bytes");
+    });
+    session.on("data recv", function (session, data) {
+        console.log(session.dst_name + " -> " + session.src_name + " data recv " + session.recv_bytes_payload + " + " + data.length + " bytes");
+        });
+    session.on("end", function (session) {
+        console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
+        console.log("Set stats for session: ", session.session_stats());
+    });
+});

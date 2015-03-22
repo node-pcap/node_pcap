@@ -1,42 +1,40 @@
-var map = require("../util").int8_to_hex_nopad;
+var hex = require("../util").int8_to_hex;
 
 function IPv6Addr() {
-    this.o1 = null;
-    this.o2 = null;
-    this.o3 = null;
-    this.o4 = null;
-    this.o5 = null;
-    this.o6 = null;
-    this.o7 = null;
-    this.o8 = null;
+    this.addr = new Array(16);
 }
 
-IPv6Addr.prototype.decode = function (raw_packet, offset) {
-    this.o1 = raw_packet.readUInt16LE[offset];
-    this.o2 = raw_packet.readUInt16LE[offset + 2];
-    this.o3 = raw_packet.readUInt16LE[offset + 4];
-    this.o4 = raw_packet.readUInt16LE[offset + 6];
-    this.o5 = raw_packet.readUInt16LE[offset + 8];
-    this.o6 = raw_packet.readUInt16LE[offset + 10];
-    this.o7 = raw_packet.readUInt16LE[offset + 12];
-    this.o8 = raw_packet.readUInt16LE[offset + 14];
+IPv6Addr.prototype.decode = function decode(raw_packet, offset) {
+    this.addr[0]  = raw_packet[offset + 0];
+    this.addr[1]  = raw_packet[offset + 1];
+    this.addr[2]  = raw_packet[offset + 2];
+    this.addr[3]  = raw_packet[offset + 3];
+    this.addr[4]  = raw_packet[offset + 4];
+    this.addr[5]  = raw_packet[offset + 5];
+    this.addr[6]  = raw_packet[offset + 6];
+    this.addr[7]  = raw_packet[offset + 7];
+    this.addr[8]  = raw_packet[offset + 8];
+    this.addr[9]  = raw_packet[offset + 9];
+    this.addr[10] = raw_packet[offset + 10];
+    this.addr[11] = raw_packet[offset + 11];
+    this.addr[12] = raw_packet[offset + 12];
+    this.addr[13] = raw_packet[offset + 13];
+    this.addr[14] = raw_packet[offset + 14];
+    this.addr[15] = raw_packet[offset + 15];
 
     return this;
 };
 
-function format(num) {
-    var p1 = (num & 0xff00) >> 8;
-    var p2 = num & 0x00ff;
-    if (p1 === 0) {
-        return map[p2];
-    } else {
-        return map[p1] + map[p2];
-    }
-}
-
 IPv6Addr.prototype.toString = function () {
-    return format(this.o1) + ":" + format(this.o2) + ":" + format(this.o3) + ":" + format(this.o4) + ":" +
-        format(this.o5) + ":" + format(this.o6) + ":" + format(this.o7) + ":" + format(this.o8);
+    //There are some rules one can follow to
+    //shorten the string representation of an
+    //ipv6 address, but the long hand version
+    //is both simple and valid.
+
+    return hex[this.addr[0]] + hex[this.addr[1]] + ":" + hex[this.addr[2]] + hex[this.addr[3]] + ":" +
+           hex[this.addr[4]] + hex[this.addr[5]] + ":" + hex[this.addr[6]] + hex[this.addr[7]] + ":" +
+           hex[this.addr[8]] + hex[this.addr[9]] + ":" + hex[this.addr[10]] + hex[this.addr[11]] + ":" +
+           hex[this.addr[12]] + hex[this.addr[13]] + ":" + hex[this.addr[14]] + hex[this.addr[15]];
 };
 
 module.exports = IPv6Addr;

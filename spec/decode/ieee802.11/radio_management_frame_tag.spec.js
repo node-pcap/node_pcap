@@ -23,7 +23,7 @@ describe("RadioManagementFrameTag", function(){
       should.exist(result);
     });
 
-    it("sets the ssid property if the tag has an id of 0", function(){
+    it("sets the #ssid property if the tag has an id of 0", function(){
       var result = instance.decode(ssidTag, 0);
       result.should.have.property("type", "ssid");
       result.should.have.property("ssid", "NETGEAR");
