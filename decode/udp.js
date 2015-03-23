@@ -1,6 +1,7 @@
 var DNS = require("./dns");
 
-function UDP() {
+function UDP(emitter) {
+    this.emitter = emitter;
     this.sport = null;
     this.dport = null;
     this.length = null;
@@ -21,6 +22,7 @@ UDP.prototype.decode = function (raw_packet, offset) {
 
     this.data = raw_packet.slice(offset, offset + (this.length - 8));
 
+    if(this.emitter) { this.emitter.emit("udp", this); }
     return this;
 };
 

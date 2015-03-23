@@ -1,6 +1,7 @@
 var IPv4Addr = require("./ipv4_addr");
 
-function IGMP() {
+function IGMP(emitter) {
+    this.emitter = emitter;
     this.type = undefined;
     this.version = undefined;
     this.maxResponseTime = undefined;

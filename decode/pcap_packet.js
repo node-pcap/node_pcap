@@ -19,10 +19,11 @@ function PcapHeader(raw_header) {
     this.len = raw_header.readUInt32LE(12, true);
 }
 
-function PcapPacket() {
+function PcapPacket(emitter) {
     this.link_type = null;
     this.pcap_header = null;
     this.payload = null;
+    this.emitter = emitter;
 }
 
 PcapPacket.prototype.decode = function (packet_with_header) {
@@ -33,19 +34,19 @@ PcapPacket.prototype.decode = function (packet_with_header) {
 
     switch (this.link_type) {
     case "LINKTYPE_ETHERNET":
-        this.payload = new EthernetPacket().decode(buf, 0);
+        this.payload = new EthernetPacket(this.emitter).decode(buf, 0);
         break;
     case "LINKTYPE_NULL":
-        this.payload = new NullPacket().decode(buf, 0);
+        this.payload = new NullPacket(this.emitter).decode(buf, 0);
         break;
     case "LINKTYPE_RAW":
-        this.payload = new RawPacket().decode(buf, 0);
+        this.payload = new RawPacket(this.emitter).decode(buf, 0);
         break;
     case "LINKTYPE_IEEE802_11_RADIO":
-        this.payload = new RadioPacket().decode(buf, 0);
+        this.payload = new RadioPacket(this.emitter).decode(buf, 0);
         break;
     case "LINKTYPE_LINUX_SLL":
-        this.payload = new SLLPacket().decode(buf, 0);
+        this.payload = new SLLPacket(this.emitter).decode(buf, 0);
         break;
     default:
         console.log("node_pcap: PcapPacket.decode - Don't yet know how to decode link type " + this.link_type);

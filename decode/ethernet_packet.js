@@ -4,7 +4,8 @@ var IPv6 = require("./ipv6");
 var Arp = require("./arp");
 var Vlan = require("./vlan");
 
-function EthernetPacket() {
+function EthernetPacket(emitter) {
+    this.emitter = emitter;
     this.dhost = null;
     this.shost = null;
     this.ethertype = null;

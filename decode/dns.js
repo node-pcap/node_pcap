@@ -34,7 +34,8 @@ DNSHeader.prototype.toString = function () {
         " }";
 };
 
-function DNS() {
+function DNS(emitter) {
+    this.emitter = emitter;
     this.header = null;
     this.question = null;
     this.answer = null;
@@ -71,6 +72,7 @@ DNS.prototype.decode = function (raw_packet, offset, caplen) {
     this.authority = this.decode_RRs(this.header.nscount, false);
     this.additional = this.decode_RRs(this.header.arcount, false);
 
+    if(this.emitter) { this.emitter.emit("dns", this); }
     return this;
 };
 

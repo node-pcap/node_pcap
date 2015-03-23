@@ -39,7 +39,8 @@ PresentFieldFlags.prototype.decode = function decode (flags) {
     return this;
 };
 
-function RadioPacket() {
+function RadioPacket(emitter) {
+    this.emitter = emitter;
     this.headerRevision = undefined;
     this.headerPad = undefined;
     this.headerLength = undefined;
@@ -103,8 +104,9 @@ RadioPacket.prototype.decode = function (raw_packet, offset) {
 
     offset = original_offset + this.headerLength;
 
-    this.ieee802_11Frame = new RadioFrame().decode(raw_packet, offset);
+    this.ieee802_11Frame = new RadioFrame(this.emitter).decode(raw_packet, offset);
 
+    if(this.emitter) { this.emitter.emit("radio-packet", this); }
     return this;
 };
 

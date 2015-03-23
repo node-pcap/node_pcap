@@ -3,7 +3,8 @@ var LogicalLinkControl = require("../llc_packet");
 var RadioBeaconFrame = require("./radio_beacon_frame");
 var RadioProbeFrame = require("./radio_probe_frame");
 
-function RadioFrameFlags() {
+function RadioFrameFlags(emitter) {
+    this.emitter = emitter;
     this.raw = undefined;
     this.moreFragments = undefined;
     this.isRetry = undefined;
@@ -23,7 +24,8 @@ RadioFrameFlags.prototype.decode = function decode (flags) {
     return this;
 };
 
-function RadioFrame() {
+function RadioFrame(emitter) {
+    this.emitter = emitter;
     this.frameControl = undefined;
     this.version = undefined;
     this.type = undefined;
@@ -68,10 +70,11 @@ RadioFrame.prototype.decode = function (raw_packet, offset) {
 
     } else if (this.type === 2) { // Data Frame
         if (!this.flags.encrypted && this.subType !== 36) { // subType 36 is a null data frame
-            this.llc = new LogicalLinkControl().decode(raw_packet, offset);
+            this.llc = new LogicalLinkControl(this.emitter).decode(raw_packet, offset);
         }
     }
 
+    if(this.emitter) { this.emitter.emit("radio-frame", this); }
     return this;
 };
 

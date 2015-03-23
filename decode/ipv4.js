@@ -2,7 +2,8 @@ var IPv4Addr = require("./ipv4_addr");
 var protocols = require("./ip_protocols");
 
 
-function IPFlags() {
+function IPFlags(emitter) {
+    this.emitter = emitter;
     this.reserved = undefined;
     this.doNotFragment = undefined;
     this.moreFragments = undefined;
@@ -30,7 +31,8 @@ IPFlags.prototype.toString = function () {
     return ret;
 };
 
-function IPv4() {
+function IPv4(emitter) {
+    this.emitter = emitter; 
     this.version = undefined;
     this.headerLength = undefined;
     this.diffserv = undefined;
@@ -49,6 +51,7 @@ function IPv4() {
 
 // http://en.wikipedia.org/wiki/IPv4
 IPv4.prototype.decode = function (raw_packet, offset) {
+    console.log("decoding ipv4");
     var orig_offset = offset;
 
     this.version = (raw_packet[offset] & 0xf0) >> 4;
@@ -78,10 +81,10 @@ IPv4.prototype.decode = function (raw_packet, offset) {
     this.headerChecksum = raw_packet.readUInt16BE(offset, true);
     offset += 2;
 
-    this.saddr = new IPv4Addr().decode(raw_packet, offset);
+    this.saddr = new IPv4Addr(this.emitter).decode(raw_packet, offset);
     offset += 4;
 
-    this.daddr = new IPv4Addr().decode(raw_packet, offset);
+    this.daddr = new IPv4Addr(this.emitter).decode(raw_packet, offset);
     offset += 4;
 
     // TODO - parse IP "options" if header_length > 5
@@ -92,9 +95,10 @@ IPv4.prototype.decode = function (raw_packet, offset) {
     if(ProtocolDecoder === undefined) {
         this.protocolName = "Unknown";
     } else {
-        this.payload = new ProtocolDecoder().decode(raw_packet, offset, this.length - this.headerLength);
+        this.payload = new ProtocolDecoder(this.emitter).decode(raw_packet, offset, this.length - this.headerLength);
     }
 
+    if(this.emitter) { this.emitter.emit("ipv4", this); }
     return this;
 };
 

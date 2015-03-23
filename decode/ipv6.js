@@ -1,7 +1,8 @@
 var IPv6Addr = require("./ipv6_addr");
 var protocols = require("./ip_protocols");
 
-function IPv6() {
+function IPv6(emitter) {
+    this.emitter = emitter;
     this.version = undefined;
     this.trafficClass = undefined;
     this.flowLabel = undefined;
@@ -41,6 +42,8 @@ IPv6.prototype.decode = function (raw_packet, offset) {
     } else {
         this.payload = new ProtocolDecoder().decode(raw_packet, offset, raw_packet.length - 40);
     }
+
+    if(this.emitter) { this.emitter.emit("ipv6", this); }
     return this;
 };
 

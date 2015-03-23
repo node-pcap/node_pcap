@@ -7,8 +7,8 @@ exports.ArpPacket = require("./arp");
 exports.PcapPacket = require("./pcap_packet");
 var PcapPacket = exports.PcapPacket;
 
-function decode(packet) {
-    return new PcapPacket().decode(packet);
+function decode(packet, emitter) {
+    return new PcapPacket(emitter).decode(packet);
 }
 
 exports.decode = decode;

@@ -1,6 +1,7 @@
 var IPv4 = require("./ipv4");
 
-function LogicalLinkControl() {
+function LogicalLinkControl(emitter) {
+    this.emitter = emitter;
     this.dsap = undefined;
     this.ssap = undefined;
     this.controlField = undefined;
@@ -29,13 +30,14 @@ LogicalLinkControl.prototype.decode = function (raw_packet, offset) {
 
         switch (this.type) {
         case 0x0800: // IPv4
-            this.payload = new IPv4().decode(raw_packet, offset);
+            this.payload = new IPv4(this.emitter).decode(raw_packet, offset);
             break;
         }
     } else {
         this._error = "Unknown LLC types: DSAP: " + this.dsap + ", SSAP: " + this.ssap;
     }
 
+    if(this.emitter) { this.emitter.emit("llc", this); }
     return this;
 };
 

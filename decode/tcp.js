@@ -1,5 +1,6 @@
 
-function TCPFlags() {
+function TCPFlags(emitter) {
+    this.emitter = emitter;
     this.nonce = undefined;
     this.cwr = undefined;
     this.ece = undefined;
@@ -150,6 +151,7 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
         }
     }
 
+    if(this.emitter) { this.emitter.emit("tcp", this); }
     return this;
 };
 

@@ -1,7 +1,8 @@
 var EthernetAddr = require("./ethernet_addr");
 var IPv4Addr = require("./ipv4_addr");
 
-function Arp() {
+function Arp(emitter) {
+    this.emitter = emitter;
     this.htype = null;
     this.ptype = null;
     this.heln = null;
@@ -28,6 +29,7 @@ Arp.prototype.decode = function (raw_packet, offset) {
     }
     // don't know how to decode more exotic ARP types yet, but please add them
 
+    if(this.emitter) { this.emitter.emit("arp", this); }
     return this;
 };
 

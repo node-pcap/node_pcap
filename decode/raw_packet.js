@@ -1,6 +1,7 @@
 var IPv4 = require("./ipv4");
 
-function RawPacket() {
+function RawPacket(emitter) {
+	this.emitter = emitter;
 	this.payload = null;
 }
 
