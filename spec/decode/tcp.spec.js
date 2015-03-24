@@ -1,4 +1,6 @@
 var TCP = require("../../decode/tcp");
+var events = require("events");
+var sinon = require("sinon");
 require("should");
 
 describe("TCP", function(){
@@ -7,7 +9,22 @@ describe("TCP", function(){
     exampleTcp = new Buffer("b5dd00500aaf604e0000000060c2102044b2000002040218", "hex");
     instance = new TCP();
   });
+
   describe("#decode()", function(){
+    it("raises a tcp event on decode", function() {
+      // This is a bit of a special case so we need
+      // to rewire some of the variables used in
+      // other tests.
+      var tcpHandler = sinon.spy();
+      var eventEmitter = new events.EventEmitter();
+      eventEmitter.on("tcp", tcpHandler);
+
+      // Decode
+      instance = new TCP(eventEmitter).decode(exampleTcp, 0, 24);
+
+      tcpHandler.callCount.should.be.exactly(1);
+    });
+
     it("is a function", function(){
         instance.decode.should.be.type("function");
     });

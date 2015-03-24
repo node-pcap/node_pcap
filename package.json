@@ -24,7 +24,9 @@
     "grunt-mocha-test": "^0.12.7",
     "istanbul": "^0.3.5",
     "mocha": "^2.1.0",
-    "should": "^5.0.0"
+    "mocha-sinon": "^1.1.4",
+    "should": "^5.0.0",
+    "sinon": "^1.14.1"
   },
   "scripts": {
     "test": "grunt"

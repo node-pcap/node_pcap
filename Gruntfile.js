@@ -1,6 +1,6 @@
 module.exports = function(grunt) {
     var src = ["*.js", "decode/**/*.js"];
-    var tests = ["spec/**/*.spec.js"];
+    var tests = ["spec/**/*.js"];
     var supportingFiles = ["Gruntfile.js"];
     var allJs = tests.concat(src);
     grunt.initConfig({

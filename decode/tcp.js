@@ -151,7 +151,6 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
         }
     }
 
-    if(this.emitter) { this.emitter.emit("tcp", this); }
     return this;
 };
 
@@ -177,7 +176,8 @@ TCPOptions.prototype.toString = function () {
     return "[" + ret.slice(0, -1) + "]";
 };
 
-function TCP() {
+function TCP(emitter) {
+    this.emitter        = emitter;
     this.sport          = undefined;
     this.dport          = undefined;
     this.seqno          = undefined;
@@ -243,6 +243,7 @@ TCP.prototype.decode = function (raw_packet, offset, len) {
         this.data = null;
     }
 
+    if(this.emitter) { this.emitter.emit("tcp", this); }
     return this;
 };
 
