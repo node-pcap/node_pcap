@@ -51,7 +51,6 @@ function IPv4(emitter) {
 
 // http://en.wikipedia.org/wiki/IPv4
 IPv4.prototype.decode = function (raw_packet, offset) {
-    console.log("decoding ipv4");
     var orig_offset = offset;
 
     this.version = (raw_packet[offset] & 0xf0) >> 4;
