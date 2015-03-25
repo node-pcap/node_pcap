@@ -23,9 +23,9 @@ Arp.prototype.decode = function (raw_packet, offset) {
     this.operation = raw_packet.readUInt16BE(offset + 6); // 6, 7
     if (this.hlen === 6 && this.plen === 4) { // ethernet + IPv4
         this.sender_ha = new EthernetAddr(raw_packet, offset + 8); // 8, 9, 10, 11, 12, 13
-        this.sender_pa = new IPv4Addr.decode(raw_packet, offset + 14); // 14, 15, 16, 17
+        this.sender_pa = new IPv4Addr().decode(raw_packet, offset + 14); // 14, 15, 16, 17
         this.target_ha = new EthernetAddr(raw_packet, offset + 18); // 18, 19, 20, 21, 22, 23
-        this.target_pa = new IPv4Addr.decode(raw_packet, offset + 24); // 24, 25, 26, 27
+        this.target_pa = new IPv4Addr().decode(raw_packet, offset + 24); // 24, 25, 26, 27
     }
     // don't know how to decode more exotic ARP types yet, but please add them
 
