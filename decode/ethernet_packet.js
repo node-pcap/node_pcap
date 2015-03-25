@@ -37,13 +37,13 @@ EthernetPacket.prototype.decode = function (raw_packet, offset) {
         // http://en.wikipedia.org/wiki/EtherType
         switch (this.ethertype) {
         case 0x800: // IPv4
-            this.payload = new IPv4().decode(raw_packet, offset);
+            this.payload = new IPv4(this.emitter).decode(raw_packet, offset);
             break;
         case 0x806: // ARP
-            this.payload = new Arp().decode(raw_packet, offset);
+            this.payload = new Arp(this.emitter).decode(raw_packet, offset);
             break;
         case 0x86dd: // IPv6 - http://en.wikipedia.org/wiki/IPv6
-            this.payload = new IPv6().decode(raw_packet, offset);
+            this.payload = new IPv6(this.emitter).decode(raw_packet, offset);
             break;
         case 0x88cc: // LLDP - http://en.wikipedia.org/wiki/Link_Layer_Discovery_Protocol
             this.payload = "need to implement LLDP";
