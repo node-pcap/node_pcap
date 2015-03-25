@@ -11,6 +11,7 @@ ICMP.prototype.decode = function (raw_packet, offset) {
     this.code = raw_packet[offset++];
     this.checksum = raw_packet.readUInt16BE(offset); // 2, 3
 
+    if(this.emitter) { this.emitter.emit("icmp", this); }
     return this;
 };
 

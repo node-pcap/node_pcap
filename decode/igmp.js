@@ -42,6 +42,7 @@ IGMP.prototype.decode = function (raw_packet, offset) {
         break;
     }
 
+    if(this.emitter) { this.emitter.emit("igmp", this); }
     return this;
 };
 
