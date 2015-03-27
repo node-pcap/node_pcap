@@ -1,41 +1,39 @@
 var Icmp = require("../../decode/icmp");
 var util = require("../../util");
+var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
 require("should");
 
 describe("ICMP", function(){
-  var exampleIcmp, instance;
   beforeEach(function () {
-    exampleIcmp = new Buffer("01020304", "hex");
-    instance = new Icmp();
+    this.example = new Buffer("01020304", "hex");
+    this.instance = new Icmp();
   });
 
   describe("#decode()", function(){
-    it("is a function", function(){
-        instance.decode.should.be.type("function");
-    });
+    shouldBehaveLikeADecoder();
 
     it("sets the #type to the ICMP type", function() {
-      instance.decode(exampleIcmp, 0);
-      instance.should.have.property("type", 1);
+      this.instance.decode(this.example, 0);
+      this.instance.should.have.property("type", 1);
     });
 
     it("sets the #code to the ICMP subtype", function() {
-      instance.decode(exampleIcmp, 0);
-      instance.should.have.property("code", 2);
+      this.instance.decode(this.example, 0);
+      this.instance.should.have.property("code", 2);
     });
 
     it("sets the #checksum to the decoded checksum for the header and data", function() {
-      instance.decode(exampleIcmp, 0);
-      instance.should.have.property("checksum", 772);
+      this.instance.decode(this.example, 0);
+      this.instance.should.have.property("checksum", 772);
     });
   });
 
   describe("#toString()", function() {
     var verifyToString = function verifyToString(type, code, result){
       it("return \""+result+"\" for icmp of type="+type+" code="+code, function(){
-        instance = new Icmp();
-        instance.decode(new Buffer(util.int8_to_hex[type] + util.int8_to_hex[code] + "0000", "hex"), 0);
-        instance.toString().should.be.exactly(result);
+        this.instance = new Icmp();
+        this.instance.decode(new Buffer(util.int8_to_hex[type] + util.int8_to_hex[code] + "0000", "hex"), 0);
+        this.instance.toString().should.be.exactly(result);
       });
     };
 

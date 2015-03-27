@@ -1,37 +1,35 @@
 var Igmp = require("../../decode/igmp");
 var util = require("../../util");
+var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
 require("should");
 
 describe("IGMP", function(){
-  var exampleIgmp, instance;
   beforeEach(function () {
-    exampleIgmp = new Buffer("0102030405060708", "hex");
-    instance = new Igmp();
+    this.example = new Buffer("0102030405060708", "hex");
+    this.instance = new Igmp();
   });
 
   describe("#decode()", function(){
-    it("is a function", function(){
-        instance.decode.should.be.type("function");
-    });
+    shouldBehaveLikeADecoder();
 
     it("sets the #type to the IGMP type", function() {
-      instance.decode(exampleIgmp, 0);
-      instance.should.have.property("type", 1);
+      this.instance.decode(this.example, 0);
+      this.instance.should.have.property("type", 1);
     });
 
     it("sets the #maxResponseTime", function() {
-      instance.decode(exampleIgmp, 0);
-      instance.should.have.property("maxResponseTime", 2);
+      this.instance.decode(this.example, 0);
+      this.instance.should.have.property("maxResponseTime", 2);
     });
 
     it("sets the #checksum", function() {
-      instance.decode(exampleIgmp, 0);
-      instance.should.have.property("checksum", 772);
+      this.instance.decode(this.example, 0);
+      this.instance.should.have.property("checksum", 772);
     });
 
     it("sets the #groupAddress", function() {
-      instance.decode(exampleIgmp, 0);
-      instance.groupAddress.should.have.property("addr", [5, 6, 7, 8]);
+      this.instance.decode(this.example, 0);
+      this.instance.groupAddress.should.have.property("addr", [5, 6, 7, 8]);
     });
 
     describe("when IGMP is type 0x11", function(){
@@ -41,8 +39,8 @@ describe("IGMP", function(){
       });
 
       it("sets #version to 3", function(){
-        instance.decode(packet, 0);
-        instance.should.have.property("version", 3);
+        this.instance.decode(packet, 0);
+        this.instance.should.have.property("version", 3);
       });
     });
 
@@ -53,8 +51,8 @@ describe("IGMP", function(){
       });
 
       it("sets #version to 1", function(){
-        instance.decode(packet, 0);
-        instance.should.have.property("version", 1);
+        this.instance.decode(packet, 0);
+        this.instance.should.have.property("version", 1);
       });
     });
 
@@ -65,8 +63,8 @@ describe("IGMP", function(){
       });
 
       it("sets #version to 2", function(){
-        instance.decode(packet, 0);
-        instance.should.have.property("version", 2);
+        this.instance.decode(packet, 0);
+        this.instance.should.have.property("version", 2);
       });
     });
 
@@ -77,8 +75,8 @@ describe("IGMP", function(){
       });
 
       it("sets #version to 2", function(){
-        instance.decode(packet, 0);
-        instance.should.have.property("version", 2);
+        this.instance.decode(packet, 0);
+        this.instance.should.have.property("version", 2);
       });
     });
     describe("when IGMP is type 0x22", function(){
@@ -88,8 +86,8 @@ describe("IGMP", function(){
       });
 
       it("sets #version to 3", function(){
-        instance.decode(packet, 0);
-        instance.should.have.property("version", 3);
+        this.instance.decode(packet, 0);
+        this.instance.should.have.property("version", 3);
       });
     });
   });
@@ -97,9 +95,9 @@ describe("IGMP", function(){
   describe("#toString()", function() {
     var verifyToString = function verifyToString(type, result){
       it("return \""+result+"\" for igmp of type="+type, function(){
-        instance = new Igmp();
-        instance.decode(new Buffer(util.int8_to_hex[type] + "000000000000", "hex"), 0);
-        instance.toString().should.be.exactly(result);
+        this.instance = new Igmp();
+        this.instance.decode(new Buffer(util.int8_to_hex[type] + "000000000000", "hex"), 0);
+        this.instance.toString().should.be.exactly(result);
       });
     };
 
