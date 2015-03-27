@@ -1,6 +1,6 @@
 var EthernetPacket = require("./ethernet_packet");
 var NullPacket = require("./null_packet");
-var RawPacket = require("./raw_packet");
+var Ipv4 = require("./ipv4");
 var RadioPacket = require("./ieee802.11/radio_packet");
 var SLLPacket = require("./sll_packet");
 
@@ -40,7 +40,7 @@ PcapPacket.prototype.decode = function (packet_with_header) {
         this.payload = new NullPacket(this.emitter).decode(buf, 0);
         break;
     case "LINKTYPE_RAW":
-        this.payload = new RawPacket(this.emitter).decode(buf, 0);
+        this.payload = new Ipv4(this.emitter).decode(buf, 0);
         break;
     case "LINKTYPE_IEEE802_11_RADIO":
         this.payload = new RadioPacket(this.emitter).decode(buf, 0);
