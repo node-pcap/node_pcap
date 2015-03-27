@@ -3,8 +3,9 @@ var IPv6 = require("./ipv6");
 
 function NullPacket(emitter) {
     this.emitter = emitter;
-    this.pftype = null;
-    this.payload = null;
+    this.pftype = undefined;
+    this.payload = undefined;
+    this._error = undefined;
 }
 
 // an oddity about nulltype is that it starts with a 4 byte header, but I can't find a
@@ -18,11 +19,11 @@ NullPacket.prototype.decode = function (raw_packet, offset) {
     }
 
     if (this.pftype === 2) {         // AF_INET, at least on my Linux and OSX machines right now
-        this.payload = new IPv4().decode(raw_packet, offset + 4);
+        this.payload = new IPv4(this.emitter).decode(raw_packet, offset + 4);
     } else if (this.pftype === 30) { // AF_INET6, often
-        this.payload = new IPv6().decode(raw_packet, offset + 4);
+        this.payload = new IPv6(this.emitter).decode(raw_packet, offset + 4);
     } else {
-        console.log("pcap.js: decode.nulltype() - Don't know how to decode protocol family " + this.pftype);
+        this._error = "unknown protocol family " + this.pftype;
     }
 
     return this;
