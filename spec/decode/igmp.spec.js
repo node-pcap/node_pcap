@@ -1,16 +1,18 @@
 var Igmp = require("../../decode/igmp");
 var util = require("../../util");
+var events = require("events");
 var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
 require("should");
 
 describe("IGMP", function(){
   beforeEach(function () {
     this.example = new Buffer("0102030405060708", "hex");
-    this.instance = new Igmp();
+    this.eventEmitter = new events.EventEmitter();
+    this.instance = new Igmp(this.eventEmitter);
   });
 
   describe("#decode()", function(){
-    shouldBehaveLikeADecoder();
+    shouldBehaveLikeADecoder("igmp", true);
 
     it("sets the #type to the IGMP type", function() {
       this.instance.decode(this.example, 0);

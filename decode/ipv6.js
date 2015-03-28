@@ -47,6 +47,9 @@ IPv6.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+IPv6.prototype.decoderName = "ipv6";
+IPv6.prototype.eventsOnDecode = true;
+
 IPv6.prototype.toString = function () {
     var ret = this.saddr + " -> " + this.daddr + " ";
 

@@ -1,16 +1,18 @@
 var Icmp = require("../../decode/icmp");
 var util = require("../../util");
+var events = require("events");
 var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
 require("should");
 
 describe("ICMP", function(){
   beforeEach(function () {
     this.example = new Buffer("01020304", "hex");
-    this.instance = new Icmp();
+    this.eventEmitter = new events.EventEmitter();
+    this.instance = new Icmp(this.eventEmitter);
   });
 
   describe("#decode()", function(){
-    shouldBehaveLikeADecoder();
+    shouldBehaveLikeADecoder("icmp", true);
 
     it("sets the #type to the ICMP type", function() {
       this.instance.decode(this.example, 0);

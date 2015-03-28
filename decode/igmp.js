@@ -46,6 +46,9 @@ IGMP.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+IGMP.prototype.decoderName = "igmp";
+IGMP.prototype.eventsOnDecode = true;
+
 IGMP.prototype.toString = function () {
     var ret;
 

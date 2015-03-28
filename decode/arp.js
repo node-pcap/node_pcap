@@ -33,6 +33,9 @@ Arp.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+Arp.prototype.decoderName = "arp";
+Arp.prototype.eventsOnDecode = true;
+
 Arp.prototype.toString = function () {
     var ret = "";
     if (this.operation === 1) {

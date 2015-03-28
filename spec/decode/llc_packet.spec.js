@@ -1,5 +1,6 @@
 var LogicalLinkControl = require("../../decode/llc_packet");
 var IPv4 = require("../../decode/ipv4");
+var events = require("events");
 var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
 var should = require("should");
 
@@ -9,11 +10,12 @@ describe("LogicalLinkControl", function(){
                          "46c000200000400001021274c0a82101effffffa94040000" + //ipv4 payload
                          "1600fa04effffffa" + //igmpv2
                          "00000000", "hex");
-    this.instance = new LogicalLinkControl();
+    this.eventEmitter = new events.EventEmitter();
+    this.instance = new LogicalLinkControl(this.eventEmitter);
   });
 
   describe("#decode", function(){
-    shouldBehaveLikeADecoder();
+    shouldBehaveLikeADecoder("llc", true);
 
     it("sets #dsap to the destination service access point", function(){
       this.instance.decode(this.example, 0);

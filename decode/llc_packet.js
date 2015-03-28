@@ -41,4 +41,7 @@ LogicalLinkControl.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+LogicalLinkControl.prototype.decoderName = "llc";
+LogicalLinkControl.prototype.eventsOnDecode = true;
+
 module.exports = LogicalLinkControl;

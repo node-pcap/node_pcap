@@ -1,6 +1,7 @@
 var IPv6 = require("../../decode/ipv6");
 var NoNext = require("../../decode/ipv6headers/no_next");
 var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
+var events = require("events");
 require("should");
 
 describe("IPv6", function(){
@@ -12,11 +13,12 @@ describe("IPv6", function(){
                           "fe80000000000000708dfe834114a512" + // src address
                           "2001000041379e508000f12ab9c82815", // dest address
                           "hex");
-    this.instance = new IPv6();
+    this.eventEmitter = new events.EventEmitter();
+    this.instance = new IPv6(this.eventEmitter);
   });
 
   describe("#decode", function(){
-    shouldBehaveLikeADecoder();
+    shouldBehaveLikeADecoder("ipv6", true);
 
     it("sets #version to 6", function() { //After all this is ip "v6"
       this.instance.decode(this.example, 0);

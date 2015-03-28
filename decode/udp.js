@@ -26,6 +26,9 @@ UDP.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+UDP.prototype.decoderName = "udp";
+UDP.prototype.eventsOnDecode = true;
+
 UDP.prototype.toString = function () {
     var ret = "UDP " + this.sport + "->" + this.dport + " len " + this.length;
     if (this.sport === 53 || this.dport === 53) {

@@ -15,6 +15,9 @@ ICMP.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+ICMP.prototype.decoderName = "icmp";
+ICMP.prototype.eventsOnDecode = true;
+
 ICMP.prototype.toString = function () {
     var ret = "";
 

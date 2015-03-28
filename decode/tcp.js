@@ -197,6 +197,8 @@ function TCP(emitter) {
 // for (var i = orig_offset; i < orig_offset + len ; i++) {
 //     console.log((i - orig_offset) + " / " + i + ": " + raw_packet[i] + " " + String.fromCharCode(raw_packet[i]));
 // }
+TCP.prototype.decoderName = "tcp";
+TCP.prototype.eventsOnDecode = true;
 
 // http://en.wikipedia.org/wiki/Transmission_Control_Protocol
 TCP.prototype.decode = function (raw_packet, offset, len) {

@@ -1,5 +1,6 @@
 var IPv4 = require("../../decode/ipv4");
 var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
+var events = require("events");
 require("should");
 
 describe("IPv4", function(){
@@ -8,11 +9,12 @@ describe("IPv4", function(){
                          "1600fa04effffffa" + //igmpv2
                          "00000000", //checksum
                          "hex");
-    this.instance = new IPv4();
+    this.eventEmitter = new events.EventEmitter();
+    this.instance = new IPv4(this.eventEmitter);
   });
 
   describe("#decode", function(){
-    shouldBehaveLikeADecoder();
+    shouldBehaveLikeADecoder("ipv4", true);
 
     it("sets #version to 4", function() { //After all this is ip "v4"
       this.instance.decode(this.example, 0);

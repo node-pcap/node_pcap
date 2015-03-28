@@ -101,6 +101,9 @@ IPv4.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+IPv4.prototype.decoderName = "ipv4";
+IPv4.prototype.eventsOnDecode = true;
+
 IPv4.prototype.toString = function () {
     var ret = this.saddr + " -> " + this.daddr + " ";
     var flags = this.flags.toString();
