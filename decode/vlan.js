@@ -13,6 +13,9 @@ Vlan.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+Vlan.prototype.decoderName = "vlan";
+Vlan.prototype.eventsOnDecode = false;
+
 Vlan.prototype.toString = function () {
 	return this.priority + " " + this.canonical_format + " " + this.id;
 };

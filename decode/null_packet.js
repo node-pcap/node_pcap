@@ -29,6 +29,9 @@ NullPacket.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+NullPacket.prototype.decoderName = "null-packet";
+NullPacket.prototype.eventsOnDecode = false;
+
 NullPacket.prototype.toString = function () {
     return this.pftype + " " + this.payload;
 };

@@ -54,6 +54,9 @@ SLLPacket.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+SLLPacket.prototype.decoderName = "ssl-packet";
+SLLPacket.prototype.eventsOnDecode = false;
+
 SLLPacket.prototype.toString = function () {
     var ret = "";
 

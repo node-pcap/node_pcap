@@ -57,6 +57,9 @@ DNSRRSet.prototype.toString = function () {
     return this.rrs.join(", ");
 };
 
+DNS.prototype.decoderName = "dns";
+DNS.prototype.eventsOnDecode = true;
+
 // http://tools.ietf.org/html/rfc1035
 DNS.prototype.decode = function (raw_packet, offset, caplen) {
     this.raw_packet = raw_packet;

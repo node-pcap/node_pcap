@@ -7,6 +7,9 @@ function SLLAddr(raw_packet, offset, len) {
     }
 }
 
+SLLAddr.prototype.decoderName = "ssl-addr";
+SLLAddr.prototype.eventsOnDecode = false;
+
 SLLAddr.prototype.toString = function () {
 	var ret = "";
 	for (var i = 0; i < this.addr.length - 1; i++) {

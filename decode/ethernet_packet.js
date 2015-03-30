@@ -56,6 +56,9 @@ EthernetPacket.prototype.decode = function (raw_packet, offset) {
     return this;
 };
 
+EthernetPacket.prototype.decoderName = "ethernet-packet";
+EthernetPacket.prototype.eventsOnDecode = false;
+
 EthernetPacket.prototype.toString = function () {
     var ret = this.shost + " -> " + this.dhost;
     if (this.vlan) {

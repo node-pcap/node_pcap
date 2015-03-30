@@ -25,6 +25,9 @@ IPv6Addr.prototype.decode = function decode(raw_packet, offset) {
     return this;
 };
 
+IPv6Addr.prototype.decoderName = "ipv6-addr";
+IPv6Addr.prototype.eventsOnDecode = false;
+
 IPv6Addr.prototype.toString = function () {
     //There are some rules one can follow to
     //shorten the string representation of an

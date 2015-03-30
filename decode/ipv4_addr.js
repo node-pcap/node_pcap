@@ -12,6 +12,9 @@ IPv4Addr.prototype.decode = function decode(raw_packet, offset) {
 	return this;
 };
 
+IPv4Addr.prototype.decoderName = "ipv4-addr";
+IPv4Addr.prototype.eventsOnDecode = false;
+
 // Don't use Array.prototype.join here, because string concat is much faster
 IPv4Addr.prototype.toString = function () {
     return dec[this.addr[0]] + "." + dec[this.addr[1]] + "." + dec[this.addr[2]] + "." + dec[this.addr[3]];
