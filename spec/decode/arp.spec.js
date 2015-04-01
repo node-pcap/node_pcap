@@ -68,9 +68,27 @@ describe("Arp", function(){
       this.instance.toString.should.be.type("function");
     });
 
-    it("returns a value like request sender 00:07:0d:af:f4:54 69.76.216.1 target 00:00:00:00:00:00 69.76.223.213", function() {
+    it("returns a value like \"request sender 00:07:0d:af:f4:54 69.76.216.1 target 00:00:00:00:00:00 69.76.223.213\" for requests", function() {
       this.instance.decode(this.example, 0);
       this.instance.toString().should.be.exactly("request sender 00:07:0d:af:f4:54 69.76.216.1 target 00:00:00:00:00:00 69.76.223.213");
+    });
+
+    it("returns a value like \"reply sender 00:07:0d:af:f4:54 69.76.216.1 target 00:00:00:00:00:00 69.76.223.213\" for responses", function() {
+      this.instance.decode(new Buffer("0001" +
+                              "0800060400020007" +
+                              "0daff454454cd801" +
+                              "000000000000454c" +
+                              "dfd5", "hex"), 0);
+      this.instance.toString().should.be.exactly("reply sender 00:07:0d:af:f4:54 69.76.216.1 target 00:00:00:00:00:00 69.76.223.213");
+    });
+
+    it("returns a value like \"unknown sender 00:07:0d:af:f4:54 69.76.216.1 target 00:00:00:00:00:00 69.76.223.213\" for unknown operations", function() {
+      this.instance.decode(new Buffer("0001" +
+                              "08000604000f0007" +
+                              "0daff454454cd801" +
+                              "000000000000454c" +
+                              "dfd5", "hex"), 0);
+      this.instance.toString().should.be.exactly("unknown sender 00:07:0d:af:f4:54 69.76.216.1 target 00:00:00:00:00:00 69.76.223.213");
     });
   });
 });
