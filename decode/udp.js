@@ -2,11 +2,11 @@ var DNS = require("./dns");
 
 function UDP(emitter) {
     this.emitter = emitter;
-    this.sport = null;
-    this.dport = null;
-    this.length = null;
-    this.checksum = null;
-    this.data = null;
+    this.sport = undefined;
+    this.dport = undefined;
+    this.length = undefined;
+    this.checksum = undefined;
+    this.data = undefined;
 }
 
 // http://en.wikipedia.org/wiki/User_Datagram_Protocol
