@@ -36,17 +36,12 @@ DNSHeader.prototype.toString = function () {
 
 function DNS(emitter) {
     this.emitter = emitter;
-    this.header = null;
-    this.question = null;
-    this.answer = null;
-    this.authority = null;
-    this.additional = null;
-
-    // not part of DNS, but handy so we don't have to pass these around all over the place
-    this.raw_packet = null;
-    this.offset = null;
-    this.packet_start = null;
-    this.packet_len = null;
+    this.header = undefined;
+    this.question = undefined;
+    this.answer = undefined;
+    this.authority = undefined;
+    this.additional = undefined;
+    this._error = undefined;
 }
 
 function DNSRRSet(count) {
@@ -61,12 +56,7 @@ DNS.prototype.decoderName = "dns";
 DNS.prototype.eventsOnDecode = true;
 
 // http://tools.ietf.org/html/rfc1035
-DNS.prototype.decode = function (raw_packet, offset, caplen) {
-    this.raw_packet = raw_packet;
-    this.packet_start = offset;
-    this.offset = offset;
-    this.packet_len = caplen;
-
+DNS.prototype.decode = function (raw_packet, offset) {
     this.header = new DNSHeader(raw_packet, this.offset);
     this.offset += 12;
 
@@ -81,7 +71,8 @@ DNS.prototype.decode = function (raw_packet, offset, caplen) {
 
 DNS.prototype.decode_RRs = function (count, is_question) {
     if (count > 100) {
-        throw new Error("Malformed DNS packet: too many RRs at offset " + this.offset);
+        this._error = "Malformed DNS packet: too many RRs at offset " + this.offset;
+        return;
     }
 
     var ret = new DNSRRSet(count);
