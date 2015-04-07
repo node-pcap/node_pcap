@@ -57,6 +57,8 @@ DNS.prototype.eventsOnDecode = true;
 
 // http://tools.ietf.org/html/rfc1035
 DNS.prototype.decode = function (raw_packet, offset) {
+    this.raw_packet = raw_packet;
+    this.offset = offset;
     this.header = new DNSHeader(raw_packet, this.offset);
     this.offset += 12;
 
