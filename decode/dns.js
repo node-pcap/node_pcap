@@ -174,7 +174,7 @@ DNS.prototype.decode_RR = function (is_question) {
     this.offset += 2;
 
     if (rr.type === 1 && rr.class === 1 && rr.rdlength) { // A, IN
-        rr.rdata = new IPv4Addr.decode(this.raw_packet, this.offset);
+        rr.rdata = new IPv4Addr().decode(this.raw_packet, this.offset);
     } else if (rr.type === 2 && rr.class === 1) { // NS, IN
         rr.rdata = this.read_name();
         this.offset -= rr.rdlength; // read_name moves offset
