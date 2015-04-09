@@ -1,36 +1,71 @@
 var IPv4Addr = require("./ipv4_addr");
 var IPv6Addr = require("./ipv6_addr");
 
-function DNSHeader(raw_packet, offset) {
-    this.id = raw_packet.readUInt16BE(offset); // 0, 1
-    this.qr = (raw_packet[offset + 2] & 128) >> 7;
-    this.opcode = (raw_packet[offset + 2] & 120) >> 3;
-    this.aa = (raw_packet[offset + 2] & 4) >> 2;
-    this.tc = (raw_packet[offset + 2] & 2) >> 1;
-    this.rd = raw_packet[offset + 2] & 1;
-    this.ra = (raw_packet[offset + 3] & 128) >> 7;
-    this.z = 0; // spec says this MUST always be 0
-    this.rcode = raw_packet[offset + 3] & 15;
-    this.qdcount = raw_packet.readUInt16BE(offset + 4); // 4, 5
-    this.ancount = raw_packet.readUInt16BE(offset + 6); // 6, 7
-    this.nscount = raw_packet.readUInt16BE(offset + 8); // 8, 9
-    this.arcount = raw_packet.readUInt16BE(offset + 10); // 10, 11
+function DnsFlags() {
+    // is this a response?
+    this.isResponse = undefined;
+
+    // 0 == Query
+    // 1 == Inverse query
+    // 2 == Status
+    // 3-15 Reserved for future use
+    this.opcode = undefined;
+
+    // is the server the authority for the domain?
+    this.isAuthority = undefined;
+
+    // is this message truncated?
+    this.isTruncated = undefined;
+
+    // should name server recursively
+    // resolve domain?
+    this.isRecursionDesired = undefined;
+
+    // Can the server even do recursion?
+    this.isRecursionAvailible = undefined;
+
+    // Reserved for future use, unless the present is the future
+    // then assume the past is the present and the present is the
+    // past...or just update to support whatever this became.
+    //
+    // currently "should" always be zero.
+    this.z = undefined;
+
+    // 0 == no error
+    // 1 == format error (query could not be interpeted)
+    // 2 == server error
+    // 3 == name error (domain requested by query does not exist)
+    // 4 == unsupported request
+    // 5 == refused
+    // a 4bit reply status code
+    this.responseCode = undefined;
 }
 
-DNSHeader.prototype.toString = function () {
-    return "{" +
-        " id:" + this.id +
-        " qr:" + this.qr +
-        " op:" + this.opcode +
-        " aa:" + this.aa +
-        " tc:" + this.tc +
-        " rd:" + this.rd +
-        " ra:" + this.ra +
-        " rc:" + this.rcode +
-        " qd:" + this.qdcount +
-        " an:" + this.ancount +
-        " ns:" + this.nscount +
-        " ar:" + this.arcount +
+DnsFlags.prototype.decode = function (raw_packet, offset) {
+    var byte1 = raw_packet[offset];
+    var byte2 = raw_packet[offset + 1];
+
+    this.isResponse = Boolean(byte1 & 0x80);
+    this.opcode = (byte1 & 0x78) >> 3;
+
+    this.isAuthority = Boolean(byte1 & 0x04);
+    this.isTruncated = Boolean(byte1 & 0x02);
+    this.isRecursionDesired   = Boolean(byte1 & 0x01);
+    this.isRecursionAvailible = Boolean(byte2 & 0x80);
+    this.z = byte2 & 0x70 >> 4;
+    this.responseCode = byte2 & 0x0F;
+    return this;
+};
+
+DnsFlags.prototype.toString = function () {
+    return "{ isResponse:" + this.isResponse +
+        " opcode:" + this.opcode +
+        " isAuthority:" + this.isAuthority +
+        " isTruncated:" + this.isTruncated +
+        " isRecursionDesired:" + this.isRecursionDesired +
+        " isRecursionAvailible:" + this.isRecursionAvailible +
+        " z:" + this.z +
+        " responseCode:" + this.responseCode +
         " }";
 };
 
@@ -57,15 +92,22 @@ DNS.prototype.eventsOnDecode = true;
 
 // http://tools.ietf.org/html/rfc1035
 DNS.prototype.decode = function (raw_packet, offset) {
+    //these 2 fields will be deleted soon.
     this.raw_packet = raw_packet;
     this.offset = offset;
-    this.header = new DNSHeader(raw_packet, this.offset);
+
+    this.id = raw_packet.readUInt16BE(offset); // 0, 1
+    this.header = new DnsFlags().decode(raw_packet.readUInt16BE(this.offset+2));
+    this.qdcount = raw_packet.readUInt16BE(offset + 4); // 4, 5
+    this.ancount = raw_packet.readUInt16BE(offset + 6); // 6, 7
+    this.nscount = raw_packet.readUInt16BE(offset + 8); // 8, 9
+    this.arcount = raw_packet.readUInt16BE(offset + 10); // 10, 11
     this.offset += 12;
 
-    this.question = this.decode_RRs(this.header.qdcount, true);
-    this.answer = this.decode_RRs(this.header.ancount, false);
-    this.authority = this.decode_RRs(this.header.nscount, false);
-    this.additional = this.decode_RRs(this.header.arcount, false);
+    this.question = this.decode_RRs(this.qdcount, true);
+    this.answer = this.decode_RRs(this.ancount, false);
+    this.authority = this.decode_RRs(this.nscount, false);
+    this.additional = this.decode_RRs(this.arcount, false);
 
     if(this.emitter) { this.emitter.emit("dns", this); }
     return this;
@@ -129,8 +171,8 @@ DNS.prototype.read_name = function () {
                 throw new Error("invalid DNS RR: length is too large at offset " + pos);
             }
             pos++;
-            for (var i = pos; i < (pos + len_or_ptr) && i < this.packet_len ; i++) {
-                if (i > this.packet_len) {
+            for (var i = pos; i < (pos + len_or_ptr) && i < this.raw_packet.length; i++) {
+                if (i > this.raw_packet.length) {
                     throw new Error("invalid DNS RR: read beyond end of packet at offset " + i);
                 }
                 var ch = this.raw_packet[i];
@@ -152,8 +194,8 @@ DNS.prototype.read_name = function () {
 };
 
 DNS.prototype.decode_RR = function (is_question) {
-    if (this.offset > this.packet_len) {
-        throw new Error("Malformed DNS RR. Offset is beyond packet len (decode_RR) :" + this.offset + " packet_len:" + this.packet_len);
+    if (this.offset > this.raw_packet.length) {
+        throw new Error("Malformed DNS RR. Offset is beyond packet len (decode_RR) :" + this.offset + " packet_len:" + this.raw_packet.length);
     }
 
     var rr = new DNSRR(is_question);
@@ -192,16 +234,16 @@ DNS.prototype.toString = function () {
     var ret = " DNS ";
 
     ret += this.header.toString();
-    if (this.header.qdcount > 0) {
+    if (this.qdcount > 0) {
         ret += "\n  question:" + this.question.rrs[0];
     }
-    if (this.header.ancount > 0) {
+    if (this.ancount > 0) {
         ret += "\n  answer:" + this.answer;
     }
-    if (this.header.nscount > 0) {
+    if (this.nscount > 0) {
         ret += "\n  authority:" + this.authority;
     }
-    if (this.header.arcount > 0) {
+    if (this.arcount > 0) {
         ret += "\n  additional:" + this.additional;
     }
 
