@@ -79,14 +79,6 @@ function DNS(emitter) {
     this._error = undefined;
 }
 
-function DNSRRSet(count) {
-    this.rrs = new Array(count);
-}
-
-DNSRRSet.prototype.toString = function () {
-    return this.rrs.join(", ");
-};
-
 DNS.prototype.decoderName = "dns";
 DNS.prototype.eventsOnDecode = true;
 
@@ -94,141 +86,154 @@ DNS.prototype.eventsOnDecode = true;
 DNS.prototype.decode = function (raw_packet, offset) {
     //these 2 fields will be deleted soon.
     this.raw_packet = raw_packet;
-    this.offset = offset;
+    var offsetOriginal = offset;
 
     this.id = raw_packet.readUInt16BE(offset); // 0, 1
-    this.header = new DnsFlags().decode(raw_packet.readUInt16BE(this.offset+2));
-    this.qdcount = raw_packet.readUInt16BE(offset + 4); // 4, 5
-    this.ancount = raw_packet.readUInt16BE(offset + 6); // 6, 7
-    this.nscount = raw_packet.readUInt16BE(offset + 8); // 8, 9
-    this.arcount = raw_packet.readUInt16BE(offset + 10); // 10, 11
-    this.offset += 12;
+    this.header = new DnsFlags().decode(raw_packet.readUInt16BE(offset+2));
 
-    this.question = this.decode_RRs(this.qdcount, true);
-    this.answer = this.decode_RRs(this.ancount, false);
-    this.authority = this.decode_RRs(this.nscount, false);
-    this.additional = this.decode_RRs(this.arcount, false);
+    // the number of question asked by this packet
+    var qcount = raw_packet.readUInt16BE(offset + 4); // 4, 5
+
+    // the number of answers provided by this packet
+    var acount = raw_packet.readUInt16BE(offset + 6); // 6, 7
+
+    // the number of authority records provided by this packet
+    var ncount = raw_packet.readUInt16BE(offset + 8); // 8, 9
+
+    // the number of addtional records provided by this packet
+    var arcount = raw_packet.readUInt16BE(offset + 10); // 10, 11
+    offset += 12;
+
+    this.questions = this.decode_RRs(qdcount, true);
+
+    var offsetClosure = { offset: offset };
+    this.answers = DecodeResourceRecords(raw_packet, offsetClosure, ancount, false);
+    this.authorities = DecodeResourceRecords(raw_packet, offsetClosure, nscount, false);
+    this.additionals = DecodeResourceRecords(raw_packet, offsetClosure, arcount, false);
 
     if(this.emitter) { this.emitter.emit("dns", this); }
     return this;
 };
 
-DNS.prototype.decode_RRs = function (count, is_question) {
-    if (count > 100) {
-        this._error = "Malformed DNS packet: too many RRs at offset " + this.offset;
-        return;
-    }
-
-    var ret = new DNSRRSet(count);
-    for (var i = 0; i < count; i++) {
-        ret.rrs[i] = this.decode_RR(is_question);
+function DecodeResourceRecords(raw_packet, offsetClosure, count) {
+    var ret = new Array(count);
+    for (var i = ret.length - 1; i >= 0; i--) {
+        ret[i] = new DNSRR().decode(raw_packet, offsetClosure);
+        offsetClosure.offset = ret[i].length;
     }
     return ret;
 };
 
-function DNSRR(is_question) {
-    this.name = "";
-    this.type = null;
-    this.class = null;
-    this.ttl = null;
-    this.rdlength = null;
-    this.rdata = null;
-    this.is_question = is_question;
+function DNSRR() {
+    this.name = undefined;
+
+/*
+  1 = A, a host address
+  2 = NS, an authoritative name server
+  3 = MD, a mail destination (Obsolete - use MX)
+  4 = MF, a mail forwarder (Obsolete - use MX)
+  5 = CNAME, the canonical name for an alias
+  6 = SOA, marks the start of a zone of authority
+  7 = MB, a mailbox domain name (EXPERIMENTAL)
+  8 = MG, a mail group member (EXPERIMENTAL)
+  9 = MR, a mail rename domain name (EXPERIMENTAL)
+ 10 = NULL, a null RR (EXPERIMENTAL)
+ 11 = WKS, a well known service description
+ 12 = PTR, a domain name pointer
+ 13 = HINFO, host information
+ 14 = MINFO, mailbox or mail list information
+ 15 = MX, mail exchange
+ 16 = TXT, text strings
+*/
+    this.type = undefined;
+
+/*
+ 1 = IN, the Internet
+ 2 = CS, the CSNET class (Obsolete - used only for examples in some obsolete RFCs)
+ 3 = CH, the CHAOS class
+ 4 = HS, Hesiod [Dyer 87]
+*/
+    this.class = undefined;
+    this.ttl = undefined;
+    this.rdlength = undefined;
+    this.rdata = undefined;
 }
 
-DNSRR.prototype.toString = function () {
-    var ret = this.name + " ";
-    if (this.is_question) {
-        ret += qtype_to_string(this.type) + " " + qclass_to_string(this.class);
-    } else {
-        ret += type_to_string(this.type) + " " + class_to_string(this.class) + " " + this.ttl + " " + this.rdata;
+DNSRR.prototype.decode = function (raw_packet, offset) {
+    var initialOffset = offset;
+    this.name = [];
+    var currentChar;
+    while((currentChar = raw_packet[offset++]) != 0) {
+        this.name.push = currentChar;
     }
-    return ret;
+
+    this.type = this.raw_packet.readUInt16BE(offset);
+    offset += 2;
+    this.class = this.raw_packet.readUInt16BE(offset);
+    offset += 2;
+    this.ttl = this.raw_packet.readUInt32BE(offset);
+    offset += 4;
+    this.rdlength = this.raw_packet.readUInt16BE(offset);
+    offset += 2;
+
+
+    return this;
 };
 
-DNS.prototype.read_name = function () {
-    var result = "";
-    var len_or_ptr;
-    var pointer_follows = 0;
-    var pos = this.offset;
+function DnsQuery() {
+    this.name = undefined;
 
-    while ((len_or_ptr = this.raw_packet[pos]) !== 0x00) {
-        if ((len_or_ptr & 0xC0) === 0xC0) {
-            // pointer is bottom 6 bits of current byte, plus all 8 bits of next byte
-            pos = ((len_or_ptr & ~0xC0) << 8) | this.raw_packet[pos + 1];
-            pointer_follows++;
-            if (pointer_follows === 1) {
-                this.offset += 2;
-            }
-            if (pointer_follows > 5) {
-                throw new Error("invalid DNS RR: too many compression pointers found at offset " + pos);
-            }
-        } else {
-            if (result.length > 0) {
-                result += ".";
-            }
-            if (len_or_ptr > 63) {
-                throw new Error("invalid DNS RR: length is too large at offset " + pos);
-            }
-            pos++;
-            for (var i = pos; i < (pos + len_or_ptr) && i < this.raw_packet.length; i++) {
-                if (i > this.raw_packet.length) {
-                    throw new Error("invalid DNS RR: read beyond end of packet at offset " + i);
-                }
-                var ch = this.raw_packet[i];
-                result += String.fromCharCode(ch);
-            }
-            pos += len_or_ptr;
+/*
+   1 = A, a host address
+   2 = NS, an authoritative name server
+   3 = MD, a mail destination (Obsolete - use MX)
+   4 = MF, a mail forwarder (Obsolete - use MX)
+   5 = CNAME, the canonical name for an alias
+   6 = SOA, marks the start of a zone of authority
+   7 = MB, a mailbox domain name (EXPERIMENTAL)
+   8 = MG, a mail group member (EXPERIMENTAL)
+   9 = MR, a mail rename domain name (EXPERIMENTAL)
+  10 = NULL, a null RR (EXPERIMENTAL)
+  11 = WKS, a well known service description
+  12 = PTR, a domain name pointer
+  13 = HINFO, host information
+  14 = MINFO, mailbox or mail list information
+  15 = MX, mail exchange
+  16 = TXT, text strings
+ 
+ # The following are only used by queries.
+ 252 = AXFR, a request for a transfer of an entire zone
+ 253 = MAILB, a request for mailbox-related records (MB, MG or MR)
+ 254 = MAILA, a request for mail agent RRs (Obsolete - see MX)
+ 255 = *, a request for all records
+*/
+    this.type = undefined;
 
-            if (pointer_follows === 0) {
-                this.offset = pos;
-            }
-        }
+/*
+ 1 = IN, the Internet
+ 2 = CS, the CSNET class (Obsolete - used only for examples in some obsolete RFCs)
+ 3 = CH, the CHAOS class
+ 4 = HS, Hesiod [Dyer 87]
+*/
+    this.class = undefined;
+}
+
+DnsQuery.prototype.decode = function (raw_packet, offset) {
+    var initialOffset = offset;
+    this.name = [];
+    var currentChar;
+    while((currentChar = raw_packet[offset++]) != 0) {
+        this.name.push = currentChar;
     }
 
-    if (pointer_follows === 0) {
-        this.offset++;
-    }
+    this.type = this.raw_packet.readUInt16BE(offset);
+    offset += 2;
+    this.class = this.raw_packet.readUInt16BE(offset);
+    offset += 2;
 
-    return result;
+    return this;
 };
 
-DNS.prototype.decode_RR = function (is_question) {
-    if (this.offset > this.raw_packet.length) {
-        throw new Error("Malformed DNS RR. Offset is beyond packet len (decode_RR) :" + this.offset + " packet_len:" + this.raw_packet.length);
-    }
-
-    var rr = new DNSRR(is_question);
-
-    rr.name = this.read_name();
-
-    rr.type = this.raw_packet.readUInt16BE(this.offset);
-    this.offset += 2;
-    rr.class = this.raw_packet.readUInt16BE(this.offset);
-    this.offset += 2;
-    if (is_question) {
-        return rr;
-    }
-
-    rr.ttl = this.raw_packet.readUInt32BE(this.offset);
-    this.offset += 4;
-    rr.rdlength = this.raw_packet.readUInt16BE(this.offset);
-    this.offset += 2;
-
-    if (rr.type === 1 && rr.class === 1 && rr.rdlength) { // A, IN
-        rr.rdata = new IPv4Addr().decode(this.raw_packet, this.offset);
-    } else if (rr.type === 2 && rr.class === 1) { // NS, IN
-        rr.rdata = this.read_name();
-        this.offset -= rr.rdlength; // read_name moves offset
-    } else if (rr.type === 28 && rr.class === 1 && rr.rdlength === 16) {
-        rr.data = new IPv6Addr(this.raw_packet, this.offset);
-    }
-    // TODO - decode other rr types
-
-    this.offset += rr.rdlength;
-
-    return rr;
-};
 
 DNS.prototype.toString = function () {
     var ret = " DNS ";
@@ -249,62 +254,6 @@ DNS.prototype.toString = function () {
 
     return ret;
 };
-
-function type_to_string(type_num) {
-    switch (type_num) {
-    case 1:
-        return "A";
-    case 2:
-        return "NS";
-    case 3:
-        return "MD";
-    case 4:
-        return "MF";
-    case 5:
-        return "CNAME";
-    case 6:
-        return "SOA";
-    case 7:
-        return "MB";
-    case 8:
-        return "MG";
-    case 9:
-        return "MR";
-    case 10:
-        return "NULL";
-    case 11:
-        return "WKS";
-    case 12:
-        return "PTR";
-    case 13:
-        return "HINFO";
-    case 14:
-        return "MINFO";
-    case 15:
-        return "MX";
-    case 16:
-        return "TXT";
-    case 28:
-        return "AAAA";
-    default:
-        return ("Unknown (" + type_num + ")");
-    }
-}
-
-function qtype_to_string(qtype_num) {
-    switch (qtype_num) {
-    case 252:
-        return "AXFR";
-    case 253:
-        return "MAILB";
-    case 254:
-        return "MAILA";
-    case 255:
-        return "*";
-    default:
-        return type_to_string(qtype_num);
-    }
-}
 
 function class_to_string(class_num) {
     switch (class_num) {
