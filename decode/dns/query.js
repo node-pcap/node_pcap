@@ -36,21 +36,23 @@ function DnsQuery() {
   this.class = undefined;
 
   // The total number of bytes read from the packet
-  this.length = undefined;
+  this.bytesDecoded = undefined;
 }
 
 DnsQuery.prototype.decode = function (raw_packet, offset) {
   var initialOffset = offset;
   this.name = [];
   var currentChar;
-  while((currentChar = raw_packet[offset++]) != 0) {
-      this.name.push = currentChar;
+  while((currentChar = raw_packet[offset++]) !== 0) {
+    this.name.push = currentChar;
   }
 
-  this.type = this.raw_packet.readUInt16BE(offset);
+  this.type = raw_packet.readUInt16BE(offset);
   offset += 2;
-  this.class = this.raw_packet.readUInt16BE(offset);
+  this.class = raw_packet.readUInt16BE(offset);
   offset += 2;
+  this.bytesDecoded = offset - initialOffset;
 
   return this;
 };
+module.exports = DnsQuery;

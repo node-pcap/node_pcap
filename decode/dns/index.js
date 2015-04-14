@@ -1,8 +1,6 @@
-var IPv4Addr = require("../ipv4_addr");
-var IPv6Addr = require("../ipv6_addr");
-var ResourceRecord = require("../resource_record");
-var QueryRequest = require("../query");
-var Flags = require("../flags");
+var ResourceRecord = require("./resource_record");
+var QueryRequest = require("./query");
+var Flags = require("./flags");
 
 function DNS(emitter) {
     this.emitter = emitter;
@@ -21,10 +19,9 @@ DNS.prototype.eventsOnDecode = true;
 DNS.prototype.decode = function (raw_packet, offset) {
     //these 2 fields will be deleted soon.
     this.raw_packet = raw_packet;
-    var offsetOriginal = offset;
 
     this.id = raw_packet.readUInt16BE(offset); // 0, 1
-    this.header = new DnsFlags().decode(raw_packet.readUInt16BE(offset+2));
+    this.header = new Flags().decode(raw_packet.readUInt16BE(offset+2));
 
     // the number of question asked by this packet
     var qcount = raw_packet.readUInt16BE(offset + 4); // 4, 5
@@ -33,31 +30,39 @@ DNS.prototype.decode = function (raw_packet, offset) {
     var acount = raw_packet.readUInt16BE(offset + 6); // 6, 7
 
     // the number of authority records provided by this packet
-    var ncount = raw_packet.readUInt16BE(offset + 8); // 8, 9
+    var nscount = raw_packet.readUInt16BE(offset + 8); // 8, 9
 
     // the number of addtional records provided by this packet
     var arcount = raw_packet.readUInt16BE(offset + 10); // 10, 11
     offset += 12;
 
-    this.questions = this.decode_RRs(qdcount, true);
+    this.questions = decodeQueries(raw_packet, offset, qcount);
 
-    var offsetClosure = { offset: offset };
-    this.answers = DecodeResourceRecords(raw_packet, offsetClosure, ancount, false);
-    this.authorities = DecodeResourceRecords(raw_packet, offsetClosure, nscount, false);
-    this.additionals = DecodeResourceRecords(raw_packet, offsetClosure, arcount, false);
+    this.answers = decodeResourceRecords(raw_packet, offset, acount);
+    this.authorities = decodeResourceRecords(raw_packet, offset, nscount);
+    this.additionals = decodeResourceRecords(raw_packet, offset, arcount);
 
     if(this.emitter) { this.emitter.emit("dns", this); }
     return this;
 };
 
-function DecodeResourceRecords(raw_packet, offsetClosure, count) {
+function decodeResourceRecords(raw_packet, offset, count) {
     var ret = new Array(count);
     for (var i = ret.length - 1; i >= 0; i--) {
-        ret[i] = new ResourceRecord().decode(raw_packet, offsetClosure);
-        offsetClosure.offset = ret[i].length;
+        ret[i] = new ResourceRecord().decode(raw_packet, offset);
+        offset += ret[i].bytesDecoded;
     }
     return ret;
-};
+}
+
+function decodeQueries(raw_packet, offset, count) {
+    var ret = new Array(count);
+    for (var i = ret.length - 1; i >= 0; i--) {
+        ret[i] = new QueryRequest().decode(raw_packet, offset);
+        offset += ret[i].bytesDecoded;
+    }
+    return ret;
+}
 
 DNS.prototype.toString = function () {
     var ret = " DNS ";

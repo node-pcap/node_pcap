@@ -1,5 +1,5 @@
 function DnsResourceRecord() {
-    this.name = undefined;
+  this.name = undefined;
 /*
   1 = A, a host address
   2 = NS, an authoritative name server
@@ -18,7 +18,7 @@ function DnsResourceRecord() {
  15 = MX, mail exchange
  16 = TXT, text strings
 */
-    this.type = undefined;
+  this.type = undefined;
 
 /*
  1 = IN, the Internet
@@ -26,30 +26,34 @@ function DnsResourceRecord() {
  3 = CH, the CHAOS class
  4 = HS, Hesiod [Dyer 87]
 */
-    this.class = undefined;
-    this.ttl = undefined;
-    this.rdlength = undefined;
-    this.rdata = undefined;
-    this.length = undefined;
+  this.class = undefined;
+  this.ttl = undefined;
+  this.rdlength = undefined;
+  this.rdata = undefined;
+
+  // the number of bytes decoded by this instance.
+  this.bytesDecoded = undefined;
 }
 
 DnsResourceRecord.prototype.decode = function (raw_packet, offset) {
-    var initialOffset = offset;
-    this.name = [];
-    var currentChar;
-    while((currentChar = raw_packet[offset++]) != 0) {
-        this.name.push = currentChar;
-    }
+  var initialOffset = offset;
+  this.name = [];
+  var currentChar;
+  while((currentChar = raw_packet[offset++]) !== 0) {
+    this.name.push = currentChar;
+  }
 
-    this.type = this.raw_packet.readUInt16BE(offset);
-    offset += 2;
-    this.class = this.raw_packet.readUInt16BE(offset);
-    offset += 2;
-    this.ttl = this.raw_packet.readUInt32BE(offset);
-    offset += 4;
-    this.rdlength = this.raw_packet.readUInt16BE(offset);
-    offset += 2;
+  this.type = raw_packet.readUInt16BE(offset);
+  offset += 2;
+  this.class = raw_packet.readUInt16BE(offset);
+  offset += 2;
+  this.ttl = raw_packet.readUInt32BE(offset);
+  offset += 4;
+  this.rdlength = raw_packet.readUInt16BE(offset);
+  offset += 2;
+  this.bytesDecoded = offset - initialOffset;
 
-
-    return this;
+  return this;
 };
+
+module.exports = DnsResourceRecord;

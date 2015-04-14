@@ -65,3 +65,5 @@ DnsFlags.prototype.toString = function () {
         " responseCode:" + this.responseCode +
         " }";
 };
+
+module.exports = DnsFlags;
