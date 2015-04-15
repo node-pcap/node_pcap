@@ -68,17 +68,17 @@ DNS.prototype.toString = function () {
     var ret = " DNS ";
 
     ret += this.header.toString();
-    if (this.qdcount > 0) {
-        ret += "\n  question:" + this.question.rrs[0];
+    if (this.questions.length > 0) {
+        ret += "\n  question:" + this.questions.join("\n\t");
     }
-    if (this.ancount > 0) {
-        ret += "\n  answer:" + this.answer;
+    if (this.answers.length > 0) {
+        ret += "\n  answer:" + this.answers.join("\n\t");
     }
-    if (this.nscount > 0) {
-        ret += "\n  authority:" + this.authority;
+    if (this.authorities.length > 0) {
+        ret += "\n  authority:" + this.authorities.join("\n\t");
     }
-    if (this.arcount > 0) {
-        ret += "\n  additional:" + this.additional;
+    if (this.additionals.length > 0) {
+        ret += "\n  additional:" + this.additionals.join("\n\t");
     }
 
     return ret;

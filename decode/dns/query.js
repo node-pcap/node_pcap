@@ -55,4 +55,38 @@ DnsQuery.prototype.decode = function (raw_packet, offset) {
 
   return this;
 };
+
+var questionTypes = [];
+questionTypes[1] = "A";
+questionTypes[2] = "NS";
+questionTypes[3] = "MD";
+questionTypes[4] = "MF";
+questionTypes[5] = "CNAME";
+questionTypes[6] = "SOA";
+questionTypes[7] = "MB";
+questionTypes[8] = "MG";
+questionTypes[9] = "MR";
+questionTypes[10] = "NULL";
+questionTypes[11] = "WKS";
+questionTypes[12] = "PTR";
+questionTypes[13] = "MINFO";
+questionTypes[14] = "MX";
+questionTypes[15] = "TXT";
+questionTypes[252] = "AXFR";
+questionTypes[253] = "MAILB";
+questionTypes[254] = "MAILA";
+questionTypes[255] = "*";
+
+var questionClasses = [];
+questionClasses[1] = "IN";
+questionClasses[2] = "CS";
+questionClasses[3] = "CH";
+questionClasses[4] = "HS";
+
+DnsQuery.prototype.toString = function () {
+  return "name: " + this.name +
+         " type: " + questionTypes[this.type] +
+         " class: " + questionClasses[this.class];
+};
+
 module.exports = DnsQuery;
