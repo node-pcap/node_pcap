@@ -41,10 +41,19 @@ function DnsQuery() {
 
 DnsQuery.prototype.decode = function (raw_packet, offset) {
   var initialOffset = offset;
-  this.name = [];
-  var currentChar;
-  while((currentChar = raw_packet[offset++]) !== 0) {
-    this.name.push = currentChar;
+  this.name = "";
+  var segLength;
+  var firstSegment = true;
+  while((segLength = raw_packet[offset++]) !== 0) {
+    if(firstSegment) {
+      firstSegment = false;
+    } else {
+      this.name += ".";
+    }
+
+    for (var i = 0; i < segLength; i++) {
+      this.name += String.fromCharCode(raw_packet[offset++]);
+    }
   }
 
   this.type = raw_packet.readUInt16BE(offset);

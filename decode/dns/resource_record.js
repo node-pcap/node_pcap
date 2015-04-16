@@ -37,10 +37,10 @@ function DnsResourceRecord() {
 
 DnsResourceRecord.prototype.decode = function (raw_packet, offset) {
   var initialOffset = offset;
-  this.name = [];
+  this.name = "";
   var currentChar;
   while((currentChar = raw_packet[offset++]) !== 0) {
-    this.name.push = currentChar;
+    this.name += String.fromCharCode(currentChar);
   }
 
   this.type = raw_packet.readUInt16BE(offset);
