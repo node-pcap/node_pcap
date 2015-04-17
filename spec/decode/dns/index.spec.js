@@ -1,7 +1,7 @@
-var Dns = require("../../decode/dns");
-var DnsQuery = require("../../decode/dns/query");
+var Dns = require("../../../decode/dns");
+var DnsQuery = require("../../../decode/dns/query");
 var events = require("events");
-var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
+var shouldBehaveLikeADecoder = require("../decode").shouldBehaveLikeADecoder;
 require("should");
 
 describe("Dns", function(){
