@@ -49,7 +49,7 @@ DnsFlags.prototype.decode = function (raw_packet, offset) {
     this.isTruncated = Boolean(byte1 & 0x02);
     this.isRecursionDesired   = Boolean(byte1 & 0x01);
     this.isRecursionAvailible = Boolean(byte2 & 0x80);
-    this.z = byte2 & 0x70 >> 4;
+    this.z = (byte2 & 0x70) >> 4;
     this.responseCode = byte2 & 0x0F;
     return this;
 };
