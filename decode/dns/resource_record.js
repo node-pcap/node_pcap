@@ -38,9 +38,18 @@ function DnsResourceRecord() {
 DnsResourceRecord.prototype.decode = function (raw_packet, offset) {
   var initialOffset = offset;
   this.name = "";
-  var currentChar;
-  while((currentChar = raw_packet[offset++]) !== 0) {
-    this.name += String.fromCharCode(currentChar);
+  var segLength;
+  var firstSegment = true;
+  while((segLength = raw_packet[offset++]) !== 0) {
+    if(firstSegment) {
+      firstSegment = false;
+    } else {
+      this.name += ".";
+    }
+
+    for (var i = 0; i < segLength; i++) {
+      this.name += String.fromCharCode(raw_packet[offset++]);
+    }
   }
 
   this.type = raw_packet.readUInt16BE(offset);
@@ -51,6 +60,7 @@ DnsResourceRecord.prototype.decode = function (raw_packet, offset) {
   offset += 4;
   this.rdlength = raw_packet.readUInt16BE(offset);
   offset += 2;
+  offset += this.rdlength;
   this.bytesDecoded = offset - initialOffset;
 
   return this;
