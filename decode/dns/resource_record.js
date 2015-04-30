@@ -1,3 +1,7 @@
+var decodeName = require("./util").decodeName;
+var IPv4Addr = require("../ipv4_addr");
+var IPv6Addr = require("../ipv6_addr");
+
 function DnsResourceRecord() {
   this.name = undefined;
 /*
@@ -37,20 +41,9 @@ function DnsResourceRecord() {
 
 DnsResourceRecord.prototype.decode = function (raw_packet, offset) {
   var initialOffset = offset;
-  this.name = "";
-  var segLength;
-  var firstSegment = true;
-  while((segLength = raw_packet[offset++]) !== 0) {
-    if(firstSegment) {
-      firstSegment = false;
-    } else {
-      this.name += ".";
-    }
-
-    for (var i = 0; i < segLength; i++) {
-      this.name += String.fromCharCode(raw_packet[offset++]);
-    }
-  }
+  var decodedName = decodeName(raw_packet, offset);
+  this.name = decodedName.name;
+  offset += decodedName.bytesDecoded;
 
   this.type = raw_packet.readUInt16BE(offset);
   offset += 2;
@@ -60,6 +53,15 @@ DnsResourceRecord.prototype.decode = function (raw_packet, offset) {
   offset += 4;
   this.rdlength = raw_packet.readUInt16BE(offset);
   offset += 2;
+
+  if (this.type === 1 && this.class === 1 && this.rdlength === 4) { // A, IN
+      this.rdata = new IPv4Addr().decode(raw_packet, offset);
+  } else if (this.type === 2 && this.class === 1) { // NS, IN
+      this.rdata = decodeName(raw_packet, offset).name;
+  } else if (this.type === 28 && this.class === 1 && this.rdlength === 16) {
+      this.data = new IPv6Addr(raw_packet, offset);
+  }
+
   offset += this.rdlength;
   this.bytesDecoded = offset - initialOffset;
 
