@@ -56,7 +56,7 @@ DnsResourceRecord.prototype.decode = function (raw_packet, offset) {
 
   if (this.type === 1 && this.class === 1 && this.rdlength === 4) { // A, IN
       this.rdata = new IPv4Addr().decode(raw_packet, offset);
-  } else if (this.type === 2 && this.class === 1) { // NS, IN
+  } else if ((this.type === 2 || this.type === 12) && this.class === 1) { // (PTR | NS) && IN
       this.rdata = decodeName(raw_packet, offset).name;
   } else if (this.type === 28 && this.class === 1 && this.rdlength === 16) {
       this.data = new IPv6Addr(raw_packet, offset);

@@ -4,7 +4,14 @@ exports.decodeName = function(raw_packet, offset) {
   var initialOffset = offset;
   var result = { bytesDecoded:undefined, name:"" };
 
-  while((segLength = raw_packet[offset++]) !== 0) {
+  if(raw_packet[offset] > 63) {
+    //Name is in pointer format which is currently not supported
+    result.bytesDecoded = 2;
+    result.name = "";
+    return result;
+  }
+
+  while((segLength = raw_packet[offset++]) !== 0 && segLength < 63) {
     if(firstSegment) {
       firstSegment = false;
     } else {

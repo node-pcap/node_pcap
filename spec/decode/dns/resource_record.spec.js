@@ -48,5 +48,16 @@ describe("DnsResourceRecord", function() {
       var ipAddr = new IPv4Addr().decode(new Buffer("01020304", "hex"), 0);
       this.instance.should.have.property("rdata", ipAddr);
     });
+
+    it("sets #rdata to be the record in the resource for PTR IN", function() {
+      this.instance.decode(new Buffer("c00c" +
+                                      "000c" + //type PTR
+                                      "0001" + //class IN
+                                      "00000e10" + //ttl
+                                      "0017" + //data length
+                                      "08737465726c696e6708667265656e6f6465036e657400", //sterling.freenode.net
+                                      "hex"), 0);
+      this.instance.should.have.property("rdata", "sterling.freenode.net");
+    });
   });
 });
