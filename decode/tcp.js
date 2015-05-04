@@ -237,7 +237,7 @@ TCP.prototype.decode = function (raw_packet, offset, len) {
         // add a buffer slice pointing to the data area of this TCP packet.
         // Note that this does not make a copy, so ret.data is only valid for this current
         // trip through the capture loop.
-        this.data = raw_packet.slice(offset, offset + this.data_bytes);
+        this.data = raw_packet.slice(offset, offset + this.dataLength);
     } else {
         // null indicated the value was set. Where as undefined
         // means the value was never set. Since there is no data
