@@ -1,6 +1,11 @@
+#if defined(_WIN32) || defined(_WIN64)
+#include <winsock2.h>
+#else
+#include <sys/ioctl.h>
+#endif
+
 #include <assert.h>
 #include <pcap/pcap.h>
-#include <sys/ioctl.h>
 #include <cstring>
 #include <string.h>
 
@@ -207,6 +212,10 @@ _NAN_METHOD_RETURN_TYPE PcapSession::Open(bool live, _NAN_METHOD_ARGS)
             NanReturnUndefined();
         }
 
+#if defined(_WIN32) || defined(_WIN64)
+        // Not available in WinPcap developer pack 4.1.2 yet. Is in WinPcap
+        // 4.1.3 but this is source only.
+#else
         // fixes a previous to-do that was here.
         if (args.Length() == 6) {
             if (args[5]->Int32Value()) {
@@ -216,6 +225,7 @@ _NAN_METHOD_RETURN_TYPE PcapSession::Open(bool live, _NAN_METHOD_ARGS)
                 }
             }
         }
+#endif
 
         if (pcap_activate(session->pcap_handle) != 0) {
             NanThrowError(pcap_geterr(session->pcap_handle));
@@ -287,7 +297,11 @@ _NAN_METHOD_RETURN_TYPE PcapSession::Open(bool live, _NAN_METHOD_ARGS)
         ret = NanNew("LINKTYPE_LINUX_SLL");
         break;
     default:
+#if defined(_WIN32) || defined(_WIN64)
+        sprintf_s(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
+#else
         snprintf(errbuf, PCAP_ERRBUF_SIZE, "Unknown linktype %d", link_type);
+#endif
         ret = NanNew(errbuf);
         break;
     }
@@ -326,7 +340,13 @@ NAN_METHOD(PcapSession::Fileno)
 
     PcapSession* session = ObjectWrap::Unwrap<PcapSession>(args.This());
 
-    int fd = pcap_get_selectable_fd(session->pcap_handle);
+    int fd;
+
+#if defined(_WIN32) || defined(_WIN64)
+    fd = (int)session->pcap_handle;
+#elif _linux_
+    fd = pcap_get_selectable_fd(session->pcap_handle);
+#endif
 
     NanReturnValue(NanNew<Integer>(fd));
 }
@@ -376,10 +396,16 @@ NAN_METHOD(PcapSession::Inject)
     bufferData = node::Buffer::Data(buffer_obj);
     bufferLength = node::Buffer::Length(buffer_obj);
 
+#if defined(_WIN32) || defined(_WIN64)
+    if (pcap_sendpacket(session->pcap_handle, (const u_char*)bufferData, bufferLength) != 0) {
+        NanThrowError("Pcap inject failed.");
+        NanReturnUndefined();
+    }
+#else
     if (pcap_inject(session->pcap_handle, bufferData, bufferLength) != (int)bufferLength) {
         NanThrowError("Pcap inject failed.");
         NanReturnUndefined();
     }
+#endif
     NanReturnUndefined();
 }
-

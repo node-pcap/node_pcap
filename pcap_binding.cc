@@ -1,13 +1,19 @@
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <winsock2.h>
+#else
+#include <sys/time.h>
+#include <sys/ioctl.h>
+#include <arpa/inet.h>
+#endif
+
 #include <assert.h>
 #include <pcap/pcap.h>
 #include <iostream>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/ioctl.h>
-#include <arpa/inet.h>
 
 #include "pcap_session.h"
 
