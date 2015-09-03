@@ -37,7 +37,7 @@ very straightforward in node.
 ## Installation
 
 You will need `libpcap` installed.  Most OSX machines seem to have it.  All major Linux distributions have it available
-either by default or with a package like `libpcap-dev`.
+either by default or with a package like `libpcap-dev`. For Windows see below.
 
 The easiest way to get `node_pcap` and its tools is with `npm`:
 
@@ -54,6 +54,22 @@ To compile the native code bindings, do this:
 
 Assuming it built without errors, you should be able to run the examples and then write your own packet
 capture programs.
+
+### Windows
+
+To use this module on Windows you will need to download the [WinPcap Developer Pack](http://www.winpcap.org/devel.htm) and unzip it to your favourite location. For example `C:\src\WpdPack-4.1.2`.
+
+You will then need to add the path to your environment variables under `WINPCAP_DIR`.
+
+Now, before running `npm install pcap`, you may need to run one of the following depending on your architecture.
+
+```
+call "C:\Program Files\Microsoft SDKs\Windows\v7.1\bin\Setenv.cmd" /Release /x86
+# or
+call "C:\Program Files\Microsoft SDKs\Windows\v7.1\bin\Setenv.cmd" /Release /x64
+```
+
+Now run `npm install pcap` and everything should be fine, fingers crossed.
 
 
 ## Usage
