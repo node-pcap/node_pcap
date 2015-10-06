@@ -31,64 +31,66 @@ void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address)
       size = INET6_ADDRSTRLEN;
     }
     const char* address = inet_ntop(addr->sa_family, src, dst_addr, size);
-    Address->Set(NanNew(key), NanNew(address));
+    
+    Address->Set(Nan::New<String>(key).ToLocalChecked(), Nan::New(address).ToLocalChecked());
   }
 }
 
 
 NAN_METHOD(FindAllDevs)
 {
-    NanScope();
+    Nan::HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_if_t *alldevs, *cur_dev;
 
     if (pcap_findalldevs(&alldevs, errbuf) == -1 || alldevs == NULL) {
-        NanThrowTypeError(errbuf);
-        NanReturnUndefined();
+        Nan::ThrowTypeError(errbuf);
+        return;
     }
 
-    Local<Array> DevsArray = NanNew<Array>();
+    Local<Array> DevsArray = Nan::New<Array>();
 
     int i = 0;
     for (cur_dev = alldevs ; cur_dev != NULL ; cur_dev = cur_dev->next, i++) {
-        Local<Object> Dev = NanNew<Object>();
+        Local<Object> Dev = Nan::New<Object>();
 
-        Dev->Set(NanNew("name"), NanNew(cur_dev->name));
+        Dev->Set(Nan::New<String>("name").ToLocalChecked(), Nan::New(cur_dev->name).ToLocalChecked());
+
         if (cur_dev->description != NULL) {
-            Dev->Set(NanNew("description"), NanNew(cur_dev->description));
+            Dev->Set(Nan::New<String>("description").ToLocalChecked(), Nan::New(cur_dev->description).ToLocalChecked());
         }
-        Local<Array> AddrArray = NanNew<Array>();
+        Local<Array> AddrArray = Nan::New<Array>();
         int j = 0;
         for (pcap_addr_t *cur_addr = cur_dev->addresses ; cur_addr != NULL ; cur_addr = cur_addr->next, j++) {
           if (cur_addr->addr){
               int af = cur_addr->addr->sa_family;
               if(af == AF_INET || af == AF_INET6){
-                Local<Object> Address = NanNew<Object>();
+                Local<Object> Address = Nan::New<Object>();
                 SetAddrStringHelper("addr", cur_addr->addr, Address);
                 SetAddrStringHelper("netmask", cur_addr->netmask, Address);
                 SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
                 SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
-                AddrArray->Set(NanNew<Integer>(j), Address);
+                AddrArray->Set(Nan::New<Integer>(j), Address);
               }
            }
         }
 
-        Dev->Set(NanNew("addresses"), AddrArray);
+        Dev->Set(Nan::New("addresses").ToLocalChecked(), AddrArray);
 
         if (cur_dev->flags & PCAP_IF_LOOPBACK) {
-            Dev->Set(NanNew("flags"), NanNew("PCAP_IF_LOOPBACK"));
+            Dev->Set(Nan::New("flags").ToLocalChecked(), Nan::New("PCAP_IF_LOOPBACK").ToLocalChecked());
         }
 
-        DevsArray->Set(NanNew<Integer>(i), Dev);
+        DevsArray->Set(Nan::New<Integer>(i), Dev);
     }
 
     pcap_freealldevs(alldevs);
-    NanReturnValue(DevsArray);
+    info.GetReturnValue().Set(DevsArray);
 }
 
 NAN_METHOD(DefaultDevice)
 {
-    NanScope();
+    Nan::HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
     // Look up the first device with an address, pcap_lookupdev() just returns the first non-loopback device.
@@ -97,13 +99,13 @@ NAN_METHOD(DefaultDevice)
     bool found = false;
 
     if (pcap_findalldevs(&alldevs, errbuf) == -1) {
-      NanThrowError(errbuf);
-      NanReturnUndefined();
+      Nan::ThrowError(errbuf);
+      return;
     }
 
     if (alldevs == NULL) {
-      NanThrowError("pcap_findalldevs didn't find any devs");
-      NanReturnUndefined();
+      Nan::ThrowError("pcap_findalldevs didn't find any devs");
+      return;
     }
 
     for (dev = alldevs; dev != NULL; dev = dev->next) {
@@ -112,7 +114,7 @@ NAN_METHOD(DefaultDevice)
                 // TODO - include IPv6 addresses in DefaultDevice guess
                 // if (addr->addr->sa_family == AF_INET || addr->addr->sa_family == AF_INET6) {
                 if (addr->addr->sa_family == AF_INET) {
-                    NanReturnValue(NanNew(dev->name));
+                    info.GetReturnValue().Set(Nan::New(dev->name).ToLocalChecked());
                     found = true;
                     break;
                 }
@@ -125,14 +127,14 @@ NAN_METHOD(DefaultDevice)
     }
 
     pcap_freealldevs(alldevs);
-    NanReturnUndefined();
+    return;
 }
 
 NAN_METHOD(LibVersion)
 {
-    NanScope();
+    Nan::HandleScope scope;
 
-    NanReturnValue(NanNew(pcap_lib_version()));
+    info.GetReturnValue().Set(Nan::New(pcap_lib_version()).ToLocalChecked());
 }
 
 void Initialize(Handle<Object> exports)
@@ -141,9 +143,9 @@ void Initialize(Handle<Object> exports)
 
     PcapSession::Init(exports);
 
-    exports->Set(NanNew("findalldevs"), NanNew<FunctionTemplate>(FindAllDevs)->GetFunction());
-    exports->Set(NanNew("default_device"), NanNew<FunctionTemplate>(DefaultDevice)->GetFunction());
-    exports->Set(NanNew("lib_version"), NanNew<FunctionTemplate>(LibVersion)->GetFunction());
+    exports->Set(Nan::New("findalldevs").ToLocalChecked(), Nan::New<FunctionTemplate>(FindAllDevs)->GetFunction());
+    exports->Set(Nan::New("default_device").ToLocalChecked(), Nan::New<FunctionTemplate>(DefaultDevice)->GetFunction());
+    exports->Set(Nan::New("lib_version").ToLocalChecked(), Nan::New<FunctionTemplate>(LibVersion)->GetFunction());
 }
 
 NODE_MODULE(pcap_binding, Initialize)

@@ -4,7 +4,10 @@
 #include <nan.h>
 #include <pcap/pcap.h>
 
-class PcapSession : public node::ObjectWrap {
+using Nan::NAN_METHOD_RETURN_TYPE;
+using Nan::NAN_METHOD_ARGS_TYPE;
+
+class PcapSession : public Nan::ObjectWrap {
 public:
     static void Init(v8::Handle<v8::Object> exports);
 
@@ -13,7 +16,7 @@ private:
     ~PcapSession();
 
     static NAN_METHOD(New);
-    static _NAN_METHOD_RETURN_TYPE Open(bool live, _NAN_METHOD_ARGS);
+    static NAN_METHOD_RETURN_TYPE Open(bool live, NAN_METHOD_ARGS_TYPE info);
     static NAN_METHOD(OpenLive);
     static NAN_METHOD(OpenOffline);
     static NAN_METHOD(Dispatch);
