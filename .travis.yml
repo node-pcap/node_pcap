@@ -1,12 +1,23 @@
 language: node_js
 node_js:
+  - 4
+  - 3
+  - 2
+  - 1
   - "0.12"
   - "0.11"
   - "0.10"
-  - iojs
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-4.9
+      - g++-4.9
 before_script:
   - npm install -g grunt-cli
 before_install:
+  - export CC="gcc-4.9" CXX="g++-4.9"
   - sudo apt-get install libpcap-dev
 script:
   - grunt travis
