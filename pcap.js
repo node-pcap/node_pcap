@@ -13,12 +13,44 @@ exports.TCPSession = tcp_tracker.TCPSession;
 exports.DNSCache = DNSCache;
 
 function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_monitor) {
-    this.is_live = is_live;
+    var self = this;
+    var defaultConfig = {
+        live: is_live,
+        filter: '',
+        buffer_size: null,
+        is_monitor: false,
+        outfile: null,
+        timeout: 1000
+    };
+
+    // ------------------------------------------------------------------------------
+    
+    self.config = defaultConfig;
+    if (typeof filter === 'object' && filter !== null) {
+        for (key in filter) {
+            self.config[key] = filter[key];
+        }
+    } else if (filter !== null || buffer_size !== null || is_monitor !== null) {
+        var tmp = {
+            filter: filter,
+            buffer_size: buffer_size,
+            outfile: outfile,
+            is_monitor: is_monitor
+        };
+        for (key in tmp) {
+            self.config[key] = tmp[key];
+        }
+    }
+
+    // ------------------------------------------------------------------------------
+
+    this.is_live = self.config.live;
     this.device_name = device_name;
-    this.filter = filter || "";
-    this.buffer_size = buffer_size;
+    this.filter = self.config.filter || "";
+    this.buffer_size = self.config.buffer_size;
     this.outfile = outfile || "";
-    this.is_monitor = Boolean(is_monitor);
+    this.is_monitor = Boolean(self.config.is_monitor);
+    this.timeout = self.config.timeout;
 
     this.link_type = null;
     this.fd = null;
@@ -37,8 +69,6 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
         this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
     }
 
-    var self = this;
-
     // called for each packet read by pcap
     function packet_ready() {
         self.on_packet_ready();
@@ -46,9 +76,9 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
 
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor, self.config.timeout);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor, self.config.timeout);
     }
 
     this.fd = this.session.fileno();

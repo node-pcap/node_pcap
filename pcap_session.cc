@@ -129,7 +129,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
     Nan::HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (info.Length() == 6) {
+    if (info.Length() == 7) {
         if (!info[0]->IsString()) {
             Nan::ThrowTypeError("pcap Open: info[0] must be a String");
             return;
@@ -154,13 +154,18 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
             Nan::ThrowTypeError("pcap Open: info[5] must be a Boolean");
             return;
         }
+        if (!info[6]->IsInt32()) {
+            Nan::ThrowTypeError("pcap Open: info[6] must be a Number");
+            return;
+        }
     } else {
-        Nan::ThrowTypeError("pcap Open: expecting 6 arguments");
+        Nan::ThrowTypeError("pcap Open: expecting 7 arguments");
         return;
     }
     Nan::Utf8String device(info[0]->ToString());
     Nan::Utf8String filter(info[1]->ToString());
     int buffer_size = info[2]->Int32Value();
+    int timeout = info[6]->Int32Value();
     Nan::Utf8String pcap_output_filename(info[3]->ToString());
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
@@ -200,7 +205,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
         }
 
         // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
-        if (pcap_set_timeout(session->pcap_handle, 1000) != 0) {
+        if (pcap_set_timeout(session->pcap_handle, timeout) != 0) {
             Nan::ThrowError("error setting read timeout");
             return;
         }
