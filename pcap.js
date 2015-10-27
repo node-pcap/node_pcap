@@ -27,11 +27,13 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
     // ------------------------------------------------------------------------------
     
     // config overrides
-    if (typeof filter === 'object' && filter !== null) {
-        for (key in filter) {
-            self.config[key] = filter[key];
+    if (typeof filter === "object" && filter !== null) {
+        for (var key in filter) {
+            if (filter.hasOwnProperty(key)) {
+               self.config[key] = filter[key];
+            }
         }
-    } else if (typeof filter === 'string') {
+    } else if (typeof filter === "string") {
         // make it backwards compatible
         self.config.filter = filter;
     }
