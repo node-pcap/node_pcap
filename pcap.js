@@ -14,32 +14,26 @@ exports.DNSCache = DNSCache;
 
 function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_monitor) {
     var self = this;
-    var defaultConfig = {
-        live: is_live,
+
+    // default config
+    self.config = {
+        buffer_size: buffer_size,
+        is_monitor: is_monitor,
+        outfile: outfile,
         filter: '',
-        buffer_size: null,
-        is_monitor: false,
-        outfile: null,
         timeout: 1000
     };
 
     // ------------------------------------------------------------------------------
     
-    self.config = defaultConfig;
+    // config overrides
     if (typeof filter === 'object' && filter !== null) {
         for (key in filter) {
             self.config[key] = filter[key];
         }
-    } else if (filter !== null || buffer_size !== null || is_monitor !== null) {
-        var tmp = {
-            filter: filter,
-            buffer_size: buffer_size,
-            outfile: outfile,
-            is_monitor: is_monitor
-        };
-        for (key in tmp) {
-            self.config[key] = tmp[key];
-        }
+    } else if (typeof filter === 'string') {
+        // make it backwards compatible
+        self.config.filter = filter;
     }
 
     // ------------------------------------------------------------------------------
@@ -50,7 +44,6 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
     this.buffer_size = self.config.buffer_size;
     this.outfile = outfile || "";
     this.is_monitor = Boolean(self.config.is_monitor);
-    this.timeout = self.config.timeout;
 
     this.link_type = null;
     this.fd = null;
