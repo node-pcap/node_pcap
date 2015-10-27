@@ -42,7 +42,7 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
     this.device_name = device_name;
     this.filter = self.config.filter || "";
     this.buffer_size = self.config.buffer_size;
-    this.outfile = outfile || "";
+    this.outfile = self.config.outfile || "";
     this.is_monitor = Boolean(self.config.is_monitor);
 
     this.link_type = null;
