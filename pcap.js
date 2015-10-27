@@ -20,7 +20,7 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
         buffer_size: buffer_size,
         is_monitor: is_monitor,
         outfile: outfile,
-        filter: '',
+        filter: "",
         timeout: 1000
     };
 
