@@ -38,7 +38,7 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
 
     // ------------------------------------------------------------------------------
 
-    this.is_live = self.config.live;
+    this.is_live = is_live;
     this.device_name = device_name;
     this.filter = self.config.filter || "";
     this.buffer_size = self.config.buffer_size;
@@ -69,9 +69,23 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
 
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor, self.config.timeout);
+        this.link_type = this.session.open_live(
+            this.device_name,
+            this.filter,
+            this.buffer_size,
+            this.outfile,
+            packet_ready,
+            this.is_monitor,
+            self.config.timeout);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor, self.config.timeout);
+        this.link_type = this.session.open_offline(
+            this.device_name,
+            this.filter,
+            this.buffer_size,
+            this.outfile,
+            packet_ready,
+            this.is_monitor,
+            self.config.timeout);
     }
 
     this.fd = this.session.fileno();
