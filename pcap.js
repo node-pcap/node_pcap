@@ -13,10 +13,8 @@ exports.TCPSession = tcp_tracker.TCPSession;
 exports.DNSCache = DNSCache;
 
 function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_monitor) {
-    var self = this;
-
     // default config
-    self.config = {
+    this.config = {
         buffer_size: buffer_size,
         is_monitor: is_monitor,
         outfile: outfile,
@@ -24,28 +22,24 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
         timeout: 1000
     };
 
-    // ------------------------------------------------------------------------------
-    
     // config overrides
     if (typeof filter === "object" && filter !== null) {
         for (var key in filter) {
             if (filter.hasOwnProperty(key)) {
-               self.config[key] = filter[key];
+               this.config[key] = filter[key];
             }
         }
     } else if (typeof filter === "string") {
         // make it backwards compatible
-        self.config.filter = filter;
+        this.config.filter = filter;
     }
-
-    // ------------------------------------------------------------------------------
 
     this.is_live = is_live;
     this.device_name = device_name;
-    this.filter = self.config.filter || "";
-    this.buffer_size = self.config.buffer_size;
-    this.outfile = self.config.outfile || "";
-    this.is_monitor = Boolean(self.config.is_monitor);
+    this.filter = this.config.filter || "";
+    this.buffer_size = this.config.buffer_size;
+    this.outfile = this.config.outfile || "";
+    this.is_monitor = Boolean(this.config.is_monitor);
 
     this.link_type = null;
     this.fd = null;
@@ -63,6 +57,8 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
     } else {
         this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
     }
+
+    var self = this;
 
     // called for each packet read by pcap
     function packet_ready() {
@@ -163,4 +159,3 @@ exports.createSession = function (device, filter, buffer_size, monitor) {
 exports.createOfflineSession = function (path, filter) {
     return new PcapSession(false, path, filter, 0, null, null);
 };
-
