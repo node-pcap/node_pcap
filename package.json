@@ -6,7 +6,7 @@
   "main": "./pcap",
   "repository": {
     "type": "git",
-    "url": "git://github.com/andygreenegrass/node_pcap.git"
+    "url": "git://github.com/andygreenegrass/node-pcap.git"
   },
   "engines": {
     "node": ">=0.10"
