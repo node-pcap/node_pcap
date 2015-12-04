@@ -13,12 +13,33 @@ exports.TCPSession = tcp_tracker.TCPSession;
 exports.DNSCache = DNSCache;
 
 function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_monitor) {
+    // default config
+    this.config = {
+        buffer_size: buffer_size,
+        is_monitor: is_monitor,
+        outfile: outfile,
+        filter: "",
+        timeout: 1000
+    };
+
+    // config overrides
+    if (typeof filter === "object" && filter !== null) {
+        for (var key in filter) {
+            if (filter.hasOwnProperty(key)) {
+               this.config[key] = filter[key];
+            }
+        }
+    } else if (typeof filter === "string") {
+        // make it backwards compatible
+        this.config.filter = filter;
+    }
+
     this.is_live = is_live;
     this.device_name = device_name;
-    this.filter = filter || "";
-    this.buffer_size = buffer_size;
-    this.outfile = outfile || "";
-    this.is_monitor = Boolean(is_monitor);
+    this.filter = this.config.filter || "";
+    this.buffer_size = this.config.buffer_size;
+    this.outfile = this.config.outfile || "";
+    this.is_monitor = Boolean(this.config.is_monitor);
 
     this.link_type = null;
     this.fd = null;
@@ -46,9 +67,23 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
 
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_live(
+            this.device_name,
+            this.filter,
+            this.buffer_size,
+            this.outfile,
+            packet_ready,
+            this.is_monitor,
+            self.config.timeout);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_offline(
+            this.device_name,
+            this.filter,
+            this.buffer_size,
+            this.outfile,
+            packet_ready,
+            this.is_monitor,
+            self.config.timeout);
     }
 
     this.fd = this.session.fileno();
@@ -124,4 +159,3 @@ exports.createSession = function (device, filter, buffer_size, monitor) {
 exports.createOfflineSession = function (path, filter) {
     return new PcapSession(false, path, filter, 0, null, null);
 };
-
