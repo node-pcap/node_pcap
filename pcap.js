@@ -12,16 +12,16 @@ module.exports.TCPTracker = tcp_tracker.TCPTracker;
 module.exports.TCPSession = tcp_tracker.TCPSession;
 module.exports.DNSCache = DNSCache;
 
-function PcapSession(is_live, device_name, params) {
-    var defaultParams = {
-        bufferSize: 10 * 1024 * 1024,  // Default buffer size is 10MB
+function PcapSession(is_live, device_name, options) {
+    var defaultOptions = {
+        bufferSize: 10 * 1024 * 1024,  // 10MB
         isMonitor: false,
         outfile: "",
         filter: "",
-        timeout: 1000
+        timeout: 1000   // 1 second
     };
 
-    this.params = Object.assign({}, defaultParams, params);
+    this.options = Object.assign({}, defaultOptions, options);
 
     this.is_live = is_live;
     this.device_name = device_name;
@@ -37,11 +37,11 @@ function PcapSession(is_live, device_name, params) {
 
     this.session = new binding.PcapSession();
 
-    if (typeof this.params.bufferSize === "number" &&
-        !isNaN(this.params.bufferSize)) {
-        this.params.bufferSize = Math.round(this.params.bufferSize);
+    if (typeof this.options.bufferSize === "number" &&
+        !isNaN(this.options.bufferSize)) {
+        this.options.bufferSize = Math.round(this.options.bufferSize);
     } else {
-        this.params.bufferSize = defaultParams.bufferSize;
+        this.options.bufferSize = defaultOptions.bufferSize;
     }
 
     // called for each packet read by pcap
@@ -53,26 +53,26 @@ function PcapSession(is_live, device_name, params) {
         this.device_name = this.device_name || binding.default_device();
         this.link_type = this.session.open_live(
             this.device_name,
-            this.params.filter,
-            this.params.bufferSize,
-            this.params.outfile,
+            this.options.filter,
+            this.options.bufferSize,
+            this.options.outfile,
             packet_ready,
-            this.params.isMonitor,
-            this.params.timeout);
+            this.options.isMonitor,
+            this.options.timeout);
     } else {
         this.link_type = this.session.open_offline(
             this.device_name,
-            this.params.filter,
-            this.params.bufferSize,
-            this.params.outfile,
+            this.options.filter,
+            this.options.bufferSize,
+            this.options.outfile,
             packet_ready,
-            this.params.isMonitor,
-            this.params.timeout);
+            this.options.isMonitor,
+            this.options.timeout);
     }
 
     this.fd = this.session.fileno();
     this.opened = true;
-    this.buf = new Buffer(this.params.bufferSize || 65535);
+    this.buf = new Buffer(this.options.bufferSize || 65535);
     this.header = new Buffer(16);
 
     if (is_live) {
@@ -136,10 +136,10 @@ PcapSession.prototype.inject = function (data) {
 module.exports.Pcap = PcapSession;
 module.exports.PcapSession = PcapSession;
 
-module.exports.createSession = function (device, params) {
-    return new PcapSession(true, device, params);
+module.exports.createSession = function (device, options) {
+    return new PcapSession(true, device, options);
 };
 
-module.exports.createOfflineSession = function (path, params) {
-    return new PcapSession(false, path, params);
+module.exports.createOfflineSession = function (path, options) {
+    return new PcapSession(false, path, options);
 };
