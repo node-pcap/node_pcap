@@ -9,7 +9,7 @@
     "url": "git://github.com/andygreenegrass/node-pcap.git"
   },
   "engines": {
-    "node": ">=0.10"
+    "node": ">=4.2.1"
   },
   "dependencies": {
     "nan": "^2.0.9",

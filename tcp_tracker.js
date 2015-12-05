@@ -285,30 +285,29 @@ TCPSession.prototype.session_stats = function () {
 
     var total_time = this.close_time - this.syn_time;
     var stats = {};
-    var self = this;
 
     stats.recv_times = {};
-    send_acks.forEach(function (v) {
-        if (self.recv_packets[v]) {
-            stats.recv_times[v] = self.send_acks[v] - self.recv_packets[v];
+    send_acks.forEach((v) => {
+        if (this.recv_packets[v]) {
+            stats.recv_times[v] = this.send_acks[v] - this.recv_packets[v];
         }
     });
 
     stats.send_times = {};
-    recv_acks.forEach(function (v) {
-        if (self.send_packets[v]) {
-            stats.send_times[v] = self.recv_acks[v] - self.send_packets[v];
+    recv_acks.forEach((v) => {
+        if (this.send_packets[v]) {
+            stats.send_times[v] = this.recv_acks[v] - this.send_packets[v];
         }
     });
 
     stats.send_retrans = {};
-    Object.keys(this.send_retrans).forEach(function (v) {
-        stats.send_retrans[v] = self.send_retrans[v];
+    Object.keys(this.send_retrans).forEach((v) => {
+        stats.send_retrans[v] = this.send_retrans[v];
     });
 
     stats.recv_retrans = {};
-    Object.keys(this.recv_retrans).forEach(function (v) {
-        stats.recv_retrans[v] = self.recv_retrans[v];
+    Object.keys(this.recv_retrans).forEach((v) => {
+        stats.recv_retrans[v] = this.recv_retrans[v];
     });
 
     stats.connect_duration = this.connect_time - this.syn_time;

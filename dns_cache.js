@@ -14,9 +14,8 @@ DNSCache.prototype.ptr = function (ip) {
 
     if (this.requests[ip] === undefined) {
         this.requests[ip] = true;
-        var self = this;
-        dns.reverse(ip, function (err, domains) {
-            self.on_ptr(err, ip, domains);
+        dns.reverse(ip, (err, domains) => {
+            this.on_ptr(err, ip, domains);
         });
     }
 

@@ -15,6 +15,6 @@ for (var i = 0; i <= 255; i++) {
     int8_to_dec[i] = i.toString();
 }
 
-exports.int8_to_dec = int8_to_dec;
-exports.int8_to_hex = int8_to_hex;
-exports.int8_to_hex_nopad = int8_to_hex_nopad;
+module.exports.int8_to_dec = int8_to_dec;
+module.exports.int8_to_hex = int8_to_hex;
+module.exports.int8_to_hex_nopad = int8_to_hex_nopad;

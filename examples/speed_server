@@ -4,14 +4,13 @@
 
 var util = require('util'),
     Buffer = require("buffer").Buffer,
-    pcap = require("../pcap"), pcap_session;
+    pcap = require("../pcap"), pcap_session,
     count = 0,
     start_time = new Date(),
     dns_cache = pcap.dns_cache,
     tcp_tracker = new pcap.TCPTracker(),
     http = require('http'),
     url = require('url'),
-    path = require('path'),
     fs = require('fs'),
     track_ids = {},
     bulk_data='';
@@ -30,7 +29,9 @@ for (var i = 0; i < (1024 * 1024); i += 1) {
     bulk_data[i] = 33;
 }
 
-pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
+pcap_session = pcap.createSession(process.argv[2], {
+    filter: process.argv[3]
+});
 
 // Print all devices, currently listening device prefixed with an asterisk
 console.log("All devices:");
@@ -81,7 +82,7 @@ tcp_tracker.on('end', function (session) {
 // listen for packets, decode them, and feed TCP to the tracker
 pcap_session.on('packet', function (raw_packet) {
     var packet = pcap.decode.packet(raw_packet);
-    
+
     tcp_tracker.track_packet(packet);
 });
 
