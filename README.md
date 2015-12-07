@@ -1,8 +1,7 @@
 node-pcap
 =========
 
-[![Build Status](https://travis-ci.org/andygreenegrass/node-pcap.svg?branch=master)](https://travis-ci.org/andygreenegrass/node-pcap)
-[![Coverage Status](https://coveralls.io/repos/andygreenegrass/node-pcap/badge.svg)](https://coveralls.io/r/andygreenegrass/node-pcap)
+[![npm version badge](https://img.shields.io/npm/v/pcap2.svg)](https://www.npmjs.org/package/pcap2)
 
 This is a set of bindings from `libpcap` to node as well as some useful libraries to decode, print, and
 analyze packets.  `libpcap` is a packet capture library used by programs like `tcpdump` and `wireshark`.
