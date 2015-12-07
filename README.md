@@ -63,10 +63,10 @@ takes care of this automatically.
 
 ### Starting a capture session
 
-To start a capture session, call `pcap.createSession` with an interface name and a pcap filter string:
+To start a capture session, create a new `pcap.Session` object with an interface name and desired options:
 
     var pcap = require('pcap2'),
-        pcapSession = new pcap.Session(interface);
+        pcapSession = new pcap.Session(interface, options);
 
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
 will try to pick a "default" interface, which is often just the first one in some list and not what you want.
