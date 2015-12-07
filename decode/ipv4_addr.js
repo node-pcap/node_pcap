@@ -1,4 +1,4 @@
-var dec = require("../util").int8_to_dec;
+var dec = require("../lib/util").int8_to_dec;
 
 function IPv4Addr() {
 	this.addr = new Array(4);

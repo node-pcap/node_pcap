@@ -3,7 +3,7 @@
   "version": "3.0.0",
   "description": "raw packet capture, decoding, and analysis",
   "author": "Matt Ranney <mjr@ranney.com>",
-  "main": "./pcap",
+  "main": "./index",
   "repository": {
     "type": "git",
     "url": "git://github.com/andygreenegrass/node-pcap.git"

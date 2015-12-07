@@ -1,4 +1,4 @@
-var util = require("../util");
+var util = require("../lib/util");
 
 function SLLAddr(raw_packet, offset, len) {
 	this.addr = new Array(len);

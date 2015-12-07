@@ -1,5 +1,5 @@
-var pcap = require("../pcap"),
-    pcap_session = pcap.createSession("", {
+var pcap = require("../index"),
+    pcap_session = new pcap.Session("", {
         filter: "tcp"
     }),
     matcher = /safari/i;

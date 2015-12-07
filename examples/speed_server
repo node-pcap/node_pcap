@@ -4,7 +4,7 @@
 
 var util = require('util'),
     Buffer = require("buffer").Buffer,
-    pcap = require("../pcap"), pcap_session,
+    pcap = require("../index"), pcap_session,
     count = 0,
     start_time = new Date(),
     dns_cache = pcap.dns_cache,
@@ -29,7 +29,7 @@ for (var i = 0; i < (1024 * 1024); i += 1) {
     bulk_data[i] = 33;
 }
 
-pcap_session = pcap.createSession(process.argv[2], {
+pcap_session = new pcap.Session(process.argv[2], {
     filter: process.argv[3]
 });
 

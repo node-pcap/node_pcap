@@ -1,4 +1,4 @@
-var hex = require("../util").int8_to_hex;
+var hex = require("../lib/util").int8_to_hex;
 
 function IPv6Addr() {
     this.addr = new Array(16);

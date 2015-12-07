@@ -1,4 +1,4 @@
-var util = require("../util");
+var util = require("../lib/util");
 
 //Also known as MAC address
 function EthernetAddr(raw_packet, offset) {

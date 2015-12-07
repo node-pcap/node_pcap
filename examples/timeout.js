@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-var pcap = require("../pcap");
+var pcap = require("../index");
 
 if (process.argv.length !== 4) {
     console.error("usage: timeout <interface> <timeout>...");
@@ -11,7 +11,7 @@ if (process.argv.length !== 4) {
 
 var dev = process.argv[2];
 var timeout = parseInt(process.argv[3]);
-var session = pcap.createSession(dev, {
+var session = new pcap.Session(dev, {
     timeout: timeout
 });
 
