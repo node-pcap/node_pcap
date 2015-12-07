@@ -13,5 +13,5 @@ module.exports = {
     TCPTracker: tcp_tracker.TCPTracker,
     TCPSession: tcp_tracker.TCPSession,
     DNSCache: DNSCache,
-    lib_version: binding.lib_version()
+    libVersion: binding.lib_version()
 };
