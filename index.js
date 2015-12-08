@@ -27,12 +27,22 @@ module.exports = {
             bufferSize: bufferSize,
             isMontor: monitor
         };
+        for (var key in options) {
+            if (options[key] === null) {
+                delete options[key];
+            }
+        }
         return new LiveSession(device, options);
     }, 'createSession: Create Session object directly instead'),
     createOfflineSession: util.deprecate(function(path, filter) {
         var options = {
             filter: filter
         };
+        for (var key in options) {
+            if (options[key] === null) {
+                delete options[key];
+            }
+        }
         return new OfflineSession(path, options);
     }, 'createOfflineSession: Create OfflineSession object directly instead')
 };
