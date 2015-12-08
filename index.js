@@ -28,11 +28,11 @@ module.exports = {
             isMontor: monitor
         };
         return new LiveSession(device, options);
-    }, 'createSession: Create Session object instead'),
+    }, 'createSession: Create Session object directly instead'),
     createOfflineSession: util.deprecate(function(path, filter) {
         var options = {
             filter: filter
         };
         return new OfflineSession(path, options);
-    }, 'createSession: Create OfflineSession object instead')
+    }, 'createOfflineSession: Create OfflineSession object directly instead')
 };
