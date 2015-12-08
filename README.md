@@ -37,16 +37,22 @@ either by default or with a package like `libpcap-dev`.
 
 The easiest way to get `node-pcap` and its tools is with `npm`:
 
-    npm install pcap2
+```shell
+npm install pcap2
+```
 
 If you want to hack on the source code, you can get it from github.  Clone the repo like this:
 
-    git clone git://github.com/andygreenegrass/node-pcap.git
+```shell
+git clone git://github.com/andygreenegrass/node-pcap.git
+```
 
 To compile the native code bindings, do this:
 
-    cd node-pcap
-    node-gyp configure build
+```shell
+cd node-pcap
+node-gyp configure build
+```
 
 Assuming it built without errors, you should be able to run the examples and then write your own packet
 capture programs.
@@ -64,8 +70,10 @@ takes care of this automatically.
 
 To start a capture session, create a new `pcap.Session` object with an interface name and desired options:
 
-    var pcap = require('pcap2'),
-        pcapSession = new pcap.Session(interface, options);
+```javascript
+var pcap = require('pcap2'),
+    pcapSession = new pcap.Session(interface, options);
+```
 
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
 will try to pick a "default" interface, which is often just the first one in some list and not what you want.
@@ -73,20 +81,26 @@ will try to pick a "default" interface, which is often just the first one in som
 Note that `node-pcap` always opens the interface in promiscuous mode, which generally requires running as root.
 Unless you are recklessly roaming about as root already, you'll probably want to start your node program like this:
 
-    sudo node test.js
+```shell
+sudo node test.js
+```
 
 `pcap.Session` is an `EventEmitter` that emits a `packet` event.  The only argument to the callback will be a
 `Buffer` object with the raw bytes returned by `libpcap`.
 
 Listening for packets:
 
-    pcapSession.on('packet', function (rawPacket) {
-        // do some stuff with a raw packet
-    });
+```js
+pcapSession.on('packet', function (rawPacket) {
+    // do some stuff with a raw packet
+});
+```
 
 To convert `rawPacket` into a JavaScript object that is easy to work with, decode it:
 
-    var packet = pcap.decode.packet(rawPacket);
+```js
+var packet = pcap.decode.packet(rawPacket);
+```
 
 The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
 which is encapsulated within IP, which is encapsulated within a link layer.  Access it like this:
@@ -99,7 +113,7 @@ This structure is easy to explore with `sys.inspect`.
 
 TCP can be analyzed by feeding the packets into a `TCPTracker` and then listening for `session` and `end` events.
 
-```javascript
+```js
 var pcap = require('./pcap'),
     tcpTracker = new pcap.TCPTracker(),
     pcapSession = new pcap.Session('en0', {
@@ -107,9 +121,9 @@ var pcap = require('./pcap'),
     });
 
 tcpTracker.on('session', function (session) {
-  console.log("Start of session between " + session.src_name + " and " + session.dst_name);
+  console.log('Start of session between ' + session.src_name + ' and ' + session.dst_name);
   session.on('end', function (session) {
-      console.log("End of TCP session between " + session.src_name + " and " + session.dst_name);
+      console.log('End of TCP session between ' + session.src_name + ' and ' + session.dst_name);
   });
 });
 
@@ -136,11 +150,15 @@ these are not available to `libpcap`.  The solution is to disable TSO.
 
 OSX:
 
-    sudo sysctl -w net.inet.tcp.tso=0
+```shell
+sudo sysctl -w net.inet.tcp.tso=0
+```
 
 Linux (substitute correct interface name):
 
-    sudo ethtool -K eth0 tso off
+```shell
+sudo ethtool -K eth0 tso off
+```
 
 The symptoms of needing to disable TSO are messages like, "Received ACK for packet we didn't see get sent".
 
@@ -151,7 +169,9 @@ will arrive surprisingly, even though you were expecting IPv4.  A common case is
 resolve to the IPv6 address `::1` and then will try `127.0.0.1`.  Until we get IPv6 decode support, a `libpcap` filter can be
 set to only see IPv4 traffic:
 
-    sudo http_trace lo0 "ip proto \tcp"
+```shell
+sudo http_trace lo0 "ip proto \tcp"
+```
 
 The backslash is important.  The pcap filter language has an ambiguity with the word "tcp", so by escaping it,
 you'll get the correct interpretation for this case.
