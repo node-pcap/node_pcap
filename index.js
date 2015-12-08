@@ -1,7 +1,7 @@
 
 var decode         = require("./decode").decode;
-var tcp_tracker    = require("./lib/tcp_tracker");
-var DNSCache       = require("./lib/dns_cache");
+var tcp_tracker    = require("./lib/tcpTracker");
+var DNSCache       = require("./lib/dnsCache");
 var binding        = require("./build/Release/pcap_binding");
 var LiveSession    = require("./lib/liveSession");
 var OfflineSession = require("./lib/offlineSession");
