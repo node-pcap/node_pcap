@@ -114,7 +114,7 @@ This structure is easy to explore with `sys.inspect`.
 TCP can be analyzed by feeding the packets into a `TCPTracker` and then listening for `session` and `end` events.
 
 ```js
-var pcap = require('./pcap'),
+var pcap = require('pcap2'),
     tcpTracker = new pcap.TCPTracker(),
     pcapSession = new pcap.Session('en0', {
         filter: 'ip proto \\tcp'
