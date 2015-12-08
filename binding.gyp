@@ -2,7 +2,7 @@
   "targets": [
     {
       "target_name": "pcap_binding",
-      "sources": [ "pcap_binding.cc", "pcap_session.cc" ],
+      "sources": [ "src/pcap_binding.cc", "src/pcap_session.cc" ],
       "include_dirs": [
         "<!(node -e \"require('nan')\")"
       ],
