@@ -13,7 +13,7 @@ It has been tested on OSX and Linux.
 
 `node_pcap` is useful for many things, but it does not yet understand all common protocols.  Common reasons
 to use this package are
-[http_trace](https://github.com/mranney/http_trace), and
+[http_trace](https://github.com/mranney/http_trace) (works only on node 4), and
 [htracr](https://github.com/mnot/htracr).
 
 ## Why capture packets in JavaScript?
@@ -61,7 +61,7 @@ capture programs.
 There are several example programs that show how to use `node_pcap`.  These examples are best documentation.
 Try them out and see what they do.
 
-To use this library in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm` 
+To use this library in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm`
 takes care of this automatically.
 
 ### Starting a capture session
@@ -92,7 +92,7 @@ Listening for packets:
     });
 
 To convert `raw_packet` into a JavaScript object that is easy to work with, decode it:
-    
+
     var packet = pcap.decode.packet(raw_packet);
 
 The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
@@ -127,24 +127,24 @@ pcap_session.on('packet', function (raw_packet) {
 You must only send IPv4 TCP packets to the TCP tracker.  Explore the `session` object with `sys.inspect` to
 see the wonderful things it can do for you.  Hopefully the names of the properties are self-explanatory:
 
-See [http_trace](https://github.com/mranney/http_trace) for an example of how to use these events to decode HTTP.
-    
+See [http_trace](https://github.com/mranney/http_trace) for an example of how to use these events to decode HTTP (Works only on node 4).
+
 ## Some Common Problems
 
 ### TCP Segmentation Offload - TSO
 
-TSO is a technique that modern operating systems use to offload the burden of IP/TCP header computation to 
+TSO is a technique that modern operating systems use to offload the burden of IP/TCP header computation to
 the network hardware.  It also reduces the number of times that data is moved data between the kernel and the
 network hardware.  TSO saves CPU when sending data that is larger than a single IP packet.
 
 This is amazing and wonderful, but it does make some kinds of packet sniffing more difficult.  In many cases,
-it is important to see the exact packets that are sent, but if the network hardware is sending the packets, 
+it is important to see the exact packets that are sent, but if the network hardware is sending the packets,
 these are not available to `libpcap`.  The solution is to disable TSO.
 
 OSX:
 
     sudo sysctl -w net.inet.tcp.tso=0
-    
+
 Linux (substitute correct interface name):
 
     sudo ethtool -K eth0 tso off
@@ -159,7 +159,7 @@ resolve to the IPv6 address `::1` and then will try `127.0.0.1`.  Until we get I
 set to only see IPv4 traffic:
 
     sudo http_trace lo0 "ip proto \tcp"
-    
+
 The backslash is important.  The pcap filter language has an ambiguity with the word "tcp", so by escaping it,
 you'll get the correct interpretation for this case.
 
@@ -178,7 +178,7 @@ set to a larger value.
 
 [redis_trace](https://github.com/mranney/redis_trace)
 
-[http_trace](https://github.com/mranney/http_trace)
+[http_trace](https://github.com/mranney/http_trace) (Node 4 only)
 
 ## LICENSE - "MIT License"
 
