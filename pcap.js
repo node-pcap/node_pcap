@@ -84,7 +84,7 @@ util.inherits(PcapSession, events.EventEmitter);
 
 exports.lib_version = binding.lib_version();
 
-PcapSession.prototype.findalldevs = function () {
+exports.findalldevs = function () {
     return binding.findalldevs();
 };
 
@@ -124,4 +124,3 @@ exports.createSession = function (device, filter, buffer_size, monitor) {
 exports.createOfflineSession = function (path, filter) {
     return new PcapSession(false, path, filter, 0, null, null);
 };
-
