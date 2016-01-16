@@ -107,7 +107,7 @@ This structure is easy to explore with `sys.inspect`.
 TCP can be analyzed by feeding the packets into a `TCPTracker` and then listening for `session` and `end` events.
 
 ```javascript
-var pcap = require('./pcap'),
+var pcap = require('pcap'),
     tcp_tracker = new pcap.TCPTracker(),
     pcap_session = pcap.createSession('en0', "ip proto \\tcp");
 
@@ -128,6 +128,16 @@ You must only send IPv4 TCP packets to the TCP tracker.  Explore the `session` o
 see the wonderful things it can do for you.  Hopefully the names of the properties are self-explanatory:
 
 See [http_trace](https://github.com/mranney/http_trace) for an example of how to use these events to decode HTTP (Works only on node 4).
+
+### Logging
+
+By default, all logging goes to `console`. All exposed methods support an optional `setLogger` function that takes in
+a logging component (such as [bunyan](https://www.npmjs.com/package/bunyan) or [winston](https://www.npmjs.com/package/winston))
+to direct logging into your application's preferred style.
+
+If you'd like to disable logging altogether, simple pass `false` into the `setLogger` function.
+
+Note: If you use the `pcap.decode` mechanism, your logger must be passed as an optional 3rd argument.
 
 ## Some Common Problems
 

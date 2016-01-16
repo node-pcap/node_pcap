@@ -2,12 +2,16 @@ var EventEmitter = require("events").EventEmitter;
 var inherits = require("util").inherits;
 var IPv4 = require("./decode/ipv4");
 var TCP = require("./decode/tcp");
+var setLogger = require("./set_logger");
 
 function TCPTracker() {
+    this.logger = console;
     this.sessions = {};
     EventEmitter.call(this);
 }
 inherits(TCPTracker, EventEmitter);
+
+TCPTracker.prototype.setLogger = setLogger;
 
 TCPTracker.prototype.track_packet = function (packet) {
     var ip, tcp, src, dst, key, session;
@@ -28,7 +32,7 @@ TCPTracker.prototype.track_packet = function (packet) {
         session = this.sessions[key];
         if (! session) {
             is_new = true;
-            session = new TCPSession();
+            session = new TCPSession(this.logger);
             this.sessions[key] = session;
         }
 
@@ -44,7 +48,8 @@ TCPTracker.prototype.track_packet = function (packet) {
     // user should filter these out with their pcap filter, but oh well.
 };
 
-function TCPSession() {
+function TCPSession(logger) {
+    this.logger = (typeof logger === "undefined") ? console : logger;
     this.src = null;
     this.src_name = null; // from DNS
     this.dst = null;
@@ -82,6 +87,8 @@ function TCPSession() {
     EventEmitter.call(this);
 }
 inherits(TCPSession, EventEmitter);
+
+TCPSession.prototype.setLogger = setLogger;
 
 TCPSession.prototype.track = function (packet) {
     var ip  = packet.payload.payload;
@@ -135,7 +142,7 @@ TCPSession.prototype.SYN_SENT = function (packet) {
         this.state = "CLOSED";
         this.emit("reset", this, "recv"); // TODO - check which direction did the reset, probably recv
 //    } else {
-//        console.log("Didn't get SYN-ACK packet from dst while handshaking: " + util.inspect(tcp, false, 4));
+//        this.logger.log("Didn't get SYN-ACK packet from dst while handshaking: " + util.inspect(tcp, false, 4));
     }
 };
 
@@ -152,7 +159,7 @@ TCPSession.prototype.SYN_RCVD = function (packet) {
         this.emit("start", this);
         this.state = "ESTAB";
 //    } else {
-//        console.log("Didn't get ACK packet from src while handshaking: " + util.inspect(tcp, false, 4));
+//        this.logger.log("Didn't get ACK packet from src while handshaking: " + util.inspect(tcp, false, 4));
     }
 };
 
@@ -188,7 +195,7 @@ TCPSession.prototype.ESTAB = function (packet) {
         if (this.recv_packets[tcp.ackno]) {
             this.send_acks[tcp.ackno] = this.current_cap_time;
         }
-        // console.log("sending ACK for packet we didn't see received: " + tcp.ackno);
+        // this.logger.log("sending ACK for packet we didn't see received: " + tcp.ackno);
         if (tcp.flags.fin) {
             this.state = "FIN_WAIT";
         }
@@ -216,7 +223,7 @@ TCPSession.prototype.ESTAB = function (packet) {
             this.state = "CLOSE_WAIT";
         }
     } else {
-        console.log("non-matching packet in session: " + packet);
+        this.logger.log("non-matching packet in session: " + packet);
     }
 };
 

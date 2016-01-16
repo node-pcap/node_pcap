@@ -39,8 +39,9 @@ PresentFieldFlags.prototype.decode = function decode (flags) {
     return this;
 };
 
-function RadioPacket(emitter) {
+function RadioPacket(emitter, logger) {
     this.emitter = emitter;
+    this.logger = logger;
     this.headerRevision = undefined;
     this.headerPad = undefined;
     this.headerLength = undefined;
@@ -95,7 +96,7 @@ RadioPacket.prototype.decode = function (raw_packet, offset) {
     if(p.txAttenuation) { offset++; }
     if(p.dbTxAttenuation) { offset += 2; }
     if(p.dbmTxPower) { offset++; }
-    if(p.antenna) { 
+    if(p.antenna) {
         this.antenna = raw_packet[offset++];
     }
     if(p.dbAntennaSignal) { offset++; }

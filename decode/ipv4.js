@@ -31,8 +31,9 @@ IPFlags.prototype.toString = function () {
     return ret;
 };
 
-function IPv4(emitter) {
-    this.emitter = emitter; 
+function IPv4(emitter, logger) {
+    this.emitter = emitter;
+    this.logger = logger;
     this.version = undefined;
     this.headerLength = undefined;
     this.diffserv = undefined;
@@ -116,7 +117,7 @@ IPv4.prototype.toString = function () {
     } else {
         ret += this.payload.constructor.name;
     }
-    
+
 
     return ret + " " + this.payload;
 };

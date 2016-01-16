@@ -1,6 +1,6 @@
 
-function TCPFlags(emitter) {
-    this.emitter = emitter;
+function TCPFlags(logger) {
+    this.logger = logger;
     this.nonce = undefined;
     this.cwr = undefined;
     this.ece = undefined;
@@ -57,7 +57,8 @@ TCPFlags.prototype.toString = function () {
     return ret;
 };
 
-function TCPOptions() {
+function TCPOptions(logger) {
+    this.logger = logger;
     this.mss = null;
     this.window_scale = null;
     this.sack_ok = null;
@@ -128,7 +129,7 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
                 offset += 8;
                 break;
             default:
-                console.log("Invalid TCP SACK option length " + raw_packet[offset + 1]);
+                this.logger.log("Invalid TCP SACK option length " + raw_packet[offset + 1]);
                 offset = end_offset;
             }
             break;
@@ -178,6 +179,7 @@ TCPOptions.prototype.toString = function () {
 
 function TCP(emitter) {
     this.emitter        = emitter;
+    this.logger         = console;
     this.sport          = undefined;
     this.dport          = undefined;
     this.seqno          = undefined;
@@ -216,7 +218,7 @@ TCP.prototype.decode = function (raw_packet, offset, len) {
     // of the header.
     this.headerLength    = (raw_packet[offset] & 0xf0) >> 2;
 
-    this.flags = new TCPFlags().decode(raw_packet[offset], raw_packet[offset+1]);
+    this.flags = new TCPFlags(this.logger).decode(raw_packet[offset], raw_packet[offset+1]);
     offset += 2;
     this.windowSize    = raw_packet.readUInt16BE(offset, true); // 14, 15
     offset += 2;

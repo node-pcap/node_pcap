@@ -3,6 +3,7 @@ var NullPacket = require("./null_packet");
 var Ipv4 = require("./ipv4");
 var RadioPacket = require("./ieee802.11/radio_packet");
 var SLLPacket = require("./sll_packet");
+var setLogger = require("../set_logger");
 
 // Setting properties from the C++ side is very slow, so we send in a shared Buffer.
 // The C++ side does this:
@@ -19,12 +20,16 @@ function PcapHeader(raw_header) {
     this.len = raw_header.readUInt32LE(12, true);
 }
 
-function PcapPacket(emitter) {
+function PcapPacket(emitter, logger) {
     this.link_type = null;
     this.pcap_header = null;
     this.payload = null;
     this.emitter = emitter;
+    this.logger = console;
+    this.setLogger(logger);
 }
+
+PcapPacket.prototype.setLogger = setLogger;
 
 PcapPacket.prototype.decode = function (packet_with_header) {
     this.link_type = packet_with_header.link_type;
@@ -34,22 +39,22 @@ PcapPacket.prototype.decode = function (packet_with_header) {
 
     switch (this.link_type) {
     case "LINKTYPE_ETHERNET":
-        this.payload = new EthernetPacket(this.emitter).decode(buf, 0);
+        this.payload = new EthernetPacket(this.emitter, this.logger).decode(buf, 0);
         break;
     case "LINKTYPE_NULL":
-        this.payload = new NullPacket(this.emitter).decode(buf, 0);
+        this.payload = new NullPacket(this.emitter, this.logger).decode(buf, 0);
         break;
     case "LINKTYPE_RAW":
-        this.payload = new Ipv4(this.emitter).decode(buf, 0);
+        this.payload = new Ipv4(this.emitter, this.logger).decode(buf, 0);
         break;
     case "LINKTYPE_IEEE802_11_RADIO":
-        this.payload = new RadioPacket(this.emitter).decode(buf, 0);
+        this.payload = new RadioPacket(this.emitter, this.logger).decode(buf, 0);
         break;
     case "LINKTYPE_LINUX_SLL":
-        this.payload = new SLLPacket(this.emitter).decode(buf, 0);
+        this.payload = new SLLPacket(this.emitter, this.logger).decode(buf, 0);
         break;
     default:
-        console.log("node_pcap: PcapPacket.decode - Don't yet know how to decode link type " + this.link_type);
+        this.logger.log("node_pcap: PcapPacket.decode - Don't yet know how to decode link type " + this.link_type);
     }
 
     return this;

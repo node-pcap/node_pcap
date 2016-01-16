@@ -5,6 +5,7 @@ var SocketWatcher = require("socketwatcher").SocketWatcher;
 var decode        = require("./decode").decode;
 var tcp_tracker   = require("./tcp_tracker");
 var DNSCache      = require("./dns_cache");
+var setLogger     = require("./set_logger");
 var timers        = require("timers");
 
 exports.decode = decode;
@@ -13,6 +14,7 @@ exports.TCPSession = tcp_tracker.TCPSession;
 exports.DNSCache = DNSCache;
 
 function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_monitor) {
+    this.logger = console;
     this.is_live = is_live;
     this.device_name = device_name;
     this.filter = filter || "";
@@ -93,6 +95,8 @@ function PacketWithHeader(buf, header, link_type) {
     this.header = header;
     this.link_type = link_type;
 }
+
+PcapSession.prototype.setLogger = setLogger;
 
 PcapSession.prototype.on_packet_ready = function () {
     var full_packet = new PacketWithHeader(this.buf, this.header, this.link_type);
