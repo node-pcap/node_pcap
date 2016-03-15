@@ -76,6 +76,8 @@ RadioPacket.prototype.decode = function (raw_packet, offset) {
     if(p.rate) { offset += 1; }
 
     if(p.channel) {
+        // Fix alignment
+        offset += offset % 2;
         //Frequency
         this.frequency = raw_packet.readUInt16LE(offset, true);
         //channel flags are the 2 bytes after channel freq
@@ -91,16 +93,31 @@ RadioPacket.prototype.decode = function (raw_packet, offset) {
     if(p.signalNoise) { //in dbi
         this.signalNoise = raw_packet.readInt8(offset++);
     }
-    if(p.lockQuality) { offset += 2; }
-    if(p.txAttenuation) { offset++; }
-    if(p.dbTxAttenuation) { offset += 2; }
+    if(p.lockQuality) {
+      // Fix alignment
+      offset += offset % 2;
+      offset += 2;
+    }
+    if(p.txAttenuation) {
+      // Fix alignment
+      offset += offset % 2;
+      offset+= 2;
+    }
+    if(p.dbTxAttenuation) {
+      // Fix alignment
+      offset += offset % 2;
+      offset += 2;
+    }
     if(p.dbmTxPower) { offset++; }
-    if(p.antenna) { 
+    if(p.antenna) {
         this.antenna = raw_packet[offset++];
     }
     if(p.dbAntennaSignal) { offset++; }
     if(p.dbAntennaNoise) { offset++; }
-    if(p.rxFlags) { offset += 2; }
+    if(p.rxFlags) {
+      offset += offset % 2;
+      offset += 2;
+    }
 
     offset = original_offset + this.headerLength;
 
