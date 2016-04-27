@@ -30,7 +30,9 @@ void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address)
       size = INET6_ADDRSTRLEN;
     }
     const char* address = inet_ntop(addr->sa_family, src, dst_addr, size);
-    Address->Set(Nan::New(key).ToLocalChecked(), Nan::New(address).ToLocalChecked());
+    if(address){
+        Address->Set(Nan::New(key).ToLocalChecked(), Nan::New(address).ToLocalChecked());
+    }
   }
 }
 
