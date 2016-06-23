@@ -97,7 +97,7 @@ DNS.prototype.decode = function (raw_packet, offset) {
     this.offset = offset;
 
     this.id = raw_packet.readUInt16BE(offset); // 0, 1
-    this.header = new DnsFlags().decode(raw_packet.readUInt16BE(this.offset+2));
+    this.header = new DnsFlags().decode(raw_packet,this.offset+2);
     this.qdcount = raw_packet.readUInt16BE(offset + 4); // 4, 5
     this.ancount = raw_packet.readUInt16BE(offset + 6); // 6, 7
     this.nscount = raw_packet.readUInt16BE(offset + 8); // 8, 9
