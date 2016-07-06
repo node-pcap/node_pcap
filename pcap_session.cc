@@ -28,7 +28,6 @@ void PcapSession::Init(Handle<Object> exports) {
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "stats", Stats);
   Nan::SetPrototypeMethod(tpl, "inject", Inject);
-  Nan::SetPrototypeMethod(tpl, "create_pcapDump", CreatePcapDump);
 
   constructor.Reset(tpl->GetFunction());
   exports->Set(Nan::New("PcapSession").ToLocalChecked(), tpl->GetFunction());
@@ -127,7 +126,6 @@ void PcapSession::Dispatch(const Nan::FunctionCallbackInfo<Value>& info)
 
 void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
 {
-    //this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor)
     Nan::HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
@@ -381,122 +379,4 @@ void PcapSession::Inject(const Nan::FunctionCallbackInfo<Value>& info)
         return;
     }
     return;
-}
-
-void PcapSession::CreatePcapDump(const Nan::FunctionCallbackInfo<Value>& info)
-{
-    //this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor)
-    Nan::HandleScope scope;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    
-    if (info.Length() == 7) {
-        if (!info[0]->IsString()) {
-            Nan::ThrowTypeError("pcap Open: info[0] must be a String");
-            return;
-        }
-        if (!info[1]->IsString()) {
-            Nan::ThrowTypeError("pcap Open: info[1] must be a String");
-            return;
-        }
-        if (!info[2]->IsInt32()) {
-            Nan::ThrowTypeError("pcap Open: info[2] must be a Number");
-            return;
-        }
-        if (!info[3]->IsString()) {
-            Nan::ThrowTypeError("pcap Open: info[3] must be a String");
-            return;
-        }
-        if (!info[4]->IsFunction()) {
-            Nan::ThrowTypeError("pcap Open: info[4] must be a Function");
-            return;
-        }
-        if (!info[5]->IsBoolean()) {
-            Nan::ThrowTypeError("pcap Open: info[5] must be a Boolean");
-            return;
-        }
-        if (!info[6]->IsInt32()) {
-            Nan::ThrowTypeError("pcap Open: info[6] must be a Number");
-            return;
-        }
-    } else {
-        Nan::ThrowTypeError("pcap CreatePcapDump: expecting 7 arguments");
-        return;
-    }
-    Nan::Utf8String device(info[0]->ToString());
-    Nan::Utf8String filter(info[1]->ToString());
-    int buffer_size = info[2]->Int32Value();
-    Nan::Utf8String pcap_output_filename(info[3]->ToString());
-    int noOfPackets = info[6]->Int32Value();
-    
-    PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
-    
-    session->packet_ready_cb.Reset(info[4].As<Function>());
-    session->pcap_dump_handle = NULL;
-    
-   
-        if (pcap_lookupnet((char *) *device, &session->net, &session->mask, errbuf) == -1) {
-            session->net = 0;
-            session->mask = 0;
-            fprintf(stderr, "warning: %s - this may not actually work\n", errbuf);
-        }
-        
-        session->pcap_handle = pcap_create((char *) *device, errbuf);
-        if (session->pcap_handle == NULL) {
-            Nan::ThrowError(errbuf);
-            return;
-        }
-        
-        // 64KB is the max IPv4 packet size
-        if (pcap_set_snaplen(session->pcap_handle, 65535) != 0) {
-            Nan::ThrowError("error setting snaplen");
-            return;
-        }
-        
-        // always use promiscuous mode
-        if (pcap_set_promisc(session->pcap_handle, 1) != 0) {
-            Nan::ThrowError("error setting promiscuous mode");
-            return;
-        }
-        
-        // Try to set buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
-        if (pcap_set_buffer_size(session->pcap_handle, buffer_size) != 0) {
-            Nan::ThrowError("error setting buffer size");
-            return;
-        }
-        
-        // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
-        if (pcap_set_timeout(session->pcap_handle, 1000) != 0) {
-            Nan::ThrowError("error setting read timeout");
-            return;
-        }
-        
-
-        
-        if (pcap_activate(session->pcap_handle) != 0) {
-            Nan::ThrowError(pcap_geterr(session->pcap_handle));
-            return;
-        }
-        
-        if (strlen((char *) *pcap_output_filename) > 0) {
-            session->pcap_dump_handle = pcap_dump_open(session->pcap_handle, (char *) *pcap_output_filename);
-            if (session->pcap_dump_handle == NULL) {
-                Nan::ThrowError("error opening dump");
-                return;
-            }
-        }
-        
-    
-    if (filter.length() != 0) {
-        if (pcap_compile(session->pcap_handle, &session->fp, (char *) *filter, 1, session->net) == -1) {
-            Nan::ThrowError(pcap_geterr(session->pcap_handle));
-            return;
-        }
-        
-        if (pcap_setfilter(session->pcap_handle, &session->fp) == -1) {
-            Nan::ThrowError(pcap_geterr(session->pcap_handle));
-            return;
-        }
-        pcap_freecode(&session->fp);
-    }
-    
 }
