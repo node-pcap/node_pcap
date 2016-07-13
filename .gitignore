@@ -31,3 +31,6 @@ build
 
 #OSX garbage
 .DS_Store
+
+#intellij IDE
+.idea

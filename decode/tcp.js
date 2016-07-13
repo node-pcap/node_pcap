@@ -13,7 +13,7 @@ function TCPFlags(emitter) {
 }
 
 TCPFlags.prototype.decode = function (first_byte, second_byte) {
-    this.nonce = Boolean(first_byte & 16);
+    this.nonce = Boolean(first_byte & 1);
     this.cwr = Boolean(second_byte & 128);
     this.ece = Boolean(second_byte & 64);
     this.urg = Boolean(second_byte & 32);
