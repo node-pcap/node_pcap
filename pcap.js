@@ -102,10 +102,11 @@ PcapSession.prototype.on_packet_ready = function () {
 PcapSession.prototype.close = function () {
     this.opened = false;
 
+    this.removeAllListeners();
+
     if (this.is_live) {
         this.readWatcher.stop();
     }
-    // TODO - remove listeners so program will exit I guess?
 
     this.session.close();
 };
