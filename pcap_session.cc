@@ -335,6 +335,11 @@ void PcapSession::Fileno(const Nan::FunctionCallbackInfo<Value>& info)
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.Holder());
 
+    if (session->pcap_handle == NULL) {
+        Nan::ThrowError("Error: pcap session already closed");
+        return;
+    }
+
     int fd = pcap_get_selectable_fd(session->pcap_handle);
 
     info.GetReturnValue().Set(Nan::New<Integer>(fd));
@@ -347,6 +352,11 @@ void PcapSession::Stats(const Nan::FunctionCallbackInfo<Value>& info)
     struct pcap_stat ps;
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.Holder());
+
+    if (session->pcap_handle == NULL) {
+        Nan::ThrowError("Error: pcap session already closed");
+        return;
+    }
 
     if (pcap_stats(session->pcap_handle, &ps) == -1) {
         Nan::ThrowError("Error in pcap_stats");
@@ -379,6 +389,12 @@ void PcapSession::Inject(const Nan::FunctionCallbackInfo<Value>& info)
     }
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.Holder());
+
+    if (session->pcap_handle == NULL) {
+        Nan::ThrowError("Error: pcap session already closed");
+        return;
+    }
+
     char * bufferData = NULL;
     size_t bufferLength = 0;
     Local<Object> buffer_obj = info[0]->ToObject();
