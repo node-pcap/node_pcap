@@ -22,6 +22,7 @@ private:
     static void Stats(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void Inject(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet);
+    static void FinalizeClose(PcapSession *session);
 
     Nan::Persistent<v8::Function> packet_ready_cb;
     static Nan::Persistent<v8::Function> constructor;

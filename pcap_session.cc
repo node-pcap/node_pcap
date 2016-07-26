@@ -119,6 +119,10 @@ void PcapSession::Dispatch(const Nan::FunctionCallbackInfo<Value>& info)
     int packet_count;
     do {
         packet_count = pcap_dispatch(session->pcap_handle, 1, PacketReady, (u_char *)session);
+
+        if (packet_count == -2) {
+            FinalizeClose(session);
+        }
     } while (packet_count > 0);
 
     info.GetReturnValue().Set(Nan::New<Integer>(packet_count));
@@ -313,9 +317,16 @@ void PcapSession::Close(const Nan::FunctionCallbackInfo<Value>& info)
         session->pcap_dump_handle = NULL;
     }
 
+    if (session->pcap_handle != NULL) {
+        pcap_breakloop(session->pcap_handle);
+    }
+}
+
+void PcapSession::FinalizeClose(PcapSession * session) {
     pcap_close(session->pcap_handle);
+    session->pcap_handle = NULL;
+
     session->packet_ready_cb.Reset();
-    return;
 }
 
 void PcapSession::Fileno(const Nan::FunctionCallbackInfo<Value>& info)
