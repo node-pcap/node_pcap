@@ -313,7 +313,9 @@ void PcapSession::Close(const Nan::FunctionCallbackInfo<Value>& info)
         session->pcap_dump_handle = NULL;
     }
 
-    pcap_close(session->pcap_handle);
+    if (session->pcap_handle != NULL) {
+        pcap_close(session->pcap_handle);
+    }
     session->packet_ready_cb.Reset();
     return;
 }
