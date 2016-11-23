@@ -53,9 +53,9 @@ RadioFrame.prototype.decode = function (raw_packet, offset) {
     this.subType = (this.frameControl >> 4) & 0x000f;
     this.flags = new RadioFrameFlags().decode((this.frameControl >> 8) & 0xff);
     this.duration = raw_packet.readUInt16BE(offset, true); offset += 2;
-    this.bssid = new EthernetAddr(raw_packet, offset); offset += 6;
-    this.shost = new EthernetAddr(raw_packet, offset); offset += 6;
-    this.dhost = new EthernetAddr(raw_packet, offset); offset += 6;
+    this.bssid = new EthernetAddr(raw_packet, offset).toString(); offset += 6;
+    this.shost = new EthernetAddr(raw_packet, offset).toString(); offset += 6;
+    this.dhost = new EthernetAddr(raw_packet, offset).toString(); offset += 6;
     this.fragSeq = raw_packet.readUInt16BE(offset, true); offset += 2;
 
     if (this.type === 0) {
