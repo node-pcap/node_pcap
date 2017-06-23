@@ -169,7 +169,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
     Nan::Utf8String device(info[0]->ToString());
     Nan::Utf8String filter(info[1]->ToString());
     int buffer_size = info[2]->Int32Value();
-    int snap_length = info[3]->Int32Value() || 65535;
+    int snap_length = info[3]->Int32Value();
     Nan::Utf8String pcap_output_filename(info[4]->ToString());
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
