@@ -70,10 +70,8 @@ void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const
 
     size_t copy_len = pkthdr->caplen;
 
-    // if the length of the packet is actually bigger than the snaplength
-    // just use the snaplength, truncating the original.
-    if (copy_len > session->snap_length) {
-        copy_len = session->snap_length;
+    if (copy_len > session->buffer_length) {
+        copy_len = session->buffer_length;
     }
 
     memcpy(session->buffer_data, packet, copy_len);
