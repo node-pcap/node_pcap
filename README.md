@@ -68,8 +68,10 @@ takes care of this automatically.
 
 To start a capture session, call `pcap.createSession` with an interface name and a pcap filter string:
 
-    var pcap = require('pcap'),
-        pcap_session = pcap.createSession(interface, filter);
+```javascript
+var pcap = require('pcap'),
+    pcap_session = pcap.createSession(interface, filter);
+```
 
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
 will try to pick a "default" interface, which is often just the first one in some list and not what you want.
@@ -87,9 +89,11 @@ Unless you are recklessly roaming about as root already, you'll probably want to
 
 Listening for packets:
 
-    pcap_session.on('packet', function (raw_packet) {
-        // do some stuff with a raw packet
-    });
+```javascript
+pcap_session.on('packet', function (raw_packet) {
+    // do some stuff with a raw packet
+});
+```
 
 To convert `raw_packet` into a JavaScript object that is easy to work with, decode it:
 
@@ -98,7 +102,9 @@ To convert `raw_packet` into a JavaScript object that is easy to work with, deco
 The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
 which is encapsulated within IP, which is encapsulated within a link layer.  Access it like this:
 
-    packet.link.ip.tcp.dport
+```javascript
+packet.link.ip.tcp.dport
+```
 
 This structure is easy to explore with `sys.inspect`.
 
@@ -107,7 +113,7 @@ This structure is easy to explore with `sys.inspect`.
 TCP can be analyzed by feeding the packets into a `TCPTracker` and then listening for `session` and `end` events.
 
 ```javascript
-var pcap = require('./pcap'),
+var pcap = require('pcap'),
     tcp_tracker = new pcap.TCPTracker(),
     pcap_session = pcap.createSession('en0', "ip proto \\tcp");
 
