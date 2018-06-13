@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "nan": "^2.0.9",
-    "socketwatcher": "^0.3.0"
+    "socketwatcher": "git+https://github.com/bytzdev/node-socketwatcher.git"
   },
   "devDependencies": {
     "grunt": "^0.4.5",
