@@ -128,7 +128,7 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
                 offset += 8;
                 break;
             default:
-                console.log("Invalid TCP SACK option length " + raw_packet[offset + 1]);
+                this.emitter.emit("warning", "Invalid TCP SACK option length " + raw_packet[offset + 1]);
                 offset = end_offset;
             }
             break;
@@ -147,7 +147,7 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
             offset += raw_packet.readUInt8(offset + 1);
             break;
         default:
-            throw new Error("Don't know how to process TCP option " + raw_packet[offset]);
+            this.emitter.emit("warning", "Don't know how to process TCP option " + raw_packet[offset]);
         }
     }
 

@@ -47,7 +47,7 @@ SLLPacket.prototype.decode = function (raw_packet, offset) {
             this.payload = "need to implement LLDP";
             break;
         default:
-            console.log("node_pcap: SLLPacket() - Don't know how to decode ethertype " + this.ethertype);
+            this.emitter.emit("warning", "node_pcap: SLLPacket() - Don't know how to decode ethertype " + this.ethertype);
         }
     }
 

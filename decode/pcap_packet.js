@@ -49,7 +49,7 @@ PcapPacket.prototype.decode = function (packet_with_header) {
         this.payload = new SLLPacket(this.emitter).decode(buf, 0);
         break;
     default:
-        console.log("node_pcap: PcapPacket.decode - Don't yet know how to decode link type " + this.link_type);
+        this.emitter.emit("warning", "node_pcap: PcapPacket.decode - Don't yet know how to decode link type " + this.link_type);
     }
 
     return this;
