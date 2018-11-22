@@ -119,6 +119,10 @@ void PcapSession::Dispatch(const Nan::FunctionCallbackInfo<Value>& info)
     int packet_count;
     do {
         packet_count = pcap_dispatch(session->pcap_handle, 1, PacketReady, (u_char *)session);
+
+        if (packet_count == -2) {
+            FinalizeClose(session);
+        }
     } while (packet_count > 0);
 
     info.GetReturnValue().Set(Nan::New<Integer>(packet_count));
@@ -313,9 +317,16 @@ void PcapSession::Close(const Nan::FunctionCallbackInfo<Value>& info)
         session->pcap_dump_handle = NULL;
     }
 
+    if (session->pcap_handle != NULL) {
+        pcap_breakloop(session->pcap_handle);
+    }
+}
+
+void PcapSession::FinalizeClose(PcapSession * session) {
     pcap_close(session->pcap_handle);
+    session->pcap_handle = NULL;
+
     session->packet_ready_cb.Reset();
-    return;
 }
 
 void PcapSession::Fileno(const Nan::FunctionCallbackInfo<Value>& info)
@@ -323,6 +334,11 @@ void PcapSession::Fileno(const Nan::FunctionCallbackInfo<Value>& info)
     Nan::HandleScope scope;
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.Holder());
+
+    if (session->pcap_handle == NULL) {
+        Nan::ThrowError("Error: pcap session already closed");
+        return;
+    }
 
     int fd = pcap_get_selectable_fd(session->pcap_handle);
 
@@ -336,6 +352,11 @@ void PcapSession::Stats(const Nan::FunctionCallbackInfo<Value>& info)
     struct pcap_stat ps;
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.Holder());
+
+    if (session->pcap_handle == NULL) {
+        Nan::ThrowError("Error: pcap session already closed");
+        return;
+    }
 
     if (pcap_stats(session->pcap_handle, &ps) == -1) {
         Nan::ThrowError("Error in pcap_stats");
@@ -368,6 +389,12 @@ void PcapSession::Inject(const Nan::FunctionCallbackInfo<Value>& info)
     }
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.Holder());
+
+    if (session->pcap_handle == NULL) {
+        Nan::ThrowError("Error: pcap session already closed");
+        return;
+    }
+
     char * bufferData = NULL;
     size_t bufferLength = 0;
     Local<Object> buffer_obj = info[0]->ToObject();
