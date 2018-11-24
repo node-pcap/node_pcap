@@ -1,8 +1,9 @@
 var IPv4 = require("./ipv4");
 var IPv6 = require("./ipv6");
 
-function NullPacket(emitter) {
+function NullPacket(emitter, logger) {
     this.emitter = emitter;
+    this.logger = logger;
     this.pftype = undefined;
     this.payload = undefined;
     this._error = undefined;

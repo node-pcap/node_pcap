@@ -4,8 +4,9 @@ var IPv6 = require("./ipv6");
 var Arp = require("./arp");
 var Vlan = require("./vlan");
 
-function EthernetPacket(emitter) {
+function EthernetPacket(emitter, logger) {
     this.emitter = emitter;
+    this.logger = logger;
     this.dhost = null;
     this.shost = null;
     this.ethertype = null;
@@ -49,7 +50,7 @@ EthernetPacket.prototype.decode = function (raw_packet, offset) {
             this.payload = "need to implement LLDP";
             break;
         default:
-            console.log("node_pcap: EthernetFrame() - Don't know how to decode ethertype " + this.ethertype);
+            this.logger.log("node_pcap: EthernetFrame() - Don't know how to decode ethertype " + this.ethertype);
         }
     }
 
