@@ -148,6 +148,7 @@ TCPOptions.prototype.decode = function (raw_packet, offset, len) {
             break;
         default:
             this.emitter.emit("warning", "Don't know how to process TCP option " + raw_packet[offset]);
+            offset = end_offset;
         }
     }
 
