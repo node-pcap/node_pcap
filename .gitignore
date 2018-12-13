@@ -31,3 +31,5 @@ build
 
 #OSX garbage
 .DS_Store
+examples/*.pcap
+.vscode/
