@@ -13,7 +13,7 @@ Nan::Persistent<Function> PcapSession::constructor;
 PcapSession::PcapSession() {};
 PcapSession::~PcapSession() {};
 
-void PcapSession::Init(Handle<Object> exports) {
+void PcapSession::Init(Local<Object> exports) {
   Nan::HandleScope scope;
   // Prepare constructor template
   Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(New);
@@ -29,8 +29,8 @@ void PcapSession::Init(Handle<Object> exports) {
   Nan::SetPrototypeMethod(tpl, "stats", Stats);
   Nan::SetPrototypeMethod(tpl, "inject", Inject);
 
-  constructor.Reset(tpl->GetFunction());
-  exports->Set(Nan::New("PcapSession").ToLocalChecked(), tpl->GetFunction());
+  constructor.Reset(tpl->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
+  Nan::Set(exports, Nan::New("PcapSession").ToLocalChecked(), tpl->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
 }
 
 void PcapSession::New(const Nan::FunctionCallbackInfo<Value>& info) {
@@ -82,7 +82,8 @@ void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const
 
     Nan::TryCatch try_catch;
 
-    Nan::MakeCallback(Nan::GetCurrentContext()->Global(), Nan::New(session->packet_ready_cb), 0, NULL);
+    Nan::AsyncResource ar("PcapSession:packet_ready_cb");
+    ar.runInAsyncScope(Nan::GetCurrentContext()->Global(), Nan::New(session->packet_ready_cb), 0, NULL);
 
     if (try_catch.HasCaught())  {
         Nan::FatalException(try_catch);
@@ -110,10 +111,10 @@ void PcapSession::Dispatch(const Nan::FunctionCallbackInfo<Value>& info)
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
 
-    Local<Object> buffer_obj = info[0]->ToObject();
+    Local<Object> buffer_obj = info[0]->ToObject(Nan::GetCurrentContext()).FromMaybe(Local<v8::Object>());
     session->buffer_data = node::Buffer::Data(buffer_obj);
     session->buffer_length = node::Buffer::Length(buffer_obj);
-    Local<Object> header_obj = info[1]->ToObject();
+    Local<Object> header_obj = info[1]->ToObject(Nan::GetCurrentContext()).FromMaybe(Local<v8::Object>());
     session->header_data = node::Buffer::Data(header_obj);
 
     int packet_count;
@@ -162,10 +163,10 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
         Nan::ThrowTypeError("pcap Open: expecting 6 arguments");
         return;
     }
-    Nan::Utf8String device(info[0]->ToString());
-    Nan::Utf8String filter(info[1]->ToString());
-    int buffer_size = info[2]->Int32Value();
-    Nan::Utf8String pcap_output_filename(info[3]->ToString());
+    Nan::Utf8String device(info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(Local<v8::String>()));
+    Nan::Utf8String filter(info[1]->ToString(Nan::GetCurrentContext()).FromMaybe(Local<v8::String>()));
+    int buffer_size = Nan::To<int32_t>(info[2]).FromJust();
+    Nan::Utf8String pcap_output_filename(info[3]->ToString(Nan::GetCurrentContext()).FromMaybe(Local<v8::String>()));
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
 
@@ -211,7 +212,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
 
         // fixes a previous to-do that was here.
         if (info.Length() == 6) {
-            if (info[5]->Int32Value()) {
+            if (Nan::To<int32_t>(info[5]).FromJust()) {
                 if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
                     Nan::ThrowError(pcap_geterr(session->pcap_handle));
                     return;
@@ -366,9 +367,9 @@ void PcapSession::Stats(const Nan::FunctionCallbackInfo<Value>& info)
 
     Local<Object> stats_obj = Nan::New<Object>();
 
-    stats_obj->Set(Nan::New("ps_recv").ToLocalChecked(), Nan::New<Integer>(ps.ps_recv));
-    stats_obj->Set(Nan::New("ps_drop").ToLocalChecked(), Nan::New<Integer>(ps.ps_drop));
-    stats_obj->Set(Nan::New("ps_ifdrop").ToLocalChecked(), Nan::New<Integer>(ps.ps_ifdrop));
+    Nan::Set(stats_obj, Nan::New("ps_recv").ToLocalChecked(), Nan::New<Integer>(ps.ps_recv));
+    Nan::Set(stats_obj, Nan::New("ps_drop").ToLocalChecked(), Nan::New<Integer>(ps.ps_drop));
+    Nan::Set(stats_obj, Nan::New("ps_ifdrop").ToLocalChecked(), Nan::New<Integer>(ps.ps_ifdrop));
     // ps_ifdrop may not be supported on this platform, but there's no good way to tell, is there?
 
     info.GetReturnValue().Set(stats_obj);
@@ -397,7 +398,7 @@ void PcapSession::Inject(const Nan::FunctionCallbackInfo<Value>& info)
 
     char * bufferData = NULL;
     size_t bufferLength = 0;
-    Local<Object> buffer_obj = info[0]->ToObject();
+    Local<Object> buffer_obj = info[0]->ToObject(Nan::GetCurrentContext()).FromMaybe(Local<v8::Object>());
     bufferData = node::Buffer::Data(buffer_obj);
     bufferLength = node::Buffer::Length(buffer_obj);
 
