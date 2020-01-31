@@ -2,6 +2,7 @@
 #define PCAP_SESSION_H
 
 #include <nan.h>
+#include <uv.h>
 #include <pcap/pcap.h>
 
 class PcapSession : public Nan::ObjectWrap {
@@ -17,7 +18,7 @@ private:
     static void OpenLive(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void OpenOffline(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void Dispatch(const Nan::FunctionCallbackInfo<v8::Value>& info);
-    static void Fileno(const Nan::FunctionCallbackInfo<v8::Value>& info);
+    static void StartPolling(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void Close(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void Stats(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void Inject(const Nan::FunctionCallbackInfo<v8::Value>& info);
@@ -36,6 +37,9 @@ private:
     size_t buffer_length;
     size_t snap_length;
     char *header_data;
+
+    uv_poll_t poll_handle;
+    bool poll_init;
 };
 
 #endif

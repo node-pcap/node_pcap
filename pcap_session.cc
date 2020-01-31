@@ -24,7 +24,7 @@ void PcapSession::Init(Local<Object> exports) {
   Nan::SetPrototypeMethod(tpl, "open_live", OpenLive);
   Nan::SetPrototypeMethod(tpl, "open_offline", OpenOffline);
   Nan::SetPrototypeMethod(tpl, "dispatch", Dispatch);
-  Nan::SetPrototypeMethod(tpl, "fileno", Fileno);
+  Nan::SetPrototypeMethod(tpl, "start_polling", StartPolling);
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "stats", Stats);
   Nan::SetPrototypeMethod(tpl, "inject", Inject);
@@ -272,6 +272,10 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
 #if defined(__APPLE_CC__) || defined(__APPLE__)
     #include <net/bpf.h>
     int fd = pcap_get_selectable_fd(session->pcap_handle);
+    if (fd < 0) {
+        Nan::ThrowError(pcap_geterr(session->pcap_handle));
+        return;
+    }
     int v = 1;
     ioctl(fd, BIOCIMMEDIATE, &v);
     // TODO - check return value
@@ -331,17 +335,43 @@ void PcapSession::Close(const Nan::FunctionCallbackInfo<Value>& info)
 }
 
 void PcapSession::FinalizeClose(PcapSession * session) {
+    if (session->poll_init) {
+        uv_poll_stop(&session->poll_handle);
+        uv_unref((uv_handle_t*) &session->poll_handle);
+        session->poll_init = false;
+    }
+
     pcap_close(session->pcap_handle);
     session->pcap_handle = NULL;
 
     session->packet_ready_cb.Reset();
 }
 
-void PcapSession::Fileno(const Nan::FunctionCallbackInfo<Value>& info)
+static void pcap_poll_handler(uv_poll_t* handle, int status, int events)
+{
+    Nan::HandleScope scope;
+    PcapSession* session = reinterpret_cast<PcapSession*>(handle->data);
+
+    Local<String> callback_symbol = Nan::New("read_callback").ToLocalChecked();
+    Local<Value> callback_v = Nan::Get(session->handle(), callback_symbol).ToLocalChecked();
+    if(!callback_v->IsFunction()) return;
+    Local<Function> callback = Local<Function>::Cast(callback_v);
+
+    Nan::TryCatch try_catch;
+
+    Nan::AsyncResource ar("PcapSession:read_callback");
+    ar.runInAsyncScope(Nan::GetCurrentContext()->Global(), callback, 0, NULL);
+
+    if (try_catch.HasCaught())
+        Nan::FatalException(try_catch);
+}
+
+void PcapSession::StartPolling(const Nan::FunctionCallbackInfo<Value>& info)
 {
     Nan::HandleScope scope;
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.Holder());
+    if (session->poll_init) return;
 
     if (session->pcap_handle == NULL) {
         Nan::ThrowError("Error: pcap session already closed");
@@ -349,8 +379,23 @@ void PcapSession::Fileno(const Nan::FunctionCallbackInfo<Value>& info)
     }
 
     int fd = pcap_get_selectable_fd(session->pcap_handle);
+    if (fd < 0) {
+        Nan::ThrowError(pcap_geterr(session->pcap_handle));
+        return;
+    }
 
-    info.GetReturnValue().Set(Nan::New<Integer>(fd));
+    session->poll_handle.data = session;
+    if (uv_poll_init(Nan::GetCurrentEventLoop(), &session->poll_handle, fd) < 0) {
+        Nan::ThrowError("Couldn't initialize UV poll");
+        return;
+    }
+    session->poll_init = true;
+
+    if (uv_poll_start(&session->poll_handle, UV_READABLE, pcap_poll_handler) < 0) {
+        Nan::ThrowError("Couldn't start UV poll");
+        return;
+    }
+    uv_ref((uv_handle_t*) &session->poll_handle);
 }
 
 void PcapSession::Stats(const Nan::FunctionCallbackInfo<Value>& info)
