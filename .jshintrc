@@ -1,17 +1,19 @@
 {
+    "esversion": 6,
     "bitwise": false,
     "camelcase": false,
-    "curly": true,
+    "curly": false,
     "eqeqeq": true,
     "forin": true,
     "immed": true,
     "indent": 4,
     "latedef": "nofunc",
+    "loopfunc": true,
     "newcap": false,
     "noarg": true,
     "nonew": true,
     "plusplus": false,
-    "quotmark": "double",
+    "quotmark": false,
     "regexp": false,
     "undef": true,
     "unused": true,
@@ -36,6 +38,7 @@
         "__filename": false,
         "describe": true,
         "it": true,
-        "beforeEach": true
+        "beforeEach": true,
+        "BigInt": true
     }
 }

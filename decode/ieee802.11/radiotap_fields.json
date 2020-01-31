@@ -1,0 +1,426 @@
+{
+    "0": {
+        "id": "tsft",
+        "title": "TSFT",
+        "description": "Value in microseconds of the MAC's 64-bit 802.11 Time Synchronization\nFunction timer when the first bit of the MPDU arrived at the MAC. For\nreceived frames only.",
+        "units": "microseconds",
+        "structure": [
+            [
+                "u64",
+                "mactime"
+            ]
+        ],
+        "align": 8
+    },
+    "1": {
+        "id": "flags",
+        "title": "Flags",
+        "description": "Properties of transmitted and received frames.\n\nCurrently, the following flags are defined:\n\n| **Mask** | **Meaning** |\n| 0x01 | sent/received during CFP |\n| 0x02 | sent/received with short preamble |\n| 0x04 | sent/received with WEP encryption |\n| 0x08 | sent/received with fragmentation |\n| 0x10 | frame includes FCS |\n| 0x20 | frame has padding between 802.11 header and payload (to 32-bit boundary) |\n| 0x40 | frame failed FCS check |\n\nCurrently unspecified but used:\n\n| **Mask** | **Meaning** |\n| 0x80 | frame used short guard interval (HT) |",
+        "units": "bitmap",
+        "structure": [
+            [
+                "u8",
+                "flags"
+            ]
+        ],
+        "align": 1
+    },
+    "2": {
+        "id": "rate",
+        "title": "Rate",
+        "description": "TX/RX data rate.",
+        "units": "500 Kbps",
+        "structure": [
+            [
+                "u8",
+                null
+            ]
+        ],
+        "align": 1
+    },
+    "3": {
+        "id": "channel",
+        "title": "Channel",
+        "description": "Tx/Rx frequency in MHz, followed by flags.\n\nCurrently, the following flags are defined:\n\n\n| **Mask** | **Meaning** |\n| 0x0010 | Turbo Channel |\n| 0x0020 | CCK channel |\n| 0x0040 | OFDM channel |\n| 0x0080 | 2 GHz spectrum channel |\n| 0x0100 | 5 GHz spectrum channel |\n| 0x0200 | Only passive scan allowed |\n| 0x0400 | Dynamic CCK-OFDM channel |\n| 0x0800 | GFSK channel (FHSS PHY) |",
+        "units": "MHz, bitmap",
+        "structure": [
+            [
+                "u16",
+                "frequency"
+            ],
+            [
+                "u16",
+                "flags"
+            ]
+        ],
+        "align": 2
+    },
+    "4": {
+        "id": "fhss",
+        "title": "FHSS",
+        "description": "The hop set and pattern for frequency-hopping radios.",
+        "units": "??",
+        "structure": [
+            [
+                "u8",
+                "hop set"
+            ],
+            [
+                "u8",
+                "hop pattern"
+            ]
+        ],
+        "align": 1
+    },
+    "5": {
+        "id": "antenna_signal",
+        "title": "Antenna signal",
+        "description": "RF signal power at the antenna. This field contains a single signed\n8-bit value, which indicates the RF signal power at the antenna, in\ndecibels difference from 1mW.",
+        "units": "dBm",
+        "structure": [
+            [
+                "s8",
+                null
+            ]
+        ],
+        "align": 1
+    },
+    "6": {
+        "id": "antenna_noise",
+        "title": "Antenna noise",
+        "description": "RF noise power at the antenna. This field contains a single signed 8-bit\nvalue, which indicates the RF signal power at the antenna, in decibels\ndifference from 1mW.",
+        "units": "dBm",
+        "structure": [
+            [
+                "s8",
+                null
+            ]
+        ],
+        "align": 1
+    },
+    "7": {
+        "id": "lock_quality",
+        "title": "Lock quality",
+        "description": "Quality of Barker code lock. Unitless. Monotonically nondecreasing with\n\"better\" lock strength. Called \"Signal Quality\" in datasheets. (Is there\na standard way to measure this?)",
+        "units": "unitless",
+        "structure": [
+            [
+                "u16",
+                null
+            ]
+        ],
+        "align": 2
+    },
+    "8": {
+        "id": "tx_attenuation",
+        "title": "TX attenuation",
+        "description": "Transmit power expressed as unitless distance from max power set at\nfactory calibration. 0 is max power. Monotonically nondecreasing with\nlower power levels.",
+        "units": "unitless",
+        "structure": [
+            [
+                "u16",
+                null
+            ]
+        ],
+        "align": 2
+    },
+    "9": {
+        "id": "db_tx_attenuation",
+        "title": "dB TX attenuation",
+        "description": "Transmit power expressed as decibel distance from max power set at\nfactory calibration. 0 is max power. Monotonically nondecreasing with\nlower power levels.",
+        "units": "dB",
+        "structure": [
+            [
+                "u16",
+                null
+            ]
+        ],
+        "align": 2
+    },
+    "10": {
+        "id": "dbm_tx_power",
+        "title": "dBm TX power",
+        "description": "Transmit power expressed as dBm (decibels from a 1 milliwatt reference).\nThis is the absolute power level measured at the antenna port.",
+        "units": "dBm",
+        "structure": [
+            [
+                "s8",
+                null
+            ]
+        ],
+        "align": 1
+    },
+    "11": {
+        "id": "antenna",
+        "title": "Antenna",
+        "description": "Unitless indication of the Rx/Tx antenna for this packet. The first\nantenna is antenna 0.",
+        "units": "antenna index",
+        "structure": [
+            [
+                "u8",
+                null
+            ]
+        ],
+        "align": 1
+    },
+    "12": {
+        "id": "db_antenna_signal",
+        "title": "dB antenna signal",
+        "description": "RF signal power at the antenna, decibel difference from an arbitrary,\nfixed reference. This field contains a single unsigned 8-bit value.",
+        "units": "dB",
+        "structure": [
+            [
+                "u8",
+                null
+            ]
+        ],
+        "align": 1
+    },
+    "13": {
+        "id": "db_antenna_noise",
+        "title": "dB antenna noise",
+        "description": "RF noise power at the antenna, decibel difference from an arbitrary,\nfixed reference. This field contains a single unsigned 8-bit value.",
+        "units": "dB",
+        "structure": [
+            [
+                "u8",
+                null
+            ]
+        ],
+        "align": 1
+    },
+    "14": {
+        "id": "rx_flags",
+        "title": "RX flags",
+        "description": "Properties of received frames.\n\nThe following flags are currently defined:\n\n| **mask** | **meaning** |\n| `0x0001` | reserved (was FCS failed but this is a regular flag) |\n| `0x0002` | PLCP CRC check failed |\n| `0xfffc` | reserved for future expansion |\n\nNotes\n=====\n\nThis field originates from NetBSD and is also used like this in Linux.\n\nUse bit `0x40` in the [flags field](/fields/Flags) to indicate *FCS CRC\nfailed*.",
+        "units": "bitmap",
+        "structure": [
+            [
+                "u16",
+                null
+            ]
+        ],
+        "align": 2
+    },
+    "19": {
+        "id": "mcs",
+        "title": "MCS",
+        "description": "The `mcs` field indicates the MCS rate index as in\n[IEEE\\_802.11n-2009](http://en.wikipedia.org/wiki/IEEE_802.11n-2009#Data_rates)\n\nThe `known` field indicates which information is known:\n\n|**flag**|**definition**|\n| 0x01 | bandwidth |\n| 0x02 | MCS index known (in mcs part of the field) |\n| 0x04 | guard interval |\n| 0x08 | HT format |\n| 0x10 | FEC type |\n| 0x20 | STBC known |\n| 0x40 | Ness known (Number of extension spatial streams) |\n| 0x80 | Ness data - bit 1 (MSB) of Number of extension spatial streams |\n\nThe `flags` field is any combination of the following:\n\n| **flag** | **definition** |\n| 0x03 | bandwidth - 0: 20, 1: 40, 2: 20L, 3: 20U |\n| 0x04 | guard interval - 0: long GI, 1: short GI |\n| 0x08 | HT format - 0: mixed, 1: greenfield |\n| 0x10 | FEC type - 0: BCC, 1: LDPC |\n| 0x60 | Number of STBC streams |\n| 0x80 | Ness - bit 0 (LSB) of Number of extension spatial streams |",
+        "units": null,
+        "structure": [
+            [
+                "u8",
+                "known"
+            ],
+            [
+                "u8",
+                "flags"
+            ],
+            [
+                "u8",
+                "mcs"
+            ]
+        ],
+        "align": 1
+    },
+    "20": {
+        "id": "a_mpdu_status",
+        "title": "A-MPDU status",
+        "description": "Required Alignment\n: 4 bytes\n\nThe presence of this field indicates that the frame was received as part\nof an a-MPDU.\n\nThe **reference number** is generated by the capture device and is the\nsame across each subframe of an A-MPDU. Since the capture device might\nbe capable of capturing multiple channels or data from multiple\n(concurrent) captures could be merged, the reference number is not\nguaranteed to be unique across different channels. As a result,\napplications should use the channel information together with the\nreference number to identify the subframes belonging to the same A-MPDU.\n\nThe following **flags** are defined:\n\n\n| **0x0001** | driver reports 0-length subframes |\n| **0x0002** | frame is 0-length subframe (valid only if 0x0001 is set) |\n| **0x0004** | last subframe is known (should be set for all subframes in an A-MPDU) |\n| **0x0008** | this frame is the last subframe |\n| **0x0010** | delimiter CRC error |\n| **0x0020** | delimiter CRC value known: the delimiter CRC value field is valid |\n| **0x0040** | EOF value |\n| **0x0080** | EOF value known |\n| **0xff00** | reserved |\n\nWithin an A-MPDU, the subframe index can be determined by the\napplication so it is not included, but depending on the driver reporting\nthis may miss 0-length subframes.",
+        "units": null,
+        "structure": [
+            [
+                "u32",
+                "reference number"
+            ],
+            [
+                "u16",
+                "flags"
+            ],
+            [
+                "u8",
+                "delimiter CRC value"
+            ],
+            [
+                "u8",
+                "reserved"
+            ]
+        ],
+        "align": 1
+    },
+    "21": {
+        "id": "vht",
+        "title": "VHT",
+        "description": "The `known` field indicates which information is known:\n\n| **flag** | **definition** | **notes** |\n| 0x0001 | STBC known|In `flags` part of the field. |\n| 0x0002 | TXOP_PS_NOT_ALLOWED known|In `flags` part of the field. |\n| 0x0004 | Guard interval|In `flags` part of the field. |\n| 0x0008 | Short GI NSYM disambiguation known|In `flags` part of the field. |\n| 0x0010 | LDPC extra OFDM symbol known|In `flags` part of the field. |\n| 0x0020 | Beamformed known/applicable|In `flags` part of the field. This flag should be set to zero for MU PPDUs. |\n| 0x0040 | Bandwidth known|In `bandwidth` part of the field. |\n| 0x0080 | Group ID known|In `group_id` part of the field. |\n| 0x0100 | Partial AID known/applicable|In `partial_aid` part of the field. This flag should be set to zero for MU PPDUs. |\n| 0xfe00 | (unused) | |\n\nThe `flags` field is any combination of the following:\n\n| **flag** | **definition** | **notes** |\n|0x01|STBC|Space-time block coding.<<BR>>Set to 0 if no spatial streams of any user has STBC.<<BR>>Set to 1 if all spatial streams of all users have STBC.|\n|0x02|TXOP_PS_NOT_ALLOWED|Valid only for AP transmitters.<<BR>>Set to 0 if STAs may doze during TXOP.<<BR>>Set to 1 if STAs may not doze during TXOP or transmitter is non-AP.|\n|0x04|Guard interval.|Set to 0 for long GI.<<BR>>Set to 1 for short GI.|\n|0x08|Short GI NSYM disambiguation|Valid only if short GI is used.<<BR>>Set to 0 if NSYM mod 10 != 9 or short GI not used.<<BR>>Set to 1 if NSYM mod 10 = 9. |\n|0x10|LDPC Extra OFDM symbol|Set to 1 if one or more users are using LDPC and the encoding process resulted in extra OFDM symbol(s).<<BR>>Set to 0 otherwise.|\n|0x20|Beamformed|Valid for SU PPDUs only.|\n|0xc0|(unused)| |\n\nThe `bandwidth` field encodes the bandwidth:\n\n| **bitmask** | **definition** | **notes** |\n|0x1f|Bandwidth| |\n|0xe0|(unused)| |\n\nNote: for receive capture, the total bandwidth of the transmitter is not\ngenerally known, so the bandwidth will only be recorded as 20, 40, 80,\nor 160.\n\nNote: for transmit injection, the sub-band choice for wide channels may\nbe constrained by the current primary sub-band channels. IEEE 802.11\nprohibits transmissions on sub-bands other than the designated\nsub-bands. For example, if the device is currently operating on the\n40MHz channel pair {36, 40} with 36 designated as the primary 20MHz\nchannel, the transmitter will naturally send 20MHz transmissions on\nchannel 36, and may not be able to force a 20MHz transmission on channel\n40.\n\nBandwidth values are:\n\n| **value** | **total bandwidth (MHz)** | **sideband** | **sideband index** |\n| 0 | 20 |   |   |\n| 1 | 40 |   |   |\n| 2 | 40 | 20L | 0 |\n| 3 | 40 | 20U | 1 |\n| 4 | 80 |   |   |\n| 5 | 80 | 40L | 0 |\n| 6 | 80 | 40U | 1 |\n| 7 | 80 | 20LL | 0 |\n| 8 | 80 | 20LU | 1 |\n| 9 | 80 | 20UL | 2 |\n| 10 | 80 | 20UU | 3 |\n| 11 | 160 |   |   |\n| 12 | 160 | 80L | 0 |\n| 13 | 160 | 80U | 1 |\n| 14 | 160 | 40LL | 0 |\n| 15 | 160 | 40LU | 1 |\n| 16 | 160 | 40UL | 2 |\n| 17 | 160 | 40UU | 3 |\n| 18 | 160 | 20LLL | 0 |\n| 19 | 160 | 20LLU | 1 |\n| 20 | 160 | 20LUL | 2 |\n| 21 | 160 | 20LUU | 3 |\n| 22 | 160 | 20ULL | 4 |\n| 23 | 160 | 20ULU | 5 |\n| 24 | 160 | 20UUL | 6 |\n| 25 | 160 | 20UUU | 7 |\n\nThe four `mcs_nss` fields encode MCS and NSS for up to four users:\n\n| **bitmask** | **definition** | **notes** |\n|0x0f|NSS|Number of spatial streams, range 1-8.|\n|0xf0|MCS|MCS rate index, range 0-9.|\n\nIf the NSS field for a user is zero, the user is not present and the MCS\nand coding (in the coding field) associated with that user are not\nvalid. If the NSS field for a user is non-zero, but the MCS is not known\n(for example due to receiving only data for a single user), the MCS\nshall be set to 15. For SU PPDUs, only the first user will have a\nnonzero NSS field.\n\nNote: the number of space-time streams (NSTS) for a user can be\ncalculated from the NSS for that user and the STBC flag:\n\n-   STBC not in use: NSTS = NSS\n-   STBC in use: NSTS = 2\\*NSS\n\nThe `coding` field encodes the FEC for up to four users:\n\n| **bitmask** | **definition** | **notes** |\n|0x01|Coding for user 0|Set to 0 for BCC.<<BR>>Set to 1 for LDPC.|\n|0x02|Coding for user 1|Set to 0 for BCC.<<BR>>Set to 1 for LDPC.|\n|0x04|Coding for user 2|Set to 0 for BCC.<<BR>>Set to 1 for LDPC.|\n|0x08|Coding for user 3|Set to 0 for BCC.<<BR>>Set to 1 for LDPC.|\n|0xf0|(unused)| |\n\nThe coding for a user is only valid if the NSS (in the `mcs_nss` field)\nfor that user is nonzero.\n\nThe `group_id` field contains the group ID.\n\nNote: the group ID can be used to differentiate between SU PPDUs (group\nID is 0 or 63) and MU PPDUs (group ID is 1 through 62).\n\nThe `partial_aid` field contains the partial AID. Only applicable to SU\nPPDUs.",
+        "units": null,
+        "structure": [
+            [
+                "u16",
+                "known"
+            ],
+            [
+                "u8",
+                "flags"
+            ],
+            [
+                "u8",
+                "bandwidth"
+            ],
+            [
+                4,
+                "mcs_nss"
+            ],
+            [
+                "u8",
+                "coding"
+            ],
+            [
+                "u8",
+                "group_id"
+            ],
+            [
+                "u16",
+                "partial_aid"
+            ]
+        ],
+        "align": 2
+    },
+    "22": {
+        "id": "timestamp",
+        "title": "timestamp",
+        "description": "timestamp\n---------\n\nThe timestamp itself, in the unit defined in the field itself.\n\nprecision\n---------\n\nDefines the expected accuracy of the timestamp, in the same units as the\ntimestamp.\n\nunit/position\n-------------\n\n| **flag** | **meaning** |\n| `0x000F` | unit - see below |\n| `0x00F0` | sampling position - see below |\n\n### units\n\n| **value** | **unit** |\n| 0 | milliseconds |\n| 1 | microseconds |\n| 2 | nanoseconds |\n| 3-15 | reserved |\n\n### sampling positions\n\n| **value** | **sampling position** |\n| 0 | first bit (or symbol containing it) of MPDU - matches TSFT field |\n| 1 | signal acquisition at start of PLCP |\n| 2 | end of PPDU |\n| 3 | end of MPDU (after FCS) |\n| 4-14 | reserved |\n| 15 | unknown or vendor/OOB defined |\n\nflags\n-----\n\n| `0x01` | 32-bit counter (high 32 bits are unused) |\n| `0x02` | accuracy known |\n| `0xFC` | reserved |",
+        "units": "as defined, as defined, none, none",
+        "structure": [
+            [
+                "u64",
+                "timestamp"
+            ],
+            [
+                "u16",
+                "accuracy"
+            ],
+            [
+                "u8",
+                "unit/position"
+            ],
+            [
+                "u8",
+                "flags"
+            ]
+        ],
+        "align": 8
+    },
+    "23": {
+        "id": "he",
+        "title": "HE",
+        "description": "The presence of this field indicates that the frame was received or\ntransmitted using the HE PHY.\n\nThis field contains data mostly from the HE-SIG-A part that is common\nto all HE transmissions, but some of the data might also be calculated\n(e.g. when included in the transmission of an HE_TRIG type frame, some\nparameters are not included in the HE-SIG-A but were determined by the\ntrigger frame).\n\nHowever, for PPDUs of HE_MU format, it contains the data that applies\nto the encoding of the PSDU, with more detailed information about the\nMU transmission contained in the [HE-MU](HE-MU) field if needed, in\nmany cases that field will not be needed as all the data about the\nsingle user that was captured is already encoded here.\n\nIn the case of MU transmissions, the [HE-MU-other-user](HE-MU-other-user)\nfield may also be present one or more times in that case to capture extra\nusers for which the data couldn't be captured; if the data was captured\nfor more than one user then multiple packets must be written into the\nradiotap capture.\n\n## data1\n\n| **`0x0003`** | HE PPDU Format: 0=HE_SU, 1=HE_EXT_SU, 2=HE_MU, 3=HE_TRIG |\n| **`0x0004`** | BSS Color known |\n| **`0x0008`** | Beam Change known |\n| **`0x0010`** | UL/DL known |\n| **`0x0020`** | data MCS known |\n| **`0x0040`** | data DCM known |\n| **`0x0080`** | Coding known |\n| **`0x0100`** | LDPC extra symbol segment known |\n| **`0x0200`** | STBC known |\n| **`0x0400`** | Spatial Reuse known (Spatial Reuse 1 for HE_TRIG format) |\n| **`0x0800`** | Spatial Reuse 2 known (HE_TRIG format), STA-ID known (HE_MU format) |\n| **`0x1000`** | Spatial Reuse 3 known (HE_TRIG format) |\n| **`0x2000`** | Spatial Reuse 4 known (HE_TRIG format) |\n| **`0x4000`** | data BW/RU allocation known |\n| **`0x8000`** | Doppler known |\n\n## data2\n\n| **`0x0001`** | pri/sec 80 MHz known |\n| **`0x0002`** | GI known |\n| **`0x0004`** | number of LTF symbols known |\n| **`0x0008`** | Pre-FEC Padding Factor known |\n| **`0x0010`** | TxBF known |\n| **`0x0020`** | PE Disambiguity known |\n| **`0x0040`** | TXOP known |\n| **`0x0080`** | midamble periodicity known |\n| **`0x3f00`** | RU allocation offset |\n| **`0x4000`** | RU allocation offset known |\n| **`0x8000`** | pri/sec 80 MHz (primary=0, secondary=1) |\n\n### RU allocation offset\n\nThe RU allocation offset is encoded as the offset (within the 80 MHz\npri/sec channel) of the location in the correct tone column.\n\n<table>\n<tr>\n<th>26-tone</th>\n<th>52-tone</th>\n<th>106-tone</th>\n<th>242-tone</th>\n<th>484-tone</th>\n<th>996-tone</th>\n<th>2x996-tone</th>\n</tr>\n<tr>\n<td>0</td>\n<td rowspan=\"2\">0</td>\n<td rowspan=\"4\">0</td>\n<td rowspan=\"9\">0</td>\n<td rowspan=\"18\">0</td>\n<td rowspan=\"37\">0</td>\n<td rowspan=\"37\">0</td>\n</tr>\n<tr>\n<td>1</td>\n</tr>\n<tr>\n<td>2</td>\n<td rowspan=\"2\">1</td>\n</tr>\n<tr>\n<td>3</td>\n</tr>\n<tr>\n<td>4</td>\n<td></td>\n<td></td>\n</tr>\n<tr>\n<td>5</td>\n<td rowspan=\"2\">2</td>\n<td rowspan=\"4\">1</td>\n</tr>\n<tr>\n<td>6</td>\n</tr>\n<tr>\n<td>7</td>\n<td rowspan=\"2\">3</td>\n</tr>\n<tr>\n<td>8</td>\n</tr>\n<tr>\n<td>9</td>\n<td rowspan=\"2\">4</td>\n<td rowspan=\"4\">2</td>\n<td rowspan=\"9\">1</td>\n</tr>\n<tr>\n<td>10</td>\n</tr>\n<tr>\n<td>11</td>\n<td rowspan=\"2\">5</td>\n</tr>\n<tr>\n<td>12</td>\n</tr>\n<tr>\n<td>13</td>\n<td></td>\n<td></td>\n</tr>\n<tr>\n<td>14</td>\n<td rowspan=\"2\">6</td>\n<td rowspan=\"4\">3</td>\n</tr>\n<tr>\n<td>15</td>\n</tr>\n<tr>\n<td>16</td>\n<td rowspan=\"2\">7</td>\n</tr>\n<tr>\n<td>17</td>\n</tr>\n<tr>\n<td>18</td>\n<td></td>\n<td></td>\n<td></td>\n<td></td>\n</tr>\n<tr>\n<td>19</td>\n<td rowspan=\"2\">8</td>\n<td rowspan=\"4\">4</td>\n<td rowspan=\"9\">2</td>\n<td rowspan=\"18\">1</td>\n</tr>\n<tr>\n<td>20</td>\n</tr>\n<tr>\n<td>21</td>\n<td rowspan=\"2\">9</td>\n</tr>\n<tr>\n<td>22</td>\n</tr>\n<tr>\n<td>23</td>\n<td></td>\n<td></td>\n</tr>\n<tr>\n<td>24</td>\n<td rowspan=\"2\">10</td>\n<td rowspan=\"4\">5</td>\n</tr>\n<tr>\n<td>25</td>\n</tr>\n<tr>\n<td>26</td>\n<td rowspan=\"2\">11</td>\n</tr>\n<tr>\n<td>27</td>\n</tr>\n<tr>\n<td>28</td>\n<td rowspan=\"2\">12</td>\n<td rowspan=\"4\">6</td>\n<td rowspan=\"9\">3</td>\n</tr>\n<tr>\n<td>29</td>\n</tr>\n<tr>\n<td>30</td>\n<td rowspan=\"2\">13</td>\n</tr>\n<tr>\n<td>31</td>\n</tr>\n<tr>\n<td>32</td>\n<td></td>\n<td></td>\n</tr>\n<tr>\n<td>33</td>\n<td rowspan=\"2\">14</td>\n<td rowspan=\"4\">7</td>\n</tr>\n<tr>\n<td>34</td>\n</tr>\n<tr>\n<td>35</td>\n<td rowspan=\"2\">15</td>\n</tr>\n<tr>\n<td>36</td>\n</tr>\n</table>\n\nNote that while this table lists all possible *positions*, it doesn't list\nall possible *combinations*, i.e. with an HE-MU transmission the RU\nallocation may be mixed into different bandwidths for different users.\n\n## data3\n\n| **`0x003f`** | BSS Color |\n| **`0x0040`** | Beam Change |\n| **`0x0080`** | UL/DL |\n| **`0x0f00`** | data MCS (not SIG-B MCS from HE-SIG-A for HE_MU format) |\n| **`0x1000`** | data DCM (cf. data MCS) |\n| **`0x2000`** | Coding (0=BCC, 1=LDPC) |\n| **`0x4000`** | LDPC extra symbol segment |\n| **`0x8000`** | STBC |\n\n## data4\n\n| **bits** | **HE_SU and HE_EXT_SU format PPDU** |\n| **`0x000f`** | Spatial Reuse |\n| **`0xfff0`** | (reserved) |\n\n| **bits** | **HE_TRIG format PPDU** |\n| **`0x000f`** | Spatial Reuse 1 |\n| **`0x00f0`** | Spatial Reuse 2 |\n| **`0x0f00`** | Spatial Reuse 3 |\n| **`0xf000`** | Spatial Reuse 4 |\n\n| **bits** | **HE_MU format PPDU** |\n| **`0x000f`** | Spatial Reuse |\n| **`0x7ff0`** | STA-ID of the user for which the data was captured |\n| **`0x8000`** | (reserved) |\n\n## data5\n\n| **`0x000f`** | data Bandwidth/RU allocation (0=20, 1=40, 2=80, 3=160/80+80, 4=26-tone RU, 5=52-tone RU, 6=106-tone RU, 7=242-tone RU, 8=484-tone RU, 9=996-tone RU, 10=2x996-tone RU) |\n| **`0x0030`** | GI (0=0.8us, 1=1.6us, 2=3.2us, 3=reserved) |\n| **`0x00c0`** | LTF symbol size (0=unknown, 1=1x, 2=2x, 3=4x) |\n| **`0x0700`** | number of LTF symbols (0=1x, 1=2x, 2=4x, 3=6x, 4=8x, 5-7=reserved) |\n| **`0x0800`** | (reserved) |\n| **`0x3000`** | Pre-FEC Padding Factor |\n| **`0x4000`** | TxBF |\n| **`0x8000`** | PE Disambiguity |\n\n## data 6\n\n| **`0x000f`** | NSTS (actual number of space-time streams, 0=unknown, 1=1, etc.) |\n| **`0x0010`** | Doppler value |\n| **`0x00e0`** | (reserved) |\n| **`0x7f00`** | TXOP value |\n| **`0x8000`** | midamble periodicity (0=10, 1=20) |",
+        "units": "none",
+        "structure": [
+            [
+                "u16",
+                "data1"
+            ],
+            [
+                "u16",
+                "data2"
+            ],
+            [
+                "u16",
+                "data3"
+            ],
+            [
+                "u16",
+                "data4"
+            ],
+            [
+                "u16",
+                "data5"
+            ],
+            [
+                "u16",
+                "data6"
+            ]
+        ],
+        "align": 2
+    },
+    "24": {
+        "id": "he_mu",
+        "title": "HE-MU",
+        "description": "This field contains data related to PPDUs of HE_MU type that wasn't\nalready captured in the regular [HE](HE) field. This is the common\ndata (from HE-SIG-A and HE-SIG-B), the per-user data can be captured\nin the [HE-MU-other-user](HE-MU-other-user) field.\n\n## Channel 1 / Channel 2 usage and RU byte mapping\n\nThe \"Channel 1\" and \"Channel 2\" specific fields (respectively \"channel1\nand channel2\" on the RU fields) are used in the following way:\n\n * Channel 1's known field is always used, use it to indicate how much\n   data of channel 1 was captured\n * Channel 2's known field is only used for 40 MHz and higher, use it to\n   indicate how much data of channel 2 was captured, it should be set to\n   0 (for unknown) for 20 MHz\n\nThe RU octets in the arrays (\"RU_channel1\" and \"RU_channel2\") represent\nthe RU allocation index according to Table 28-26 (\"RU allocation subfield\").\n\nThe following tables map the RU fields to tone ranges:\n\n### Channel 1 tones depending on known field\n\nIf **known=0**, no data was reported (e.g. HW not capable, or CRC error on one of the SIG-Bs).\n\nIf **known=1**, the data is according to the following table, bandwidth\nbeing from the \"bandwidth from Bandwidth field in HE-SIG-A\" flags 2 field.\n\n| **RU idx** | **bw=0 (20 MHz)** | **bw=1 (40 MHz)** | **bw=2 (80 MHz)** | **bw=3 (160 MHz)** |\n| **RU[0]** | -122:122 | -244:-3 | -500:-259 | -1012:-771 |\n| **RU[1]** | / | / | 17:258 | -495:-254 |\n| **RU[2]** | / | / | / | 12:253 |\n| **RU[3]** | / | / | / | 529:770 |\n| **Center 26-tone** | / | / | -16:-4, 4:16 | -528:-516, -508:-496 |\n\n### Channel 2 tones depending on known field\n\nIf **known=0**, no data was reported (e.g. HW not capable, or CRC error on one of the SIG-Bs).\n\nIf **known=1**, the data is according to the following table, bandwidth\nbeing from the \"bandwidth from Bandwidth field in HE-SIG-A\" flags 2 field.\n\n| **RU idx** | **bw=0 (20 MHz)** | **bw=1 (40 MHz)** | **bw=2 (80 MHz)** | **bw=3 (160 MHz)** |\n| **RU[0]** | / | 3:244 | -258:-17 | -770:529 |\n| **RU[1]** | / | / | 259:500 | -253:-12 |\n| **RU[2]** | / | / | / | 254:495 |\n| **RU[3]** | / | / | / | 771:1012 |\n| **Center 26-tone** | / | / | / | 496:508, 516:528 |\n\n## flags1\n\n| **`0x000f`** | SIG-B MCS (from SIG-A) |\n| **`0x0010`** | SIG-B MCS known |\n| **`0x0020`** | SIG-B DCM (from SIG-A) |\n| **`0x0040`** | SIG-B DCM known |\n| **`0x0080`** | (Channel 2) Center 26-tone RU bit known |\n| **`0x0100`** | Channel 1 RUs known (which depends on BW) |\n| **`0x0200`** | Channel 2 RUs known (which depends on BW) |\n| **`0x0c00`** | (reserved) |\n| **`0x1000`** | (Channel 1) Center 26-tone RU bit known |\n| **`0x2000`** | (Channel 1) Center 26-tone RU value |\n| **`0x4000`** | SIG-B Compression known |\n| **`0x8000`** | # of HE-SIG-B Symbols/MU-MIMO Users known |\n\n## flags2\n\n| **`0x0003`** | bandwidth from Bandwidth field in HE-SIG-A (0 - 20 MHz, ..., 3 - 160/80+80 MHz) |\n| **`0x0004`** | bandwidth from Bandwidth field in HE-SIG-A known |\n| **`0x0008`** | SIG-B compression from SIG-A |\n| **`0x00f0`** | # of HE-SIG-B Symbols - 1 or # of MU-MIMO Users - 1 from SIG-A |\n| **`0x0300`** | preamble puncturing from Bandwidth field in HE-SIG-A (0 - non-puncturing, 1 - punctured secondary 20 MHz (in primary 80 MHz if applicable), 2 - punctured but primary 40 MHz is present (in primary 80 MHz if applicable) |\n| **`0x0400`** | preamble puncturing from Bandwidth field in HE-SIG-A known |\n| **`0x0800`** | (Channel 2) Center 26-tone RU value |\n| **`0xf000`** | (reserved) |\n\n## RU\n\nSee the discussion above regarding Channel 1/Channel 2 RU field usage.",
+        "units": "none",
+        "structure": [
+            [
+                "u16",
+                "flags1"
+            ],
+            [
+                "u16",
+                "flags2"
+            ],
+            [
+                4,
+                "RU_channel1"
+            ],
+            [
+                4,
+                "RU_channel2"
+            ]
+        ],
+        "align": 2
+    },
+    "25": {
+        "id": "he_mu_other_user",
+        "title": "HE-MU-other-user",
+        "description": "This field contains data from a SIG-B per-user field for those extra\nusers for which the data may not have been captured. This field isn't\nnormally necessary; if an HE_MU PPDU was captured then typically only\none of the many users will be captured, in which case all data can be\nencoded in the [HE](HE) and [HE-MU](HE-MU) fields.\n\nIn case more of the SIG-B could be captured, this field allows having\ndata data captured in radiotap. It's allowed but not necessary to have\nthis field also for the user whose data was captured.\n\nNote that the MCS/DCM/etc. configuration for the captured data is\nalready encoded in the regular [HE](HE) field, and for the SIG-B it's\npart of the [HE-MU](HE-MU) field.\n\nThe split into parts 1 and 2 allows packing this more densely due to\nthen requiring alignment of only two.\n\n## per_user_1\n\n| **`0x7fff`** | B0-B14 of the HE-SIG-B user field as in spec |\n| **`0x8000`** | (reserved) |\n\n## per_user_2\n\n| **`0x003f`** | B15-B20 of the HE-SIG-B user field as in spec |\n| **`0xffc0`** | (reserved) |\n\n## per_user_position\n\nThis contains the position of this user field, starting from 0.\n\n## per_user_known\n\n| **`0x01`** | user field position known |\n| **`0x02`** | STA-ID known (B0-10) |\n| **`0x04`** | NSTS known (B11-13, only for non-MU-MIMO) |\n| **`0x08`** | Tx Beamforming known (B14, only for non-MU-MIMO) |\n| **`0x10`** | Spatial Configuration known (B11-B14, only for MU-MIMO) |\n| **`0x20`** | MCS known (B15-18) |\n| **`0x40`** | DCM known (B19) |\n| **`0x80`** | Coding known (B20) |",
+        "units": "none",
+        "structure": [
+            [
+                "u16",
+                "per_user_1"
+            ],
+            [
+                "u16",
+                "per_user_2"
+            ],
+            [
+                "u8",
+                "per_user_position"
+            ],
+            [
+                "u8",
+                "per_user_known"
+            ]
+        ],
+        "align": 2
+    },
+    "26": {
+        "id": "0_length_psdu",
+        "title": "0-length-PSDU",
+        "description": "The presence of this field indicates that there was no PSDU in or\ncaptured for this PPDU, only the PHY data is valid and the radiotap\nheader is not followed by an 802.11 header.\n\nThe type field indicates the type of PPDU.\n\n| **type value** | **meaning** |\n| 0              | sounding PPDU |\n| 1              | data not captured (e.g. multi-user PPDU) |\n| 0xff           | vendor-specific |",
+        "units": "none",
+        "structure": [
+            [
+                "u8",
+                "type"
+            ]
+        ],
+        "align": 1
+    },
+    "27": {
+        "id": "l_sig",
+        "title": "L-SIG",
+        "description": "This field indicates - if known - the contents of the L-SIG.\n\n## data1\n\n| **`0x0001`** | rate known |\n| **`0x0002`** | length known |\n| **`0xfffc`** | (reserved) |\n\n## data2\n\n| **`0x000f`** | rate |\n| **`0xfff0`** | length |",
+        "units": "none",
+        "structure": [
+            [
+                "u16",
+                "data1"
+            ],
+            [
+                "u16",
+                "data2"
+            ]
+        ],
+        "align": 2
+    }
+}

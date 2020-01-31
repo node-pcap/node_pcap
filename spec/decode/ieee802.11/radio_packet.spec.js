@@ -28,14 +28,14 @@ describe("RadioPacket", function(){
       instance.should.have.property("headerLength", 18);
     });
 
-    it("sets #signalStrength to be the signal strength in dbi", function(){
+    it("sets #antenna_signal to be the signal strength in dbi", function(){
       instance.decode(probeExample2, 0);
-      instance.should.have.property("signalStrength", -40);
+      instance.params.should.have.property("antenna_signal", -40);
     });
 
     it("handles different length packet headers", function() {
       instance.decode(probeExample1, 0);
-      instance.should.have.property("signalStrength", -45);
+      instance.params.should.have.property("antenna_signal", -45);
     });
   });
 });
