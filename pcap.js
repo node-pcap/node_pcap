@@ -129,7 +129,7 @@ PcapSession.prototype.inject = function (data) {
 exports.Pcap = PcapSession;
 exports.PcapSession = PcapSession;
 
-exports.createSession = function (device, filter, buffer_size, snap_length, monitor) {
+exports.createSession = function (device, filter, buffer_size, monitor, snap_length) {
     return new PcapSession(true, device, filter, buffer_size, snap_length, null, monitor);
 };
 
