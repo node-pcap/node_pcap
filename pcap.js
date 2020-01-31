@@ -41,13 +41,7 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
         this.snap_length = 65535; // Default snap length is 65535
     }
 
-    var self = this;
-
-    // called for each packet read by pcap
-    function packet_ready() {
-        self.on_packet_ready();
-    }
-
+    const packet_ready = this.on_packet_ready.bind(this);
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
         this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor);
@@ -61,20 +55,21 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
 
     if (is_live) {
         // callback when pcap has data to read. multiple packets may be readable.
-        this.session.read_callback = function pcap_read_callback() {
-            var packets_read = self.session.dispatch(self.buf, self.header);
+        this.session.read_callback = () => {
+            var packets_read = this.session.dispatch(this.buf, this.header);
             if (packets_read < 1) {
                 this.empty_reads += 1;
             }
         };
         this.session.start_polling();
+        process.nextTick(this.session.read_callback); // kickstart to prevent races
     } else {
-        timers.setImmediate(function() {
+        timers.setImmediate(() => {
             var packets = 0;
             do {
-                packets = self.session.dispatch(self.buf, self.header);
+                packets = this.session.dispatch(this.buf, this.header);
             } while ( packets > 0 );
-            self.emit("complete");
+            this.emit("complete");
         });
     }
 

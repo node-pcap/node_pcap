@@ -179,6 +179,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
 
     session->packet_ready_cb.Reset(info[5].As<Function>());
     session->pcap_dump_handle = NULL;
+    session->poll_init = false;
 
     if (live) {
         if (pcap_lookupnet((char *) *device, &session->net, &session->mask, errbuf) == -1) {
