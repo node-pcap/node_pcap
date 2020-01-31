@@ -34,6 +34,7 @@ private:
     pcap_dumper_t *pcap_dump_handle;
     char *buffer_data;
     size_t buffer_length;
+    size_t snap_length;
     char *header_data;
 };
 

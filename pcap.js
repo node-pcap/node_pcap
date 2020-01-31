@@ -12,11 +12,12 @@ exports.TCPTracker = tcp_tracker.TCPTracker;
 exports.TCPSession = tcp_tracker.TCPSession;
 exports.DNSCache = DNSCache;
 
-function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_monitor) {
+function PcapSession(is_live, device_name, filter, buffer_size, snap_length, outfile, is_monitor) {
     this.is_live = is_live;
     this.device_name = device_name;
     this.filter = filter || "";
     this.buffer_size = buffer_size;
+    this.snap_length = snap_length;
     this.outfile = outfile || "";
     this.is_monitor = Boolean(is_monitor);
 
@@ -37,6 +38,12 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
         this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
     }
 
+    if (typeof this.snap_length === "number" && !isNaN(this.snap_length)) {
+        this.snap_length = Math.round(this.snap_length);
+    } else {
+        this.snap_length = 65535; // Default snap length is 65535
+    }
+
     var self = this;
 
     // called for each packet read by pcap
@@ -46,14 +53,14 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
 
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor);
     }
 
     this.fd = this.session.fileno();
     this.opened = true;
-    this.buf = new Buffer(this.buffer_size || 65535);
+    this.buf = new Buffer(this.snap_length);
     this.header = new Buffer(16);
 
     if (is_live) {
@@ -122,8 +129,8 @@ PcapSession.prototype.inject = function (data) {
 exports.Pcap = PcapSession;
 exports.PcapSession = PcapSession;
 
-exports.createSession = function (device, filter, buffer_size, monitor) {
-    return new PcapSession(true, device, filter, buffer_size, null, monitor);
+exports.createSession = function (device, filter, buffer_size, snap_length, monitor) {
+    return new PcapSession(true, device, filter, buffer_size, snap_length, null, monitor);
 };
 
 exports.createOfflineSession = function (path, filter) {
