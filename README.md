@@ -1,5 +1,8 @@
-##Disclaimer
-node_pcap is currently being heavily refactored much of the documentation is out of date. If you installed node_pcap from npm go to [v2.0.1](https://github.com/mranney/node_pcap/commit/6e4d56671c54e0cf690f72b92554a538244bd1b6). Thanks for your patience and contributions as we work on the next major version of node_pcap.
+**Disclaimer:** This is a fork of [node_pcap](https://github.com/node-pcap/node_pcap), which implements support for Node v12+,
+fixes on dissectors (TCP, Radiotap) and support for `snap_length`, among others. It's
+intended to be kept maintained.
+
+---
 
 node_pcap
 =========
@@ -41,15 +44,15 @@ either by default or with a package like `libpcap-dev`.
 
 The easiest way to get `node_pcap` and its tools is with `npm`:
 
-    npm install pcap
+    npm install pcap3
 
 If you want to hack on the source code, you can get it from github.  Clone the repo like this:
 
-    git clone git://github.com/mranney/node_pcap.git
+    git clone git://github.com/mildsunrise/node_pcap3.git
 
 To compile the native code bindings, do this:
 
-    cd node_pcap
+    cd node_pcap3
     node-gyp configure build
 
 Assuming it built without errors, you should be able to run the examples and then write your own packet
@@ -61,15 +64,13 @@ capture programs.
 There are several example programs that show how to use `node_pcap`.  These examples are best documentation.
 Try them out and see what they do.
 
-To use this library in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm`
-takes care of this automatically.
 
 ### Starting a capture session
 
 To start a capture session, call `pcap.createSession` with an interface name and a pcap filter string:
 
 ```javascript
-var pcap = require('pcap'),
+var pcap = require('pcap3'),
     pcap_session = pcap.createSession(interface, filter);
 ```
 
@@ -113,7 +114,7 @@ This structure is easy to explore with `sys.inspect`.
 TCP can be analyzed by feeding the packets into a `TCPTracker` and then listening for `session` and `end` events.
 
 ```javascript
-var pcap = require('pcap'),
+var pcap = require('pcap3'),
     tcp_tracker = new pcap.TCPTracker(),
     pcap_session = pcap.createSession('en0', "ip proto \\tcp");
 

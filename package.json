@@ -1,15 +1,15 @@
 {
-  "name": "pcap",
-  "version": "2.1.0",
+  "name": "pcap3",
+  "version": "3.0.0",
   "description": "raw packet capture, decoding, and analysis",
   "author": "Matt Ranney <mjr@ranney.com>",
   "maintainers": [
-    "Ujjwal Thaakar <ujjwalthaakar@gmail.com>"
+    "Alba Mendez <me@alba.sh>"
   ],
   "main": "./pcap",
   "repository": {
     "type": "git",
-    "url": "git://github.com/mranney/node_pcap.git"
+    "url": "git://github.com/mildsunrise/node_pcap3.git"
   },
   "engines": {
     "node": ">=0.10"
