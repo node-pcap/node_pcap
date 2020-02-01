@@ -15,11 +15,8 @@ const associations = {
 
 function readBigUInt64LE(buffer, offset = 0) {
   const lo = buffer.readUInt32LE(offset);
-  const hi = buffer.readUInt32LE(offset);
+  const hi = buffer.readUInt32LE(offset + 4);
   return BigInt(lo) + (BigInt(hi) << BigInt(32));
-}
-if (0) {
-    readBigUInt64LE();
 }
 
 /** Radiotap header (http://www.radiotap.org) **/
@@ -33,7 +30,7 @@ function RadioPacket(emitter) {
     this._decoderCache = {};
 }
 
-RadioPacket.prototype.decode = function (raw_packet, offset) {
+RadioPacket.prototype.decode = function (raw_packet, offset, options) {
     var original_offset = offset;
 
     this.headerRevision = raw_packet[offset++];
@@ -55,11 +52,15 @@ RadioPacket.prototype.decode = function (raw_packet, offset) {
 
     if (!Object.hasOwnProperty.call(this._decoderCache, this.presentFields))
         this._decoderCache[this.presentFields] = this.buildDecoder(this.presentFields);
-    this.params = this._decoderCache[this.presentFields](raw_packet, offset, original_offset + this.headerLength);
+    this.fields = this._decoderCache[this.presentFields](raw_packet, offset, original_offset + this.headerLength);
 
     offset = original_offset + this.headerLength;
 
-    this.ieee802_11Frame = new RadioFrame(this.emitter).decode(raw_packet, offset);
+    if (options && options.decodeLower === false) {
+        this.ieee802_11Frame = raw_packet.slice(offset);
+    } else {
+        this.ieee802_11Frame = new RadioFrame(this.emitter).decode(raw_packet, offset);
+    }
 
     if(this.emitter) { this.emitter.emit("radio-packet", this); }
     return this;
@@ -128,7 +129,8 @@ RadioPacket.prototype.buildDecoder = function (fields) {
     }
 
     code = pre_check + code + 'return result;';
-    return new Function('data', 'offset', 'end_offset', code);
+    return new Function('readBigUInt64LE', 'data', 'offset', 'end_offset', code)
+        .bind(this, readBigUInt64LE);
 };
 
 module.exports = RadioPacket;
