@@ -178,7 +178,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
     int buffer_size = Nan::To<int32_t>(info[2]).FromJust();
     int snap_length = Nan::To<int32_t>(info[3]).FromJust();
     int buffer_timeout = Nan::To<int32_t>(info[7]).FromJust();
-    Nan::Utf8String pcap_output_filename(info[3]->ToString(Nan::GetCurrentContext()).FromMaybe(Local<v8::String>()));
+    Nan::Utf8String pcap_output_filename(info[4]->ToString(Nan::GetCurrentContext()).FromMaybe(Local<v8::String>()));
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
 
