@@ -1,7 +1,17 @@
 #ifndef PCAP_SESSION_H
 #define PCAP_SESSION_H
 
+#if defined(__GNUC__) && __GNUC__ >= 8
+#define DISABLE_WCAST_FUNCTION_TYPE _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wcast-function-type\"")
+#define DISABLE_WCAST_FUNCTION_TYPE_END _Pragma("GCC diagnostic pop")
+#else
+#define DISABLE_WCAST_FUNCTION_TYPE
+#define DISABLE_WCAST_FUNCTION_TYPE_END
+#endif
+
+DISABLE_WCAST_FUNCTION_TYPE
 #include <nan.h>
+DISABLE_WCAST_FUNCTION_TYPE_END
 #include <uv.h>
 #include <pcap/pcap.h>
 

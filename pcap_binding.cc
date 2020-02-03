@@ -146,4 +146,6 @@ void Initialize(Local<Object> exports)
     Nan::Set(exports, Nan::New("lib_version").ToLocalChecked(), Nan::New<FunctionTemplate>(LibVersion)->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
 }
 
+DISABLE_WCAST_FUNCTION_TYPE
 NODE_MODULE(pcap_binding, Initialize)
+DISABLE_WCAST_FUNCTION_TYPE_END
