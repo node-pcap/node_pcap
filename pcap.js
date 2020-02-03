@@ -51,9 +51,9 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
     const packet_ready = this.on_packet_ready.bind(this);
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, buffer_timeout);
+        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, buffer_timeout);
+        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout);
     }
 
     this.opened = true;
