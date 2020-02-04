@@ -84,8 +84,7 @@ void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const
 
     Nan::TryCatch try_catch;
 
-    Nan::AsyncResource ar("PcapSession:packet_ready_cb");
-    ar.runInAsyncScope(Nan::GetCurrentContext()->Global(), Nan::New(session->packet_ready_cb), 0, NULL);
+    Nan::Call(session->packet_ready_cb, 0, NULL);
 
     if (try_catch.HasCaught())  {
         Nan::FatalException(try_catch);
@@ -182,9 +181,8 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
 
-    session->packet_ready_cb.Reset(info[5].As<Function>());
+    session->packet_ready_cb.SetFunction(info[5].As<Function>());
     session->pcap_dump_handle = NULL;
-    session->poll_init = false;
 
     if (live) {
         if (pcap_lookupnet((char *) *device, &session->net, &session->mask, errbuf) == -1) {
@@ -353,6 +351,7 @@ void PcapSession::FinalizeClose(PcapSession * session) {
         uv_poll_stop(&session->poll_handle);
         uv_unref((uv_handle_t*) &session->poll_handle);
         session->poll_init = false;
+        delete session->poll_resource;
     }
 
     pcap_close(session->pcap_handle);
@@ -361,7 +360,7 @@ void PcapSession::FinalizeClose(PcapSession * session) {
     session->packet_ready_cb.Reset();
 }
 
-static void pcap_poll_handler(uv_poll_t* handle, int status, int events)
+void PcapSession::poll_handler(uv_poll_t* handle, int status, int events)
 {
     Nan::HandleScope scope;
     PcapSession* session = reinterpret_cast<PcapSession*>(handle->data);
@@ -373,8 +372,7 @@ static void pcap_poll_handler(uv_poll_t* handle, int status, int events)
 
     Nan::TryCatch try_catch;
 
-    Nan::AsyncResource ar("PcapSession:read_callback");
-    ar.runInAsyncScope(Nan::GetCurrentContext()->Global(), callback, 0, NULL);
+    session->poll_resource->runInAsyncScope(Nan::GetCurrentContext()->Global(), callback, 0, NULL);
 
     if (try_catch.HasCaught())
         Nan::FatalException(try_catch);
@@ -405,11 +403,13 @@ void PcapSession::StartPolling(const Nan::FunctionCallbackInfo<Value>& info)
     }
     session->poll_init = true;
 
-    if (uv_poll_start(&session->poll_handle, UV_READABLE, pcap_poll_handler) < 0) {
+    if (uv_poll_start(&session->poll_handle, UV_READABLE, poll_handler) < 0) {
         Nan::ThrowError("Couldn't start UV poll");
         return;
     }
     uv_ref((uv_handle_t*) &session->poll_handle);
+
+    session->poll_resource = new Nan::AsyncResource("pcap:PcapSession", info.Holder());
 }
 
 void PcapSession::Stats(const Nan::FunctionCallbackInfo<Value>& info)

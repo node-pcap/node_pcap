@@ -35,7 +35,9 @@ private:
     static void PacketReady(u_char *callback_p, const struct pcap_pkthdr* pkthdr, const u_char* packet);
     static void FinalizeClose(PcapSession *session);
 
-    Nan::Persistent<v8::Function> packet_ready_cb;
+    static void poll_handler(uv_poll_t* handle, int status, int events);
+
+    Nan::Callback packet_ready_cb;
     static Nan::Persistent<v8::Function> constructor;
 
     struct bpf_program fp;
@@ -49,7 +51,8 @@ private:
     char *header_data;
 
     uv_poll_t poll_handle;
-    bool poll_init;
+    Nan::AsyncResource* poll_resource = NULL;
+    bool poll_init = false;
 };
 
 #endif
