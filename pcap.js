@@ -57,8 +57,8 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
     }
 
     this.opened = true;
-    this.buf = new Buffer(this.snap_length);
-    this.header = new Buffer(16);
+    this.buf = Buffer.alloc(this.snap_length);
+    this.header = Buffer.alloc(16);
 
     if (is_live) {
         // callback when pcap has data to read. multiple packets may be readable.
