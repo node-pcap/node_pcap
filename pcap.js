@@ -11,6 +11,11 @@ exports.TCPTracker = tcp_tracker.TCPTracker;
 exports.TCPSession = tcp_tracker.TCPSession;
 exports.DNSCache = DNSCache;
 
+// This may be overriden by the user
+exports.warningHandler = function warningHandler(x) {
+    console.warn('warning: %s - this may not actually work', x);
+};
+
 function PcapSession(is_live, device_name, filter, buffer_size, snap_length, outfile, is_monitor, buffer_timeout) {
     this.is_live = is_live;
     this.device_name = device_name;
@@ -51,9 +56,9 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
     const packet_ready = this.on_packet_ready.bind(this);
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout);
+        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout, exports.warningHandler);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout);
+        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout, exports.warningHandler);
     }
 
     this.opened = true;

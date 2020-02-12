@@ -135,7 +135,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
     Nan::HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (info.Length() == 8) {
+    if (info.Length() == 9) {
         if (!info[0]->IsString()) {
             Nan::ThrowTypeError("pcap Open: info[0] must be a String");
             return;
@@ -168,6 +168,10 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
             Nan::ThrowTypeError("pcap Open: info[7] must be a Number");
             return;
         }
+        if (!info[8]->IsFunction()) { // warning function
+            Nan::ThrowTypeError("pcap Open: info[8] must be a Function");
+            return;
+        }
     } else {
         Nan::ThrowTypeError("pcap Open: expecting 8 arguments");
         return;
@@ -188,7 +192,8 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
         if (pcap_lookupnet((char *) *device, &session->net, &session->mask, errbuf) == -1) {
             session->net = 0;
             session->mask = 0;
-            fprintf(stderr, "warning: %s - this may not actually work\n", errbuf);
+            Local<Value> str = Nan::New(errbuf).ToLocalChecked();
+            Nan::Call(info[8].As<Function>(), Nan::GetCurrentContext()->Global(), 1, &str);
         }
 
         session->pcap_handle = pcap_create((char *) *device, errbuf);
