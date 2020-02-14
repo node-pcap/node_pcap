@@ -177,6 +177,29 @@ see the wonderful things it can do for you.  Hopefully the names of the properti
 
 See [http_trace](https://github.com/mranney/http_trace) for an example of how to use these events to decode HTTP (Works only on node 4).
 
+### Other operations
+
+To know the format of the link-layer headers, use `pcap_session.link_type` or `raw_packet.link_type`.
+The property is a `LINKTYPE_<...>` string, see [this list](https://www.tcpdump.org/linktypes.html).
+
+To get current capture statistics, use `pcap_session.stats()`. This returns an object with the following properties:
+
+ - `ps_recv`: number of packets received
+ - `ps_ifdrop`: number of packets dropped by the network interface or its driver
+ - `ps_drop`: number of packets dropped because there was no room in the operating system's buffer when they arrived, because packets weren't being read fast enough
+
+For more info, see [`pcap_stats`](https://www.tcpdump.org/manpages/pcap_stats.3pcap.html).
+
+If you no longer need to receive packets, you can use `pcap_session.close()`.
+
+To read packets from a file instead of from a live interface, use `createOfflineSession` instead:
+
+```javascript
+pcap.createOfflineSession('/path/to/capture.pcap', options);
+```
+
+Where `options` only accepts the `filter` property.
+
 ## Some Common Problems
 
 ### TCP Segmentation Offload - TSO
