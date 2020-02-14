@@ -11,7 +11,7 @@ exports.TCPTracker = tcp_tracker.TCPTracker;
 exports.TCPSession = tcp_tracker.TCPSession;
 exports.DNSCache = DNSCache;
 
-function PcapSession(is_live, device_name, filter, buffer_size, snap_length, outfile, is_monitor) {
+function PcapSession(is_live, device_name, filter, buffer_size, snap_length, outfile, is_monitor, buffer_timeout) {
     this.is_live = is_live;
     this.device_name = device_name;
     this.filter = filter || "";
@@ -19,6 +19,7 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
     this.snap_length = snap_length;
     this.outfile = outfile || "";
     this.is_monitor = Boolean(is_monitor);
+    this.buffer_timeout = buffer_timeout;
 
     this.link_type = null;
     this.opened = null;
@@ -41,12 +42,18 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
         this.snap_length = 65535; // Default snap length is 65535
     }
 
+    if (typeof this.buffer_timeout === "number" && !isNaN(this.buffer_timeout)) {
+        this.buffer_timeout = Math.round(this.buffer_timeout);
+    } else {
+        this.buffer_timeout = 1000; // Default buffer timeout is 1s
+    }
+
     const packet_ready = this.on_packet_ready.bind(this);
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout);
     }
 
     this.opened = true;
@@ -113,8 +120,8 @@ PcapSession.prototype.inject = function (data) {
 exports.Pcap = PcapSession;
 exports.PcapSession = PcapSession;
 
-exports.createSession = function (device, filter, buffer_size, monitor, snap_length) {
-    return new PcapSession(true, device, filter, buffer_size, snap_length, null, monitor);
+exports.createSession = function (device, filter, buffer_size, monitor, snap_length, buffer_timeout) {
+    return new PcapSession(true, device, filter, buffer_size, snap_length, null, monitor, buffer_timeout);
 };
 
 exports.createOfflineSession = function (path, filter) {
