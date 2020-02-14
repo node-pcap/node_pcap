@@ -1,5 +1,9 @@
-##Disclaimer
-node_pcap is currently being heavily refactored much of the documentation is out of date. If you installed node_pcap from npm go to [v2.0.1](https://github.com/mranney/node_pcap/commit/6e4d56671c54e0cf690f72b92554a538244bd1b6). Thanks for your patience and contributions as we work on the next major version of node_pcap.
+**Disclaimer:**
+There's been some API changes between v2 and v3; the `createSession` and `createOfflineSession` arguments
+now accept an `options` object. Also, if you're capturing on monitor wifi interfaces, the Radiotap
+header now has different fields.
+
+---
 
 node_pcap
 =========
@@ -61,9 +65,6 @@ capture programs.
 There are several example programs that show how to use `node_pcap`.  These examples are best documentation.
 Try them out and see what they do.
 
-To use this library in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm`
-takes care of this automatically.
-
 ### Starting a capture session
 
 To start a capture session, call `pcap.createSession` with an interface name and a pcap filter string:
@@ -74,7 +75,7 @@ var pcap = require('pcap'),
 ```
 
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
-will try to pick a "default" interface, which is often just the first one in some list and not what you want.
+will try to pick a "default" interface, which is often just the first one in some list and not whaet you want.
 
 The `options` object accepts the following properties:
 
@@ -121,10 +122,10 @@ Unless you are recklessly roaming about as root already, you'll probably want to
 
     sudo node test.js
 
-`pcap_session` is an `EventEmitter` that emits a `packet` event.  The only argument to the callback will be a
-`Buffer` object with the raw bytes returned by `libpcap`.
+### Listening for packets
 
-Listening for packets:
+`pcap_session` is an `EventEmitter` that emits a `packet` event.  The only argument to the callback will be a
+`PacketWithHeader` object containing the raw bytes returned by `libpcap`:
 
 ```javascript
 pcap_session.on('packet', function (raw_packet) {
@@ -132,9 +133,13 @@ pcap_session.on('packet', function (raw_packet) {
 });
 ```
 
+This `raw_packet` contains `buf` and `header` (`Buffer`s) and `link_type`.
+
 To convert `raw_packet` into a JavaScript object that is easy to work with, decode it:
 
-    var packet = pcap.decode.packet(raw_packet);
+```javascript
+var packet = pcap.decode.packet(raw_packet);
+```
 
 The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
 which is encapsulated within IP, which is encapsulated within a link layer.  Access it like this:
@@ -143,7 +148,7 @@ which is encapsulated within IP, which is encapsulated within a link layer.  Acc
 packet.link.ip.tcp.dport
 ```
 
-This structure is easy to explore with `sys.inspect`.
+This structure is easy to explore with `util.inspect`.
 
 ### TCP Analysis
 
@@ -216,6 +221,17 @@ The pcap filters are very efficient and run close to the kernel where they can p
 If the pcap filters are set correctly and `libpcap` still drops packets, it is possible to increase `libpcap`'s
 buffer size.  At the moment, this requires changing `pcap_binding.cc`.  Look for `pcap_set_buffer_size()` and
 set to a larger value.
+
+### Handling warnings
+
+libpcap may sometimes emit warnings (for instance, when an interface has no address). By default these
+are printed to the console, but you can override the warning handler with your own function:
+
+```js
+pcap.warningHandler = function (text) {
+    // ...
+}
+```
 
 ## Examples
 
