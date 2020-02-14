@@ -8,6 +8,7 @@
     "Ujjwal Thaakar <ujjwalthaakar@gmail.com>"
   ],
   "main": "./pcap",
+  "types": "pcap.d.ts",
   "repository": {
     "type": "git",
     "url": "git://github.com/mranney/node_pcap.git"
@@ -16,6 +17,7 @@
     "node": ">=10.0.0"
   },
   "dependencies": {
+    "@types/node": "^10.0.0",
     "nan": "^2.14.0"
   },
   "devDependencies": {
