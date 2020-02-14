@@ -75,7 +75,7 @@ var pcap = require('pcap'),
 ```
 
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
-will try to pick a "default" interface, which is often just the first one in some list and not whaet you want.
+will try to pick a "default" interface, which is often just the first one in some list and not what you want.
 
 The `options` object accepts the following properties:
 
