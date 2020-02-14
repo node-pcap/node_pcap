@@ -13,7 +13,7 @@ Nan::Persistent<Function> PcapSession::constructor;
 PcapSession::PcapSession() {};
 PcapSession::~PcapSession() {};
 
-void PcapSession::Init(Handle<Object> exports) {
+void PcapSession::Init(Local<Object> exports) {
   Nan::HandleScope scope;
   // Prepare constructor template
   Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(New);
@@ -24,13 +24,13 @@ void PcapSession::Init(Handle<Object> exports) {
   Nan::SetPrototypeMethod(tpl, "open_live", OpenLive);
   Nan::SetPrototypeMethod(tpl, "open_offline", OpenOffline);
   Nan::SetPrototypeMethod(tpl, "dispatch", Dispatch);
-  Nan::SetPrototypeMethod(tpl, "fileno", Fileno);
+  Nan::SetPrototypeMethod(tpl, "start_polling", StartPolling);
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "stats", Stats);
   Nan::SetPrototypeMethod(tpl, "inject", Inject);
 
-  constructor.Reset(tpl->GetFunction());
-  exports->Set(Nan::New("PcapSession").ToLocalChecked(), tpl->GetFunction());
+  constructor.Reset(tpl->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
+  Nan::Set(exports, Nan::New("PcapSession").ToLocalChecked(), tpl->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
 }
 
 void PcapSession::New(const Nan::FunctionCallbackInfo<Value>& info) {
@@ -69,11 +69,13 @@ void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const
     }
 
     size_t copy_len = pkthdr->caplen;
+
     if (copy_len > session->buffer_length) {
         copy_len = session->buffer_length;
     }
-    memcpy(session->buffer_data, packet, copy_len);
 
+    memcpy(session->buffer_data, packet, copy_len);
+    
     // copy header data to fixed offsets in second buffer from user
     memcpy(session->header_data, &(pkthdr->ts.tv_sec), 4);
     memcpy(session->header_data + 4, &(pkthdr->ts.tv_usec), 4);
@@ -82,7 +84,7 @@ void PcapSession::PacketReady(u_char *s, const struct pcap_pkthdr* pkthdr, const
 
     Nan::TryCatch try_catch;
 
-    Nan::MakeCallback(Nan::GetCurrentContext()->Global(), Nan::New(session->packet_ready_cb), 0, NULL);
+    Nan::Call(session->packet_ready_cb, 0, NULL);
 
     if (try_catch.HasCaught())  {
         Nan::FatalException(try_catch);
@@ -110,10 +112,10 @@ void PcapSession::Dispatch(const Nan::FunctionCallbackInfo<Value>& info)
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
 
-    Local<Object> buffer_obj = info[0]->ToObject();
+    Local<Object> buffer_obj = info[0]->ToObject(Nan::GetCurrentContext()).FromMaybe(Local<v8::Object>());
     session->buffer_data = node::Buffer::Data(buffer_obj);
     session->buffer_length = node::Buffer::Length(buffer_obj);
-    Local<Object> header_obj = info[1]->ToObject();
+    Local<Object> header_obj = info[1]->ToObject(Nan::GetCurrentContext()).FromMaybe(Local<v8::Object>());
     session->header_data = node::Buffer::Data(header_obj);
 
     int packet_count;
@@ -133,7 +135,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
     Nan::HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (info.Length() == 6) {
+    if (info.Length() == 9) {
         if (!info[0]->IsString()) {
             Nan::ThrowTypeError("pcap Open: info[0] must be a String");
             return;
@@ -146,37 +148,52 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
             Nan::ThrowTypeError("pcap Open: info[2] must be a Number");
             return;
         }
-        if (!info[3]->IsString()) {
-            Nan::ThrowTypeError("pcap Open: info[3] must be a String");
+        if (!info[3]->IsInt32()) {
+            Nan::ThrowTypeError("pcap Open: info[3] must be a Number");
             return;
         }
-        if (!info[4]->IsFunction()) {
-            Nan::ThrowTypeError("pcap Open: info[4] must be a Function");
+        if (!info[4]->IsString()) {
+            Nan::ThrowTypeError("pcap Open: info[4] must be a String");
             return;
         }
-        if (!info[5]->IsBoolean()) {
-            Nan::ThrowTypeError("pcap Open: info[5] must be a Boolean");
+        if (!info[5]->IsFunction()) {
+            Nan::ThrowTypeError("pcap Open: info[5] must be a Function");
+            return;
+        }
+        if (!info[6]->IsBoolean()) {
+            Nan::ThrowTypeError("pcap Open: info[6] must be a Boolean");
+            return;
+        }
+        if (!info[7]->IsInt32()) {
+            Nan::ThrowTypeError("pcap Open: info[7] must be a Number");
+            return;
+        }
+        if (!info[8]->IsFunction()) { // warning function
+            Nan::ThrowTypeError("pcap Open: info[8] must be a Function");
             return;
         }
     } else {
-        Nan::ThrowTypeError("pcap Open: expecting 6 arguments");
+        Nan::ThrowTypeError("pcap Open: expecting 8 arguments");
         return;
     }
-    Nan::Utf8String device(info[0]->ToString());
-    Nan::Utf8String filter(info[1]->ToString());
-    int buffer_size = info[2]->Int32Value();
-    Nan::Utf8String pcap_output_filename(info[3]->ToString());
+    Nan::Utf8String device(info[0]->ToString(Nan::GetCurrentContext()).FromMaybe(Local<v8::String>()));
+    Nan::Utf8String filter(info[1]->ToString(Nan::GetCurrentContext()).FromMaybe(Local<v8::String>()));
+    int buffer_size = Nan::To<int32_t>(info[2]).FromJust();
+    int snap_length = Nan::To<int32_t>(info[3]).FromJust();
+    int buffer_timeout = Nan::To<int32_t>(info[7]).FromJust();
+    Nan::Utf8String pcap_output_filename(info[4]->ToString(Nan::GetCurrentContext()).FromMaybe(Local<v8::String>()));
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.This());
 
-    session->packet_ready_cb.Reset(info[4].As<Function>());
+    session->packet_ready_cb.SetFunction(info[5].As<Function>());
     session->pcap_dump_handle = NULL;
 
     if (live) {
         if (pcap_lookupnet((char *) *device, &session->net, &session->mask, errbuf) == -1) {
             session->net = 0;
             session->mask = 0;
-            fprintf(stderr, "warning: %s - this may not actually work\n", errbuf);
+            Local<Value> str = Nan::New(errbuf).ToLocalChecked();
+            Nan::Call(info[8].As<Function>(), Nan::GetCurrentContext()->Global(), 1, &str);
         }
 
         session->pcap_handle = pcap_create((char *) *device, errbuf);
@@ -186,7 +203,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
         }
 
         // 64KB is the max IPv4 packet size
-        if (pcap_set_snaplen(session->pcap_handle, 65535) != 0) {
+        if (pcap_set_snaplen(session->pcap_handle, snap_length) != 0) {
             Nan::ThrowError("error setting snaplen");
             return;
         }
@@ -203,15 +220,23 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
             return;
         }
 
-        // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
-        if (pcap_set_timeout(session->pcap_handle, 1000) != 0) {
-            Nan::ThrowError("error setting read timeout");
+        if (buffer_timeout > 0) {
+            // set "timeout" on read, even though we are also setting nonblock below.  On Linux this is required.
+            if (pcap_set_timeout(session->pcap_handle, buffer_timeout) != 0) {
+                Nan::ThrowError("error setting read timeout");
+                return;
+            }
+        }
+
+        // timeout <= 0 is undefined behaviour, we'll set immediate mode instead. (timeout is ignored in immediate mode)
+        if (pcap_set_immediate_mode(session->pcap_handle, (buffer_timeout <= 0)) != 0) {
+            Nan::ThrowError("error setting immediate mode");
             return;
         }
 
         // fixes a previous to-do that was here.
-        if (info.Length() == 6) {
-            if (info[5]->Int32Value()) {
+        if (info.Length() == 7) {
+            if (Nan::To<int32_t>(info[6]).FromJust()) {
                 if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
                     Nan::ThrowError(pcap_geterr(session->pcap_handle));
                     return;
@@ -264,6 +289,10 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
 #if defined(__APPLE_CC__) || defined(__APPLE__)
     #include <net/bpf.h>
     int fd = pcap_get_selectable_fd(session->pcap_handle);
+    if (fd < 0) {
+        Nan::ThrowError(pcap_geterr(session->pcap_handle));
+        return;
+    }
     int v = 1;
     ioctl(fd, BIOCIMMEDIATE, &v);
     // TODO - check return value
@@ -323,17 +352,43 @@ void PcapSession::Close(const Nan::FunctionCallbackInfo<Value>& info)
 }
 
 void PcapSession::FinalizeClose(PcapSession * session) {
+    if (session->poll_init) {
+        uv_poll_stop(&session->poll_handle);
+        uv_unref((uv_handle_t*) &session->poll_handle);
+        session->poll_init = false;
+        delete session->poll_resource;
+    }
+
     pcap_close(session->pcap_handle);
     session->pcap_handle = NULL;
 
     session->packet_ready_cb.Reset();
 }
 
-void PcapSession::Fileno(const Nan::FunctionCallbackInfo<Value>& info)
+void PcapSession::poll_handler(uv_poll_t* handle, int status, int events)
+{
+    Nan::HandleScope scope;
+    PcapSession* session = reinterpret_cast<PcapSession*>(handle->data);
+
+    Local<String> callback_symbol = Nan::New("read_callback").ToLocalChecked();
+    Local<Value> callback_v = Nan::Get(session->handle(), callback_symbol).ToLocalChecked();
+    if(!callback_v->IsFunction()) return;
+    Local<Function> callback = Local<Function>::Cast(callback_v);
+
+    Nan::TryCatch try_catch;
+
+    session->poll_resource->runInAsyncScope(Nan::GetCurrentContext()->Global(), callback, 0, NULL);
+
+    if (try_catch.HasCaught())
+        Nan::FatalException(try_catch);
+}
+
+void PcapSession::StartPolling(const Nan::FunctionCallbackInfo<Value>& info)
 {
     Nan::HandleScope scope;
 
     PcapSession* session = Nan::ObjectWrap::Unwrap<PcapSession>(info.Holder());
+    if (session->poll_init) return;
 
     if (session->pcap_handle == NULL) {
         Nan::ThrowError("Error: pcap session already closed");
@@ -341,8 +396,25 @@ void PcapSession::Fileno(const Nan::FunctionCallbackInfo<Value>& info)
     }
 
     int fd = pcap_get_selectable_fd(session->pcap_handle);
+    if (fd < 0) {
+        Nan::ThrowError(pcap_geterr(session->pcap_handle));
+        return;
+    }
 
-    info.GetReturnValue().Set(Nan::New<Integer>(fd));
+    session->poll_handle.data = session;
+    if (uv_poll_init(Nan::GetCurrentEventLoop(), &session->poll_handle, fd) < 0) {
+        Nan::ThrowError("Couldn't initialize UV poll");
+        return;
+    }
+    session->poll_init = true;
+
+    if (uv_poll_start(&session->poll_handle, UV_READABLE, poll_handler) < 0) {
+        Nan::ThrowError("Couldn't start UV poll");
+        return;
+    }
+    uv_ref((uv_handle_t*) &session->poll_handle);
+
+    session->poll_resource = new Nan::AsyncResource("pcap:PcapSession", info.Holder());
 }
 
 void PcapSession::Stats(const Nan::FunctionCallbackInfo<Value>& info)
@@ -366,9 +438,9 @@ void PcapSession::Stats(const Nan::FunctionCallbackInfo<Value>& info)
 
     Local<Object> stats_obj = Nan::New<Object>();
 
-    stats_obj->Set(Nan::New("ps_recv").ToLocalChecked(), Nan::New<Integer>(ps.ps_recv));
-    stats_obj->Set(Nan::New("ps_drop").ToLocalChecked(), Nan::New<Integer>(ps.ps_drop));
-    stats_obj->Set(Nan::New("ps_ifdrop").ToLocalChecked(), Nan::New<Integer>(ps.ps_ifdrop));
+    Nan::Set(stats_obj, Nan::New("ps_recv").ToLocalChecked(), Nan::New<Integer>(ps.ps_recv));
+    Nan::Set(stats_obj, Nan::New("ps_drop").ToLocalChecked(), Nan::New<Integer>(ps.ps_drop));
+    Nan::Set(stats_obj, Nan::New("ps_ifdrop").ToLocalChecked(), Nan::New<Integer>(ps.ps_ifdrop));
     // ps_ifdrop may not be supported on this platform, but there's no good way to tell, is there?
 
     info.GetReturnValue().Set(stats_obj);
@@ -397,7 +469,7 @@ void PcapSession::Inject(const Nan::FunctionCallbackInfo<Value>& info)
 
     char * bufferData = NULL;
     size_t bufferLength = 0;
-    Local<Object> buffer_obj = info[0]->ToObject();
+    Local<Object> buffer_obj = info[0]->ToObject(Nan::GetCurrentContext()).FromMaybe(Local<v8::Object>());
     bufferData = node::Buffer::Data(buffer_obj);
     bufferLength = node::Buffer::Length(buffer_obj);
 

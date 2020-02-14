@@ -15,18 +15,17 @@
     "node": ">=0.10"
   },
   "dependencies": {
-    "nan": "^2.0.9",
-    "socketwatcher": "git+https://github.com/bytzdev/node-socketwatcher.git"
+    "nan": "^2.14.0"
   },
   "devDependencies": {
-    "grunt": "^0.4.5",
-    "grunt-cli": "^0.1.13",
-    "grunt-contrib-jshint": "^0.11.0",
-    "grunt-coveralls": "^1.0.0",
-    "grunt-mocha-istanbul": "^2.3.1",
+    "grunt": "^1.0.4",
+    "grunt-cli": "^1.3.2",
+    "grunt-contrib-jshint": "^2.1.0",
+    "grunt-coveralls": "^2.0.0",
+    "grunt-mocha-istanbul": "^5.0.2",
     "grunt-mocha-test": "^0.12.7",
-    "istanbul": "^0.3.5",
-    "mocha": "^2.1.0",
+    "istanbul": "^0.4.5",
+    "mocha": "^7.0.1",
     "mocha-sinon": "^1.1.4",
     "should": "^5.0.0",
     "sinon": "^1.14.1"

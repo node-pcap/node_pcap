@@ -20,6 +20,10 @@ pcap_session.on("packet", function (raw_packet) {
     tcp_tracker.track_packet(packet);
 });
 
+pcap_session.on("complete", function () {
+    console.log("pcap session complete.");
+});
+
 // tracker emits sessions, and sessions emit data
 tcp_tracker.on("session", function (session) {
     console.log("Start of TCP session between " + session.src_name + " and " + session.dst_name);

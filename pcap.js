@@ -1,7 +1,6 @@
 var util          = require("util");
 var events        = require("events");
 var binding       = require("./build/Release/pcap_binding");
-var SocketWatcher = require("socketwatcher").SocketWatcher;
 var decode        = require("./decode").decode;
 var tcp_tracker   = require("./tcp_tracker");
 var DNSCache      = require("./dns_cache");
@@ -12,20 +11,25 @@ exports.TCPTracker = tcp_tracker.TCPTracker;
 exports.TCPSession = tcp_tracker.TCPSession;
 exports.DNSCache = DNSCache;
 
-function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_monitor) {
+// This may be overriden by the user
+exports.warningHandler = function warningHandler(x) {
+    console.warn('warning: %s - this may not actually work', x);
+};
+
+function PcapSession(is_live, device_name, filter, buffer_size, snap_length, outfile, is_monitor, buffer_timeout) {
     this.is_live = is_live;
     this.device_name = device_name;
     this.filter = filter || "";
     this.buffer_size = buffer_size;
+    this.snap_length = snap_length;
     this.outfile = outfile || "";
     this.is_monitor = Boolean(is_monitor);
+    this.buffer_timeout = buffer_timeout;
 
     this.link_type = null;
-    this.fd = null;
     this.opened = null;
     this.buf = null;
     this.header = null;
-    this.read_watcher = null;
     this.empty_reads = 0;
     this.packets_read = null;
 
@@ -37,44 +41,47 @@ function PcapSession(is_live, device_name, filter, buffer_size, outfile, is_moni
         this.buffer_size = 10 * 1024 * 1024; // Default buffer size is 10MB
     }
 
-    var self = this;
-
-    // called for each packet read by pcap
-    function packet_ready() {
-        self.on_packet_ready();
+    if (typeof this.snap_length === "number" && !isNaN(this.snap_length)) {
+        this.snap_length = Math.round(this.snap_length);
+    } else {
+        this.snap_length = 65535; // Default snap length is 65535
     }
 
+    if (typeof this.buffer_timeout === "number" && !isNaN(this.buffer_timeout)) {
+        this.buffer_timeout = Math.round(this.buffer_timeout);
+    } else {
+        this.buffer_timeout = 1000; // Default buffer timeout is 1s
+    }
+
+    const packet_ready = this.on_packet_ready.bind(this);
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout, exports.warningHandler);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.outfile, packet_ready, this.is_monitor);
+        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout, exports.warningHandler);
     }
 
-    this.fd = this.session.fileno();
     this.opened = true;
-    this.buf = new Buffer(this.buffer_size || 65535);
-    this.header = new Buffer(16);
+    this.buf = Buffer.alloc(this.snap_length);
+    this.header = Buffer.alloc(16);
 
     if (is_live) {
-        this.readWatcher = new SocketWatcher();
-
-        // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
-        this.readWatcher.callback = function pcap_read_callback() {
-            var packets_read = self.session.dispatch(self.buf, self.header);
+        // callback when pcap has data to read. multiple packets may be readable.
+        this.session.read_callback = () => {
+            var packets_read = this.session.dispatch(this.buf, this.header);
             if (packets_read < 1) {
                 this.empty_reads += 1;
             }
         };
-        this.readWatcher.set(this.fd, true, false);
-        this.readWatcher.start();
+        this.session.start_polling();
+        process.nextTick(this.session.read_callback); // kickstart to prevent races
     } else {
-        timers.setImmediate(function() {
+        timers.setImmediate(() => {
             var packets = 0;
             do {
-                packets = self.session.dispatch(self.buf, self.header);
+                packets = this.session.dispatch(this.buf, this.header);
             } while ( packets > 0 );
-            self.emit("complete");
+            this.emit("complete");
         });
     }
 
@@ -104,10 +111,6 @@ PcapSession.prototype.close = function () {
 
     this.removeAllListeners();
 
-    if (this.is_live) {
-        this.readWatcher.stop();
-    }
-
     this.session.close();
 };
 
@@ -122,8 +125,8 @@ PcapSession.prototype.inject = function (data) {
 exports.Pcap = PcapSession;
 exports.PcapSession = PcapSession;
 
-exports.createSession = function (device, filter, buffer_size, monitor) {
-    return new PcapSession(true, device, filter, buffer_size, null, monitor);
+exports.createSession = function (device, filter, buffer_size, monitor, snap_length, buffer_timeout) {
+    return new PcapSession(true, device, filter, buffer_size, snap_length, null, monitor, buffer_timeout);
 };
 
 exports.createOfflineSession = function (path, filter) {

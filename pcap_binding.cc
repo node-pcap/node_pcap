@@ -31,7 +31,7 @@ void SetAddrStringHelper(const char* key, sockaddr *addr, Local<Object> Address)
     }
     const char* address = inet_ntop(addr->sa_family, src, dst_addr, size);
     if(address){
-        Address->Set(Nan::New(key).ToLocalChecked(), Nan::New(address).ToLocalChecked());
+        Nan::Set(Address, Nan::New(key).ToLocalChecked(), Nan::New(address).ToLocalChecked());
     }
   }
 }
@@ -55,9 +55,9 @@ NAN_METHOD(FindAllDevs)
     for (cur_dev = alldevs ; cur_dev != NULL ; cur_dev = cur_dev->next, i++) {
         Local<Object> Dev = Nan::New<Object>();
 
-        Dev->Set(Nan::New("name").ToLocalChecked(), Nan::New(cur_dev->name).ToLocalChecked());
+        Nan::Set(Dev, Nan::New("name").ToLocalChecked(), Nan::New(cur_dev->name).ToLocalChecked());
         if (cur_dev->description != NULL) {
-            Dev->Set(Nan::New("description").ToLocalChecked(), Nan::New(cur_dev->description).ToLocalChecked());
+            Nan::Set(Dev, Nan::New("description").ToLocalChecked(), Nan::New(cur_dev->description).ToLocalChecked());
         }
         Local<Array> AddrArray = Nan::New<Array>();
         int j = 0;
@@ -70,18 +70,18 @@ NAN_METHOD(FindAllDevs)
                 SetAddrStringHelper("netmask", cur_addr->netmask, Address);
                 SetAddrStringHelper("broadaddr", cur_addr->broadaddr, Address);
                 SetAddrStringHelper("dstaddr", cur_addr->dstaddr, Address);
-                AddrArray->Set(Nan::New<Integer>(j), Address);
+                Nan::Set(AddrArray, Nan::New<Integer>(j), Address);
               }
            }
         }
 
-        Dev->Set(Nan::New("addresses").ToLocalChecked(), AddrArray);
+        Nan::Set(Dev, Nan::New("addresses").ToLocalChecked(), AddrArray);
 
         if (cur_dev->flags & PCAP_IF_LOOPBACK) {
-            Dev->Set(Nan::New("flags").ToLocalChecked(), Nan::New("PCAP_IF_LOOPBACK").ToLocalChecked());
+            Nan::Set(Dev, Nan::New("flags").ToLocalChecked(), Nan::New("PCAP_IF_LOOPBACK").ToLocalChecked());
         }
 
-        DevsArray->Set(Nan::New<Integer>(i), Dev);
+        Nan::Set(DevsArray, Nan::New<Integer>(i), Dev);
     }
 
     pcap_freealldevs(alldevs);
@@ -135,15 +135,17 @@ NAN_METHOD(LibVersion)
     info.GetReturnValue().Set(Nan::New(pcap_lib_version()).ToLocalChecked());
 }
 
-void Initialize(Handle<Object> exports)
+void Initialize(Local<Object> exports)
 {
     Nan::HandleScope scope;
 
     PcapSession::Init(exports);
 
-    exports->Set(Nan::New("findalldevs").ToLocalChecked(), Nan::New<FunctionTemplate>(FindAllDevs)->GetFunction());
-    exports->Set(Nan::New("default_device").ToLocalChecked(), Nan::New<FunctionTemplate>(DefaultDevice)->GetFunction());
-    exports->Set(Nan::New("lib_version").ToLocalChecked(), Nan::New<FunctionTemplate>(LibVersion)->GetFunction());
+    Nan::Set(exports, Nan::New("findalldevs").ToLocalChecked(), Nan::New<FunctionTemplate>(FindAllDevs)->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
+    Nan::Set(exports, Nan::New("default_device").ToLocalChecked(), Nan::New<FunctionTemplate>(DefaultDevice)->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
+    Nan::Set(exports, Nan::New("lib_version").ToLocalChecked(), Nan::New<FunctionTemplate>(LibVersion)->GetFunction(Nan::GetCurrentContext()).ToLocalChecked());
 }
 
+DISABLE_WCAST_FUNCTION_TYPE
 NODE_MODULE(pcap_binding, Initialize)
+DISABLE_WCAST_FUNCTION_TYPE_END
