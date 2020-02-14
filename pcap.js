@@ -125,10 +125,12 @@ PcapSession.prototype.inject = function (data) {
 exports.Pcap = PcapSession;
 exports.PcapSession = PcapSession;
 
-exports.createSession = function (device, filter, buffer_size, monitor, snap_length, buffer_timeout) {
-    return new PcapSession(true, device, filter, buffer_size, snap_length, null, monitor, buffer_timeout);
+exports.createSession = function (device, options) {
+    options = options || {};
+    return new PcapSession(true, device, options.filter, options.buffer_size, options.snap_length, null, options.monitor, options.buffer_timeout);
 };
 
-exports.createOfflineSession = function (path, filter) {
-    return new PcapSession(false, path, filter, 0, null, null);
+exports.createOfflineSession = function (path, options) {
+    options = options || {};
+    return new PcapSession(false, path, options.filter, 0, null, null);
 };

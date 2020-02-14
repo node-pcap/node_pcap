@@ -70,14 +70,51 @@ To start a capture session, call `pcap.createSession` with an interface name and
 
 ```javascript
 var pcap = require('pcap'),
-    pcap_session = pcap.createSession(interface, filter);
+    pcap_session = pcap.createSession(interface, options);
 ```
 
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
 will try to pick a "default" interface, which is often just the first one in some list and not what you want.
 
-`filter` is a pcap filter expression, see `pcap-filter(7)` for more information.  An empty string will capture
-all packets visible on the interface.
+The `options` object accepts the following properties:
+
+ - `filter` (string) is a pcap filter expression, see `pcap-filter(7)` for more information. (default: no filter,
+   all packets visible on the interface will be captured)
+
+ - `buffer_size` (number) specifies size of the ringbuffer where packets are stored until delivered to your code, in bytes (default: 10MB)
+
+   > Packets that arrive for a capture are stored in a buffer, so that they do not have to be read by the application as soon as they arrive. On some platforms, the buffer's size can be set; a size that's too small could mean that, if too many packets are being captured and the snapshot length doesn't limit the amount of data that's buffered, packets could be dropped if the buffer fills up before the application can read packets from it, while a size that's too large could use more non-pageable operating system memory than is necessary to prevent packets from being dropped.
+
+ - `buffer_timeout` (number) specifies the packet buffer timeout in milliseconds (default: 1000)
+
+   > If, when capturing, packets are delivered as soon as they arrive, the application capturing the packets will be woken up for each packet as it arrives, and might have to make one or more calls to the operating system to fetch each packet.
+   >
+   > If, instead, packets are not delivered as soon as they arrive, but are delivered after a short delay (called a "packet buffer timeout"), more than one packet can be accumulated before the packets are delivered, so that a single wakeup would be done for multiple packets, and each set of calls made to the operating system would supply multiple packets, rather than a single packet. This reduces the per-packet CPU overhead if packets are arriving at a high rate, increasing the number of packets per second that can be captured.
+   >
+   > The packet buffer timeout is required so that an application won't wait for the operating system's capture buffer to fill up before packets are delivered; if packets are arriving slowly, that wait could take an arbitrarily long period of time.
+   >
+   > Not all platforms support a packet buffer timeout; on platforms that don't, the packet buffer timeout is ignored. A zero value for the timeout, on platforms that support a packet buffer timeout, will cause a read to wait forever to allow enough packets to arrive, with no timeout. A negative value is invalid; the result of setting the timeout to a negative value is unpredictable.
+   >
+   > **NOTE:** the packet buffer timeout cannot be used to cause calls that read packets to return within a limited period of time, because, on some platforms, the packet buffer timeout isn't supported, and, on other platforms, the timer doesn't start until at least one packet arrives. This means that the packet buffer timeout should **NOT** be used, for example, in an interactive application to allow the packet capture loop to ``poll'' for user input periodically, as there's no guarantee that a call reading packets will return after the timeout expires even if no packets have arrived.
+
+   If set to zero or negative, then instead immediate mode is enabled:
+
+   > In immediate mode, packets are always delivered as soon as they arrive, with no buffering.
+
+ - `monitor` (boolean) specifies if monitor mode is enabled (default: false)
+
+   > On IEEE 802.11 wireless LANs, even if an adapter is in promiscuous mode, it will supply to the host only frames for the network with which it's associated. It might also supply only data frames, not management or control frames, and might not provide the 802.11 header or radio information pseudo-header for those frames.
+   >
+   > In "monitor mode", sometimes also called "rfmon mode" (for "Radio Frequency MONitor"), the adapter will supply all frames that it receives, with 802.11 headers, and might supply a pseudo-header with radio information about the frame as well.
+   >
+   > Note that in monitor mode the adapter might disassociate from the network with which it's associated, so that you will not be able to use any wireless networks with that adapter. This could prevent accessing files on a network server, or resolving host names or network addresses, if you are capturing in monitor mode and are not connected to another network with another adapter.
+
+ - `snap_length` (number) specifies the snapshot length in bytes (default: 65535)
+
+   > If, when capturing, you capture the entire contents of the packet, that requires more CPU time to copy the packet to your application, more disk and possibly network bandwidth to write the packet data to a file, and more disk space to save the packet. If you don't need the entire contents of the packet - for example, if you are only interested in the TCP headers of packets - you can set the "snapshot length" for the capture to an appropriate value. If the snapshot length is set to snaplen, and snaplen is less than the size of a packet that is captured, only the first snaplen bytes of that packet will be captured and provided as packet data.
+   >
+   > A snapshot length of 65535 should be sufficient, on most if not all networks, to capture all the data available from the packet.
+
 
 Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
 Unless you are recklessly roaming about as root already, you'll probably want to start your node program like this:
