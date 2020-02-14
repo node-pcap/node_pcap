@@ -3,6 +3,7 @@
   "version": "2.1.0",
   "description": "raw packet capture, decoding, and analysis",
   "author": "Matt Ranney <mjr@ranney.com>",
+  "license": "MIT",
   "maintainers": [
     "Ujjwal Thaakar <ujjwalthaakar@gmail.com>"
   ],
