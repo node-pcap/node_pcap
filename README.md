@@ -150,6 +150,8 @@ packet.link.ip.tcp.dport
 
 This structure is easy to explore with `util.inspect`.
 
+However, if you decide to parse `raw_packet.buf` yourself, make sure to truncate it to the first `caplen` bytes first.
+
 ### TCP Analysis
 
 TCP can be analyzed by feeding the packets into a `TCPTracker` and then listening for `session` and `end` events.
