@@ -1,7 +1,6 @@
 var util          = require("util");
 var events        = require("events");
 var binding       = require("./build/Release/pcap_binding");
-var SocketWatcher = require("socketwatcher").SocketWatcher;
 var decode        = require("./decode").decode;
 var tcp_tracker   = require("./tcp_tracker");
 var DNSCache      = require("./dns_cache");
@@ -22,11 +21,9 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
     this.is_monitor = Boolean(is_monitor);
 
     this.link_type = null;
-    this.fd = null;
     this.opened = null;
     this.buf = null;
     this.header = null;
-    this.read_watcher = null;
     this.empty_reads = 0;
     this.packets_read = null;
 
@@ -58,23 +55,19 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
         this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor);
     }
 
-    this.fd = this.session.fileno();
     this.opened = true;
     this.buf = new Buffer(this.snap_length);
     this.header = new Buffer(16);
 
     if (is_live) {
-        this.readWatcher = new SocketWatcher();
-
-        // readWatcher gets a callback when pcap has data to read. multiple packets may be readable.
-        this.readWatcher.callback = function pcap_read_callback() {
+        // callback when pcap has data to read. multiple packets may be readable.
+        this.session.read_callback = function pcap_read_callback() {
             var packets_read = self.session.dispatch(self.buf, self.header);
             if (packets_read < 1) {
                 this.empty_reads += 1;
             }
         };
-        this.readWatcher.set(this.fd, true, false);
-        this.readWatcher.start();
+        this.session.start_polling();
     } else {
         timers.setImmediate(function() {
             var packets = 0;
@@ -110,10 +103,6 @@ PcapSession.prototype.close = function () {
     this.opened = false;
 
     this.removeAllListeners();
-
-    if (this.is_live) {
-        this.readWatcher.stop();
-    }
 
     this.session.close();
 };
