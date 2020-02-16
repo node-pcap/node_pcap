@@ -1,5 +1,9 @@
-##Disclaimer
-node_pcap is currently being heavily refactored much of the documentation is out of date. If you installed node_pcap from npm go to [v2.0.1](https://github.com/mranney/node_pcap/commit/6e4d56671c54e0cf690f72b92554a538244bd1b6). Thanks for your patience and contributions as we work on the next major version of node_pcap.
+**Disclaimer:**
+There's been some API changes between v2 and v3; the `createSession` and `createOfflineSession` arguments
+now accept an `options` object. Also, if you're capturing on monitor wifi interfaces, the Radiotap
+header now has different fields.
+
+---
 
 node_pcap
 =========
@@ -61,33 +65,67 @@ capture programs.
 There are several example programs that show how to use `node_pcap`.  These examples are best documentation.
 Try them out and see what they do.
 
-To use this library in your own program, `pcap.js` and `pcap_binding.node` must be in `NODE_PATH`.  `npm`
-takes care of this automatically.
-
 ### Starting a capture session
 
 To start a capture session, call `pcap.createSession` with an interface name and a pcap filter string:
 
 ```javascript
 var pcap = require('pcap'),
-    pcap_session = pcap.createSession(interface, filter);
+    pcap_session = pcap.createSession(interface, options);
 ```
 
 `interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
 will try to pick a "default" interface, which is often just the first one in some list and not what you want.
 
-`filter` is a pcap filter expression, see `pcap-filter(7)` for more information.  An empty string will capture
-all packets visible on the interface.
+The `options` object accepts the following properties:
+
+ - `filter` (string) is a pcap filter expression, see `pcap-filter(7)` for more information. (default: no filter,
+   all packets visible on the interface will be captured)
+
+ - `buffer_size` (number) specifies size of the ringbuffer where packets are stored until delivered to your code, in bytes (default: 10MB)
+
+   > Packets that arrive for a capture are stored in a buffer, so that they do not have to be read by the application as soon as they arrive. On some platforms, the buffer's size can be set; a size that's too small could mean that, if too many packets are being captured and the snapshot length doesn't limit the amount of data that's buffered, packets could be dropped if the buffer fills up before the application can read packets from it, while a size that's too large could use more non-pageable operating system memory than is necessary to prevent packets from being dropped.
+
+ - `buffer_timeout` (number) specifies the packet buffer timeout in milliseconds (default: 1000)
+
+   > If, when capturing, packets are delivered as soon as they arrive, the application capturing the packets will be woken up for each packet as it arrives, and might have to make one or more calls to the operating system to fetch each packet.
+   >
+   > If, instead, packets are not delivered as soon as they arrive, but are delivered after a short delay (called a "packet buffer timeout"), more than one packet can be accumulated before the packets are delivered, so that a single wakeup would be done for multiple packets, and each set of calls made to the operating system would supply multiple packets, rather than a single packet. This reduces the per-packet CPU overhead if packets are arriving at a high rate, increasing the number of packets per second that can be captured.
+   >
+   > The packet buffer timeout is required so that an application won't wait for the operating system's capture buffer to fill up before packets are delivered; if packets are arriving slowly, that wait could take an arbitrarily long period of time.
+   >
+   > Not all platforms support a packet buffer timeout; on platforms that don't, the packet buffer timeout is ignored. A zero value for the timeout, on platforms that support a packet buffer timeout, will cause a read to wait forever to allow enough packets to arrive, with no timeout. A negative value is invalid; the result of setting the timeout to a negative value is unpredictable.
+   >
+   > **NOTE:** the packet buffer timeout cannot be used to cause calls that read packets to return within a limited period of time, because, on some platforms, the packet buffer timeout isn't supported, and, on other platforms, the timer doesn't start until at least one packet arrives. This means that the packet buffer timeout should **NOT** be used, for example, in an interactive application to allow the packet capture loop to 'poll' for user input periodically, as there's no guarantee that a call reading packets will return after the timeout expires even if no packets have arrived.
+
+   If set to zero or negative, then instead immediate mode is enabled:
+
+   > In immediate mode, packets are always delivered as soon as they arrive, with no buffering.
+
+ - `monitor` (boolean) specifies if monitor mode is enabled (default: false)
+
+   > On IEEE 802.11 wireless LANs, even if an adapter is in promiscuous mode, it will supply to the host only frames for the network with which it's associated. It might also supply only data frames, not management or control frames, and might not provide the 802.11 header or radio information pseudo-header for those frames.
+   >
+   > In "monitor mode", sometimes also called "rfmon mode" (for "Radio Frequency MONitor"), the adapter will supply all frames that it receives, with 802.11 headers, and might supply a pseudo-header with radio information about the frame as well.
+   >
+   > Note that in monitor mode the adapter might disassociate from the network with which it's associated, so that you will not be able to use any wireless networks with that adapter. This could prevent accessing files on a network server, or resolving host names or network addresses, if you are capturing in monitor mode and are not connected to another network with another adapter.
+
+ - `snap_length` (number) specifies the snapshot length in bytes (default: 65535)
+
+   > If, when capturing, you capture the entire contents of the packet, that requires more CPU time to copy the packet to your application, more disk and possibly network bandwidth to write the packet data to a file, and more disk space to save the packet. If you don't need the entire contents of the packet - for example, if you are only interested in the TCP headers of packets - you can set the "snapshot length" for the capture to an appropriate value. If the snapshot length is set to snaplen, and snaplen is less than the size of a packet that is captured, only the first snaplen bytes of that packet will be captured and provided as packet data.
+   >
+   > A snapshot length of 65535 should be sufficient, on most if not all networks, to capture all the data available from the packet.
+
 
 Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
 Unless you are recklessly roaming about as root already, you'll probably want to start your node program like this:
 
     sudo node test.js
 
-`pcap_session` is an `EventEmitter` that emits a `packet` event.  The only argument to the callback will be a
-`Buffer` object with the raw bytes returned by `libpcap`.
+### Listening for packets
 
-Listening for packets:
+`pcap_session` is an `EventEmitter` that emits a `packet` event.  The only argument to the callback will be a
+`PacketWithHeader` object containing the raw bytes returned by `libpcap`:
 
 ```javascript
 pcap_session.on('packet', function (raw_packet) {
@@ -95,9 +133,13 @@ pcap_session.on('packet', function (raw_packet) {
 });
 ```
 
+This `raw_packet` contains `buf` and `header` (`Buffer`s) and `link_type`.
+
 To convert `raw_packet` into a JavaScript object that is easy to work with, decode it:
 
-    var packet = pcap.decode.packet(raw_packet);
+```javascript
+var packet = pcap.decode.packet(raw_packet);
+```
 
 The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
 which is encapsulated within IP, which is encapsulated within a link layer.  Access it like this:
@@ -106,7 +148,9 @@ which is encapsulated within IP, which is encapsulated within a link layer.  Acc
 packet.link.ip.tcp.dport
 ```
 
-This structure is easy to explore with `sys.inspect`.
+This structure is easy to explore with `util.inspect`.
+
+However, if you decide to parse `raw_packet.buf` yourself, make sure to truncate it to the first `caplen` bytes first.
 
 ### TCP Analysis
 
@@ -134,6 +178,29 @@ You must only send IPv4 TCP packets to the TCP tracker.  Explore the `session` o
 see the wonderful things it can do for you.  Hopefully the names of the properties are self-explanatory:
 
 See [http_trace](https://github.com/mranney/http_trace) for an example of how to use these events to decode HTTP (Works only on node 4).
+
+### Other operations
+
+To know the format of the link-layer headers, use `pcap_session.link_type` or `raw_packet.link_type`.
+The property is a `LINKTYPE_<...>` string, see [this list](https://www.tcpdump.org/linktypes.html).
+
+To get current capture statistics, use `pcap_session.stats()`. This returns an object with the following properties:
+
+ - `ps_recv`: number of packets received
+ - `ps_ifdrop`: number of packets dropped by the network interface or its driver
+ - `ps_drop`: number of packets dropped because there was no room in the operating system's buffer when they arrived, because packets weren't being read fast enough
+
+For more info, see [`pcap_stats`](https://www.tcpdump.org/manpages/pcap_stats.3pcap.html).
+
+If you no longer need to receive packets, you can use `pcap_session.close()`.
+
+To read packets from a file instead of from a live interface, use `createOfflineSession` instead:
+
+```javascript
+pcap.createOfflineSession('/path/to/capture.pcap', options);
+```
+
+Where `options` only accepts the `filter` property.
 
 ## Some Common Problems
 
@@ -180,33 +247,19 @@ If the pcap filters are set correctly and `libpcap` still drops packets, it is p
 buffer size.  At the moment, this requires changing `pcap_binding.cc`.  Look for `pcap_set_buffer_size()` and
 set to a larger value.
 
+### Handling warnings
+
+libpcap may sometimes emit warnings (for instance, when an interface has no address). By default these
+are printed to the console, but you can override the warning handler with your own function:
+
+```js
+pcap.warningHandler = function (text) {
+    // ...
+}
+```
+
 ## Examples
 
 [redis_trace](https://github.com/mranney/redis_trace)
 
 [http_trace](https://github.com/mranney/http_trace) (Node 4 only)
-
-## LICENSE - "MIT License"
-
-Copyright (c) 2010 Matthew Ranney, http://ranney.com/
-
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation
-files (the "Software"), to deal in the Software without
-restriction, including without limitation the rights to use,
-copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
