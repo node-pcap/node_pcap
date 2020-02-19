@@ -11,7 +11,7 @@
   "types": "pcap.d.ts",
   "repository": {
     "type": "git",
-    "url": "git://github.com/mranney/node_pcap.git"
+    "url": "git://github.com/node-pcap/node_pcap.git"
   },
   "engines": {
     "node": ">=10.0.0"

@@ -9,7 +9,7 @@ node_pcap
 =========
 
 [![Join the chat at https://gitter.im/mranney/node_pcap](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mranney/node_pcap?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://travis-ci.org/mranney/node_pcap.svg?branch=master)](https://travis-ci.org/mranney/node_pcap)[![Coverage Status](https://coveralls.io/repos/mranney/node_pcap/badge.svg)](https://coveralls.io/r/mranney/node_pcap)
+[![Build Status](https://travis-ci.org/node-pcap/node_pcap.svg?branch=master)](https://travis-ci.org/node-pcap/node_pcap)[![Coverage Status](https://coveralls.io/repos/mranney/node_pcap/badge.svg)](https://coveralls.io/r/mranney/node_pcap)
 
 This is a set of bindings from `libpcap` to node as well as some useful libraries to decode, print, and
 analyze packets.  `libpcap` is a packet capture library used by programs like `tcpdump` and `wireshark`.
@@ -49,7 +49,7 @@ The easiest way to get `node_pcap` and its tools is with `npm`:
 
 If you want to hack on the source code, you can get it from github.  Clone the repo like this:
 
-    git clone git://github.com/mranney/node_pcap.git
+    git clone git://github.com/node-pcap/node_pcap.git
 
 To compile the native code bindings, do this:
 
