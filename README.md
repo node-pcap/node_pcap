@@ -82,6 +82,16 @@ The `options` object accepts the following properties:
  - `filter` (string) is a pcap filter expression, see `pcap-filter(7)` for more information. (default: no filter,
    all packets visible on the interface will be captured)
 
+ - `promiscuous` (boolean) specifies if the interface is opened in promiscuous mode (default: true)
+
+   > On broadcast LANs such as Ethernet, if the network isn't switched, or if the adapter is connected to a "mirror port" on a switch to which all packets passing through the switch are sent, a network adapter receives all packets on the LAN, including unicast or multicast packets not sent to a network address that the network adapter isn't configured to recognize.
+   > 
+   > Normally, the adapter will discard those packets; however, many network adapters support "promiscuous mode", which is a mode in which all packets, even if they are not sent to an address that the adapter recognizes, are provided to the host. This is useful for passively capturing traffic between two or more other hosts for analysis.
+   > 
+   > Note that even if an application does not set promiscuous mode, the adapter could well be in promiscuous mode for some other reason.
+   > 
+   > For now, this doesn't work on the "any" device; if an argument of "any" or NULL is supplied, the setting of promiscuous mode is ignored.
+
  - `buffer_size` (number) specifies size of the ringbuffer where packets are stored until delivered to your code, in bytes (default: 10MB)
 
    > Packets that arrive for a capture are stored in a buffer, so that they do not have to be read by the application as soon as they arrive. On some platforms, the buffer's size can be set; a size that's too small could mean that, if too many packets are being captured and the snapshot length doesn't limit the amount of data that's buffered, packets could be dropped if the buffer fills up before the application can read packets from it, while a size that's too large could use more non-pageable operating system memory than is necessary to prevent packets from being dropped.
@@ -117,7 +127,7 @@ The `options` object accepts the following properties:
    > A snapshot length of 65535 should be sufficient, on most if not all networks, to capture all the data available from the packet.
 
 
-Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
+Note that by default `node_pcap` opens the interface in promiscuous mode, which generally requires running as root.
 Unless you are recklessly roaming about as root already, you'll probably want to start your node program like this:
 
     sudo node test.js

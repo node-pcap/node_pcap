@@ -16,7 +16,7 @@ exports.warningHandler = function warningHandler(x) {
     console.warn('warning: %s - this may not actually work', x);
 };
 
-function PcapSession(is_live, device_name, filter, buffer_size, snap_length, outfile, is_monitor, buffer_timeout) {
+function PcapSession(is_live, device_name, filter, buffer_size, snap_length, outfile, is_monitor, buffer_timeout, promiscuous) {
     this.is_live = is_live;
     this.device_name = device_name;
     this.filter = filter || "";
@@ -25,6 +25,7 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
     this.outfile = outfile || "";
     this.is_monitor = Boolean(is_monitor);
     this.buffer_timeout = buffer_timeout;
+    this.promiscuous = typeof promiscuous === 'undefined' ? true : promiscuous;
 
     this.link_type = null;
     this.opened = null;
@@ -56,9 +57,9 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
     const packet_ready = this.on_packet_ready.bind(this);
     if (this.is_live) {
         this.device_name = this.device_name || binding.default_device();
-        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout, exports.warningHandler);
+        this.link_type = this.session.open_live(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout, exports.warningHandler, this.promiscuous);
     } else {
-        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout, exports.warningHandler);
+        this.link_type = this.session.open_offline(this.device_name, this.filter, this.buffer_size, this.snap_length, this.outfile, packet_ready, this.is_monitor, this.buffer_timeout, exports.warningHandler, this.promiscuous);
     }
 
     this.opened = true;
@@ -127,7 +128,7 @@ exports.PcapSession = PcapSession;
 
 exports.createSession = function (device, options) {
     options = options || {};
-    return new PcapSession(true, device, options.filter, options.buffer_size, options.snap_length, null, options.monitor, options.buffer_timeout);
+    return new PcapSession(true, device, options.filter, options.buffer_size, options.snap_length, null, options.monitor, options.buffer_timeout, options.promiscuous);
 };
 
 exports.createOfflineSession = function (path, options) {

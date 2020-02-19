@@ -135,7 +135,7 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
     Nan::HandleScope scope;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (info.Length() == 9) {
+    if (info.Length() == 10) {
         if (!info[0]->IsString()) {
             Nan::ThrowTypeError("pcap Open: info[0] must be a String");
             return;
@@ -170,6 +170,10 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
         }
         if (!info[8]->IsFunction()) { // warning function
             Nan::ThrowTypeError("pcap Open: info[8] must be a Function");
+            return;
+        }
+        if (!info[9]->IsBoolean()) {
+            Nan::ThrowTypeError("pcap Open: info[9] must be a Boolean");
             return;
         }
     } else {
@@ -208,10 +212,11 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
             return;
         }
 
-        // always use promiscuous mode
-        if (pcap_set_promisc(session->pcap_handle, 1) != 0) {
-            Nan::ThrowError("error setting promiscuous mode");
-            return;
+        if (Nan::To<int32_t>(info[9]).FromJust()) {
+            if (pcap_set_promisc(session->pcap_handle, 1) != 0) {
+                Nan::ThrowError("error setting promiscuous mode");
+                return;
+            }
         }
 
         // Try to set buffer size.  Sometimes the OS has a lower limit that it will silently enforce.
