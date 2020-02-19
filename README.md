@@ -71,10 +71,10 @@ To start a capture session, call `pcap.createSession` with an interface name and
 
 ```javascript
 var pcap = require('pcap'),
-    pcap_session = pcap.createSession(interface, options);
+    pcap_session = pcap.createSession(device_name, options);
 ```
 
-`interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
+`device_name` is the name of the network interface on which to capture packets.  If passed an empty string, `libpcap`
 will try to pick a "default" interface, which is often just the first one in some list and not what you want.
 
 The `options` object accepts the following properties:
@@ -159,7 +159,7 @@ TCP can be analyzed by feeding the packets into a `TCPTracker` and then listenin
 ```javascript
 var pcap = require('pcap'),
     tcp_tracker = new pcap.TCPTracker(),
-    pcap_session = pcap.createSession('en0', "ip proto \\tcp");
+    pcap_session = pcap.createSession('en0', { filter: "ip proto \\tcp" });
 
 tcp_tracker.on('session', function (session) {
   console.log("Start of session between " + session.src_name + " and " + session.dst_name);
