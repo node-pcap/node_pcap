@@ -94,6 +94,19 @@ export interface LiveSessionOptions extends CommonSessionOptions {
     buffer_size?: number;
 
     /**
+     * specifies if the interface is opened in promiscuous mode (default: true)
+     *
+     * > On broadcast LANs such as Ethernet, if the network isn't switched, or if the adapter is connected to a "mirror port" on a switch to which all packets passing through the switch are sent, a network adapter receives all packets on the LAN, including unicast or multicast packets not sent to a network address that the network adapter isn't configured to recognize.
+     * > 
+     * > Normally, the adapter will discard those packets; however, many network adapters support "promiscuous mode", which is a mode in which all packets, even if they are not sent to an address that the adapter recognizes, are provided to the host. This is useful for passively capturing traffic between two or more other hosts for analysis.
+     * > 
+     * > Note that even if an application does not set promiscuous mode, the adapter could well be in promiscuous mode for some other reason.
+     * > 
+     * > For now, this doesn't work on the "any" device; if an argument of "any" or NULL is supplied, the setting of promiscuous mode is ignored.
+     */
+    promiscuous?: boolean;
+
+    /**
      * packet buffer timeout in milliseconds (default: 1000)
      *
      * > If, when capturing, packets are delivered as soon as they arrive, the application capturing the packets will be woken up for each packet as it arrives, and might have to make one or more calls to the operating system to fetch each packet.

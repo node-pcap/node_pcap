@@ -9,7 +9,7 @@ node_pcap
 =========
 
 [![Join the chat at https://gitter.im/mranney/node_pcap](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mranney/node_pcap?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://travis-ci.org/mranney/node_pcap.svg?branch=master)](https://travis-ci.org/mranney/node_pcap)[![Coverage Status](https://coveralls.io/repos/mranney/node_pcap/badge.svg)](https://coveralls.io/r/mranney/node_pcap)
+[![Build Status](https://travis-ci.org/node-pcap/node_pcap.svg?branch=master)](https://travis-ci.org/node-pcap/node_pcap)[![Coverage Status](https://coveralls.io/repos/mranney/node_pcap/badge.svg)](https://coveralls.io/r/mranney/node_pcap)
 
 This is a set of bindings from `libpcap` to node as well as some useful libraries to decode, print, and
 analyze packets.  `libpcap` is a packet capture library used by programs like `tcpdump` and `wireshark`.
@@ -49,7 +49,7 @@ The easiest way to get `node_pcap` and its tools is with `npm`:
 
 If you want to hack on the source code, you can get it from github.  Clone the repo like this:
 
-    git clone git://github.com/mranney/node_pcap.git
+    git clone git://github.com/node-pcap/node_pcap.git
 
 To compile the native code bindings, do this:
 
@@ -71,16 +71,26 @@ To start a capture session, call `pcap.createSession` with an interface name and
 
 ```javascript
 var pcap = require('pcap'),
-    pcap_session = pcap.createSession(interface, options);
+    pcap_session = pcap.createSession(device_name, options);
 ```
 
-`interface` is the name of the interface on which to capture packets.  If passed an empty string, `libpcap`
+`device_name` is the name of the network interface on which to capture packets.  If passed an empty string, `libpcap`
 will try to pick a "default" interface, which is often just the first one in some list and not what you want.
 
 The `options` object accepts the following properties:
 
  - `filter` (string) is a pcap filter expression, see `pcap-filter(7)` for more information. (default: no filter,
    all packets visible on the interface will be captured)
+
+ - `promiscuous` (boolean) specifies if the interface is opened in promiscuous mode (default: true)
+
+   > On broadcast LANs such as Ethernet, if the network isn't switched, or if the adapter is connected to a "mirror port" on a switch to which all packets passing through the switch are sent, a network adapter receives all packets on the LAN, including unicast or multicast packets not sent to a network address that the network adapter isn't configured to recognize.
+   > 
+   > Normally, the adapter will discard those packets; however, many network adapters support "promiscuous mode", which is a mode in which all packets, even if they are not sent to an address that the adapter recognizes, are provided to the host. This is useful for passively capturing traffic between two or more other hosts for analysis.
+   > 
+   > Note that even if an application does not set promiscuous mode, the adapter could well be in promiscuous mode for some other reason.
+   > 
+   > For now, this doesn't work on the "any" device; if an argument of "any" or NULL is supplied, the setting of promiscuous mode is ignored.
 
  - `buffer_size` (number) specifies size of the ringbuffer where packets are stored until delivered to your code, in bytes (default: 10MB)
 
@@ -117,7 +127,7 @@ The `options` object accepts the following properties:
    > A snapshot length of 65535 should be sufficient, on most if not all networks, to capture all the data available from the packet.
 
 
-Note that `node_pcap` always opens the interface in promiscuous mode, which generally requires running as root.
+Note that by default `node_pcap` opens the interface in promiscuous mode, which generally requires running as root.
 Unless you are recklessly roaming about as root already, you'll probably want to start your node program like this:
 
     sudo node test.js
@@ -142,10 +152,11 @@ var packet = pcap.decode.packet(raw_packet);
 ```
 
 The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
-which is encapsulated within IP, which is encapsulated within a link layer.  Access it like this:
+which is encapsulated within IP, which is encapsulated within a link layer.  Each layer is contained within the
+`payload` attribute of the upper layer (or the packet itself):
 
 ```javascript
-packet.link.ip.tcp.dport
+packet.payload.payload.payload.dport
 ```
 
 This structure is easy to explore with `util.inspect`.
@@ -159,7 +170,7 @@ TCP can be analyzed by feeding the packets into a `TCPTracker` and then listenin
 ```javascript
 var pcap = require('pcap'),
     tcp_tracker = new pcap.TCPTracker(),
-    pcap_session = pcap.createSession('en0', "ip proto \\tcp");
+    pcap_session = pcap.createSession('en0', { filter: "ip proto \\tcp" });
 
 tcp_tracker.on('session', function (session) {
   console.log("Start of session between " + session.src_name + " and " + session.dst_name);

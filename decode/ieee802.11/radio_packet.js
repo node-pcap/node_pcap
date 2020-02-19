@@ -30,6 +30,8 @@ function RadioPacket(emitter) {
     this._decoderCache = {};
 }
 
+RadioPacket.globalCache = {};
+
 RadioPacket.prototype.decode = function (raw_packet, offset, options) {
     var original_offset = offset;
 
@@ -49,10 +51,11 @@ RadioPacket.prototype.decode = function (raw_packet, offset, options) {
             this.presentFields |= BigInt(v) << s;
         }
     }
-
-    if (!Object.hasOwnProperty.call(this._decoderCache, this.presentFields))
-        this._decoderCache[this.presentFields] = this.buildDecoder(this.presentFields);
-    this.fields = this._decoderCache[this.presentFields](raw_packet, offset, original_offset + this.headerLength);
+  
+    const cache = (options && options.radiotapCache) || RadioPacket.globalCache;
+    if (!Object.hasOwnProperty.call(cache, this.presentFields))
+        cache[this.presentFields] = buildDecoder(this.presentFields);
+    this.fields = cache[this.presentFields](raw_packet, offset, original_offset + this.headerLength);
 
     offset = original_offset + this.headerLength;
 
@@ -70,7 +73,7 @@ RadioPacket.prototype.decode = function (raw_packet, offset, options) {
 // radiotap field data and returns the `fields` object.
 // Both this function and the returned function may throw
 // Important: Bits 31, 63, etc. must NOT be set
-RadioPacket.prototype.buildDecoder = function (fields) {
+function buildDecoder(fields) {
     var code = 'var result = {};\n';
 
     // Generate field extraction code
@@ -130,7 +133,7 @@ RadioPacket.prototype.buildDecoder = function (fields) {
 
     code = pre_check + code + 'return result;';
     return new Function('readBigUInt64LE', 'data', 'offset', 'end_offset', code)
-        .bind(this, readBigUInt64LE);
-};
+        .bind(null, readBigUInt64LE);
+}
 
 module.exports = RadioPacket;
