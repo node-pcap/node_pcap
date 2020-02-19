@@ -234,13 +234,10 @@ void PcapSession::Open(bool live, const Nan::FunctionCallbackInfo<Value>& info)
             return;
         }
 
-        // fixes a previous to-do that was here.
-        if (info.Length() == 7) {
-            if (Nan::To<int32_t>(info[6]).FromJust()) {
-                if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
-                    Nan::ThrowError(pcap_geterr(session->pcap_handle));
-                    return;
-                }
+        if (Nan::To<int32_t>(info[6]).FromJust()) {
+            if (pcap_set_rfmon(session->pcap_handle, 1) != 0) {
+                Nan::ThrowError(pcap_geterr(session->pcap_handle));
+                return;
             }
         }
 
