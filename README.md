@@ -152,10 +152,11 @@ var packet = pcap.decode.packet(raw_packet);
 ```
 
 The protocol stack is exposed as a nested set of objects.  For example, the TCP destination port is part of TCP
-which is encapsulated within IP, which is encapsulated within a link layer.  Access it like this:
+which is encapsulated within IP, which is encapsulated within a link layer.  Each layer is contained within the
+`payload` attribute of the upper layer (or the packet itself):
 
 ```javascript
-packet.link.ip.tcp.dport
+packet.payload.payload.payload.dport
 ```
 
 This structure is easy to explore with `util.inspect`.
