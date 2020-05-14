@@ -80,7 +80,11 @@ EthernetPacket.prototype.toString = function () {
     default:
         ret += " ethertype " + this.ethertype;
     }
-    return ret + " " + this.payload.toString();
+    var payload = '';
+    if (this.payload !== null) {
+        payload = this.payload.toString();
+    } 
+    return ret + " " + payload;
 };
 
 module.exports = EthernetPacket;
