@@ -1,6 +1,7 @@
-var Dns = require("../../decode/dns");
+var Dns = require("../../../decode/dns");
+var DnsQuery = require("../../../decode/dns/query");
 var events = require("events");
-var shouldBehaveLikeADecoder = require("./decode").shouldBehaveLikeADecoder;
+var shouldBehaveLikeADecoder = require("../decode").shouldBehaveLikeADecoder;
 require("should");
 
 describe("Dns", function(){
@@ -25,6 +26,14 @@ describe("Dns", function(){
     it("sets #id to the transaction id", function() {
       this.instance.decode(this.example, 0);
       this.instance.should.have.property("id", 0x311f);
+    });
+
+    it("sets #questions to the list of queries in the packet", function() {
+      var exampleQuery = new DnsQuery();
+      exampleQuery.decode(new Buffer("01320131033136380331393207696e2d61646472046172706100000c0001", "hex"), 0);
+
+      this.instance.decode(this.example, 0);
+      this.instance.should.have.property("questions", [exampleQuery]);
     });
 
     it("sets #header.isResponse to true if the packet was a response", function() {
@@ -64,8 +73,16 @@ describe("Dns", function(){
   });
 
   describe("#toString()", function(){
+    var exampleToString = " DNS { isResponse:false opcode:0 isAuthority:false isTruncated:false isRecursionDesired:false isRecursionAvailible:false z:0 responseCode:0 }" +
+        "\n  question:name: 2.1.168.192.in-addr.arpa type: PTR class: IN";
     it("is a function", function(){
       this.instance.toString.should.be.type("function");
+    });
+
+    it("returns a value like\"" + exampleToString + "\"", function() {
+      this.instance.decode(this.example, 0);
+      var result = this.instance.toString();
+      result.should.be.exactly(exampleToString);
     });
   });
 });
