@@ -254,9 +254,8 @@ you'll drop packets.  If this happens, it becomes difficult to reconstruct highe
 way to keep the buffers from filling up is to use pcap filters to only consider traffic that you need to decode.
 The pcap filters are very efficient and run close to the kernel where they can process high packet rates.
 
-If the pcap filters are set correctly and `libpcap` still drops packets, it is possible to increase `libpcap`'s
-buffer size.  At the moment, this requires changing `pcap_binding.cc`.  Look for `pcap_set_buffer_size()` and
-set to a larger value.
+If the pcap filters are set correctly and `libpcap` still drops packets, you can increase the `bufferSize` option.
+To check if there's any packet loss, you can use `pcap_session.stats()` as indicated above.
 
 ### Handling warnings
 
