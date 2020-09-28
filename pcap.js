@@ -113,6 +113,10 @@ PcapSession.prototype.close = function () {
     this.removeAllListeners();
 
     this.session.close();
+
+    if (this.is_live) {
+      process.nextTick(this.session.read_callback);
+    }
 };
 
 PcapSession.prototype.stats = function () {
