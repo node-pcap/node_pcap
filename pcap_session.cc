@@ -359,10 +359,13 @@ void PcapSession::FinalizeClose(PcapSession * session) {
         uv_unref((uv_handle_t*) &session->poll_handle);
         session->poll_init = false;
         delete session->poll_resource;
+        session->poll_resource = NULL;
     }
 
-    pcap_close(session->pcap_handle);
-    session->pcap_handle = NULL;
+    if (session->pcap_handle) {
+        pcap_close(session->pcap_handle);
+        session->pcap_handle = NULL;
+    }
 
     session->packet_ready_cb.Reset();
 }
