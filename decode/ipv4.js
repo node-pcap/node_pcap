@@ -90,13 +90,31 @@ IPv4.prototype.decode = function (raw_packet, offset) {
 
     offset = orig_offset + this.headerLength;
 
-    var ProtocolDecoder = protocols[this.protocol];
-    if(ProtocolDecoder === undefined) {
-        this.protocolName = "Unknown";
+    if(this.fragmentOffset || this.flags.moreFragments) {
+        
+        /* Discussion: This is a IP fragment. We don't have the entire
+         * next protocol data to decode. So the user need try to decode by himself.
+         * 
+         * Due to performance issues, the payload is not a copy, and is valid only
+         * once time in loop and needs to be copied by the user if he intends 
+         * to reassembly the original packet.
+         * 
+         * In future, we would try to decode only the first fragment, that usually
+         * has the entire header of the upper protocol (but don't have the whole payload),
+         * but we need to check all decoders of transport layer to ensure that we will not have bugs
+         * when trying to decode a incomplete data.
+         * */
+        var payloadSize = this.length - this.headerLength;
+        //Don't forget to copy the payload if you intend to defrag!
+        this.payload = raw_packet.slice(offset, offset + payloadSize);
     } else {
-        this.payload = new ProtocolDecoder(this.emitter).decode(raw_packet, offset, this.length - this.headerLength);
+        var ProtocolDecoder = protocols[this.protocol];
+        if(ProtocolDecoder === undefined) {
+            this.protocolName = "Unknown";
+        } else {
+            this.payload = new ProtocolDecoder(this.emitter).decode(raw_packet, offset, this.length - this.headerLength);
+        }
     }
-
     if(this.emitter) { this.emitter.emit("ipv4", this); }
     return this;
 };
