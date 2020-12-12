@@ -221,7 +221,7 @@ DNS.prototype.decode_RR = function (is_question) {
         rr.rdata = this.read_name();
         this.offset -= rr.rdlength; // read_name moves offset
     } else if (rr.type === 28 && rr.class === 1 && rr.rdlength === 16) {
-        rr.data = new IPv6Addr(this.raw_packet, this.offset);
+        rr.rdata = new IPv6Addr().decode(this.raw_packet, this.offset);
     }
     // TODO - decode other rr types
 
