@@ -153,6 +153,9 @@ DNS.prototype.read_name = function () {
     var pos = this.offset;
 
     while ((len_or_ptr = this.raw_packet[pos]) !== 0x00) {
+        if (!len_or_ptr) {
+            throw new Error("Malformed DNS Name: label length offset beyond packet length")
+        }
         if ((len_or_ptr & 0xC0) === 0xC0) {
             // pointer is bottom 6 bits of current byte, plus all 8 bits of next byte
             pos = ((len_or_ptr & ~0xC0) << 8) | this.raw_packet[pos + 1];
