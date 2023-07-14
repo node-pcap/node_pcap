@@ -153,6 +153,10 @@ DNS.prototype.read_name = function () {
     var pos = this.offset;
 
     while ((len_or_ptr = this.raw_packet[pos]) !== 0x00) {
+        // add from pr: https://github.com/node-pcap/node_pcap/pull/289/files
+        if (!len_or_ptr) {
+            throw new Error("Malformed DNS Name: label length offset beyond packet length");
+        }
         if ((len_or_ptr & 0xC0) === 0xC0) {
             // pointer is bottom 6 bits of current byte, plus all 8 bits of next byte
             pos = ((len_or_ptr & ~0xC0) << 8) | this.raw_packet[pos + 1];
@@ -221,7 +225,8 @@ DNS.prototype.decode_RR = function (is_question) {
         rr.rdata = this.read_name();
         this.offset -= rr.rdlength; // read_name moves offset
     } else if (rr.type === 28 && rr.class === 1 && rr.rdlength === 16) {
-        rr.data = new IPv6Addr(this.raw_packet, this.offset);
+        // this really seems like an issue, fix from pr: https://github.com/node-pcap/node_pcap/pull/274/files
+        rr.rdata = new IPv6Addr.decode(this.raw_packet, this.offset);
     }
     // TODO - decode other rr types
 
