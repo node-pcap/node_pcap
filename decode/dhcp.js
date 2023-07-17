@@ -1,6 +1,8 @@
 let IPv4Addr = require("./ipv4_addr");
 let EthernetAddr = require("./ethernet_addr");
 
+const magicDHCPNum = 1669485411;
+
 function DHCP(emitter) {
     this.emitter = emitter;
     this.messageType = undefined;
@@ -16,8 +18,9 @@ function DHCP(emitter) {
     this.nextRelayAgentIp = undefined;
     this.clientMac = undefined;
     this.serverHostName = undefined;
-    // skip file here
-    // TODO: flags with optional length, see: https://datatracker.ietf.org/doc/html/rfc2132, this will be a pain
+    this.options_raw = undefined;
+    this.options = undefined;
+    // flags with optional length, see: https://datatracker.ietf.org/doc/html/rfc2132
 }
 
 // TODO: test
@@ -39,9 +42,56 @@ DHCP.prototype.decode = function (raw_packet, offset) {
         this.serverHostName = "Server host name not given";
     }
     // read 128 bytes for file, offset + 108
-    // read options max 312 bytes, offset + 236
+    const magicNum = raw_packet.readUInt32BE(offset + 236);
+    if(magicNum !== magicDHCPNum) {
+        this.options = "Malformed input, magic value != 0x63825363";
+        return this;
+    }
+
+    const options = parseOptions(raw_packet, offset + 240);
+    this.options_raw = options;
+
+    this.options = decodeOptions(options);
 
     return this;
 };
+
+function parseOptions(raw_packet, offset) {
+    const options = {};
+    let optionsIndex = offset;
+    while (raw_packet[optionsIndex] !== 255) {
+        const currentOption = raw_packet[optionsIndex];
+        const currentLength = raw_packet[optionsIndex + 1];
+        options[currentOption] = raw_packet.slice(optionsIndex + 2, optionsIndex + 2 + currentLength);
+        optionsIndex += currentLength + 2;
+    }
+    return options;
+}
+
+const decoders = {
+    53: function (buffer) {
+        const lookupTable = {
+            1: "DHCPDISCOVER",
+            2: "DHCPOFFER",
+            3: "DHCPREQUEST",
+            4: "DHCPDECLINE",
+            5: "DHCPACK",
+            6: "DHCPNAK",
+            7: "DHCPRELEASE",
+            8: "DHCPINFORM"
+        };
+        return lookupTable[buffer[0]];
+    }
+};
+
+function decodeOptions(raw_options) {
+    const options = {};
+    Object.keys(raw_options).forEach(key => {
+        if(decoders[key] !== undefined) {
+            options[key] = decoders[key](raw_options[key]);
+        }
+    });
+    return options;
+}
 
 module.exports = DHCP;
