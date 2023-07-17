@@ -1,4 +1,5 @@
-var IPv4Addr = require("./ipv4_addr");
+let IPv4Addr = require("./ipv4_addr");
+let EthernetAddr = require("./ethernet_addr");
 
 function DHCP(emitter) {
     this.emitter = emitter;
@@ -16,7 +17,7 @@ function DHCP(emitter) {
     this.clientMac = undefined;
     this.serverHostName = undefined;
     // skip file here
-    // TODO: flags with optional length
+    // TODO: flags with optional length, see: https://datatracker.ietf.org/doc/html/rfc2132, this will be a pain
 }
 
 // TODO: test
@@ -32,8 +33,14 @@ DHCP.prototype.decode = function (raw_packet, offset) {
     this.yourIp = new IPv4Addr().decode(raw_packet, offset + 16); // 16, 17, 18, 19
     this.nextServerIp = new IPv4Addr().decode(raw_packet, offset + 20); // 20, 21, 22, 23
     this.nextRelayAgentIp = new IPv4Addr().decode(raw_packet, offset + 24); // 24, 25, 26, 27
-    this.clientMac = undefined;
-    this.serverHostName = undefined;
+    this.clientMac = new EthernetAddr(raw_packet, offset + 28); // read 16 bytes
+    this.serverHostName = raw_packet.slice(44, 108).toString().replaceAll("\x00", ""); //read 64 bytes, offset + 44
+    if (this.serverHostName === '') {
+        this.serverHostName = "Server host name not given";
+    }
+    // read 128 bytes for file, offset + 108
+    // read options max 312 bytes, offset + 236
+
     return this;
 };
 
