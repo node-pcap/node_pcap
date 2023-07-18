@@ -23,7 +23,6 @@ function DHCP(emitter) {
     // flags with optional length, see: https://datatracker.ietf.org/doc/html/rfc2132
 }
 
-// TODO: test
 DHCP.prototype.decode = function (raw_packet, offset) {
     this.messageType = raw_packet.readUInt8(offset); // 0
     this.hardwareType = raw_packet.readUInt8(offset + 1); // 1
@@ -41,7 +40,6 @@ DHCP.prototype.decode = function (raw_packet, offset) {
     if (this.serverHostName === '') {
         this.serverHostName = "Server host name not given";
     }
-    // read 128 bytes for file, offset + 108
     const magicNum = raw_packet.readUInt32BE(offset + 236);
     if(magicNum !== magicDHCPNum) {
         this.options = "Malformed input, magic value != 0x63825363";
@@ -70,15 +68,26 @@ function parseOptions(raw_packet, offset) {
 
 const decoders = {
     53: function (buffer) {
+        // see: https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol DHCP message types
         const lookupTable = {
-            1: "DHCPDISCOVER",
-            2: "DHCPOFFER",
-            3: "DHCPREQUEST",
-            4: "DHCPDECLINE",
-            5: "DHCPACK",
-            6: "DHCPNAK",
-            7: "DHCPRELEASE",
-            8: "DHCPINFORM"
+            1: "DHCP DISCOVER",
+            2: "DHCP OFFER",
+            3: "DHCP REQUEST",
+            4: "DHCP DECLINE",
+            5: "DHCP ACK",
+            6: "DHCP NAK",
+            7: "DHCP RELEASE",
+            8: "DHCP INFORM",
+            9: "DHCP FORCE RENEW",
+            10: "DHCP LEASE QUERY",
+            11: "DHCP LEASE UNASSIGNED",
+            12: "DHCP LEASE UNKNOWN",
+            13: "DHCP LEASE ACTIVE",
+            14: "DHCP BULK LEASE QUERY",
+            15: "DHCP LEASE QUERY DONE",
+            16: "DHCP ACTIVE LEASE QUERY",
+            17: "DHCP LEASE QUERY STATUS",
+            18: "DHCP TLS",
         };
         return lookupTable[buffer[0]];
     }
