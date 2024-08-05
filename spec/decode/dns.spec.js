@@ -44,7 +44,7 @@ describe("Dns", function(){
 
     it("sets #header.isRecursionDesired to true if a recursive look up was desired", function() {
       this.instance.decode(this.example, 0);
-      this.instance.header.should.have.property("isRecursionDesired", false);
+      this.instance.header.should.have.property("isRecursionDesired", true);
     });
 
     it("sets #header.isRecursionAvailible to true if the server supports recursion", function() {
