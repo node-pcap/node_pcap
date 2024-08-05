@@ -82,6 +82,7 @@ function PcapSession(is_live, device_name, filter, buffer_size, snap_length, out
             do {
                 packets = this.session.dispatch(this.buf, this.header);
             } while ( packets > 0 );
+            this.emit("end");
             this.emit("complete");
         });
     }
